@@ -13,13 +13,15 @@ use RuntimeException;
 final class ApiException extends RuntimeException
 {
     /**
-     * @param array<string, string> $fields errores por campo (solo VALIDATION_ERROR)
+     * @param array<string, string> $fields  errores por campo (solo VALIDATION_ERROR)
+     * @param array<string, string> $headers cabeceras extra de la respuesta (p. ej. Retry-After)
      */
     public function __construct(
         public readonly int $status,
         public readonly string $errorCode,
         string $message,
         public readonly array $fields = [],
+        public readonly array $headers = [],
     ) {
         parent::__construct($message, $status);
     }
@@ -35,5 +37,16 @@ final class ApiException extends RuntimeException
     public static function unauthorized(string $message = 'Autenticación requerida o sesión no válida.'): self
     {
         return new self(401, 'UNAUTHORIZED', $message);
+    }
+
+    public static function rateLimited(int $retryAfterSeconds): self
+    {
+        return new self(
+            429,
+            'RATE_LIMITED',
+            'Demasiadas solicitudes. Intenta de nuevo más tarde.',
+            [],
+            ['Retry-After' => (string) $retryAfterSeconds],
+        );
     }
 }

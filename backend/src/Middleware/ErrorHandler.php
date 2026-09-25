@@ -36,12 +36,17 @@ final class ErrorHandler implements ErrorHandlerInterface
         bool $logErrorDetails,
     ): ResponseInterface {
         if ($exception instanceof ApiException) {
-            return JsonResponse::error(
+            $response = JsonResponse::error(
                 $exception->errorCode,
                 $exception->getMessage(),
                 $exception->status,
                 $exception->fields,
             );
+            foreach ($exception->headers as $name => $value) {
+                $response = $response->withHeader($name, $value);
+            }
+
+            return $response;
         }
 
         if ($exception instanceof HttpNotFoundException) {

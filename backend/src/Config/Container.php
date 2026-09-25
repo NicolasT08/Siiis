@@ -8,9 +8,14 @@ use DI\ContainerBuilder;
 use Psr\Container\ContainerInterface;
 use Siiis\Database\Mongo;
 use Siiis\Middleware\ErrorHandler;
+use Siiis\Security\JwtService;
+use Siiis\Security\RateLimiter;
+use Siiis\Support\Clock;
 use Siiis\Support\Logger;
+use Siiis\Support\SystemClock;
 
 use function DI\factory;
+use function DI\get;
 
 /**
  * Contenedor PHP-DI (DEC-B01). Las pruebas pasan $overrides para sustituir repositorios y servicios.
@@ -28,6 +33,17 @@ final class Container
             Settings::class => $settings,
             Logger::class => factory(static fn (Settings $s): Logger => new Logger($s->storagePath . '/logs')),
             Mongo::class => factory(static fn (Settings $s): Mongo => new Mongo($s->mongoUri, $s->mongoDbName)),
+            Clock::class => get(SystemClock::class),
+            JwtService::class => factory(
+                static fn (Settings $s, Clock $clock): JwtService => new JwtService($s->jwtSecret, $s->jwtTtlSeconds, $clock),
+            ),
+            RateLimiter::class => factory(
+                static fn (Settings $s, Clock $clock, Logger $logger): RateLimiter => new RateLimiter(
+                    $s->storagePath . '/ratelimit',
+                    $clock,
+                    $logger,
+                ),
+            ),
             ErrorHandler::class => factory(
                 static fn (Logger $logger, Settings $s): ErrorHandler => new ErrorHandler($logger, $s->appDebug),
             ),
