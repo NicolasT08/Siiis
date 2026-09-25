@@ -5,4 +5,5 @@ parameters:
         - public
         - scripts
         - tests
+        - bootstrap.php
     tmpDir: storage/cache/phpstan
