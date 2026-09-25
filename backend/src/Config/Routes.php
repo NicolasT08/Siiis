@@ -28,6 +28,8 @@ final class Routes
                 $auth->post('/login', [AuthController::class, 'login']);
                 $auth->get('/me', [AuthController::class, 'me'])->add(AuthMiddleware::class);
                 $auth->post('/logout', [AuthController::class, 'logout'])->add(AuthMiddleware::class);
+                $auth->post('/forgot-password', [AuthController::class, 'forgotPassword']);
+                $auth->post('/reset-password', [AuthController::class, 'resetPassword']);
             });
         });
     }

@@ -117,3 +117,11 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 - Estado: PROPUESTA
 - Contexto: `reset-password` busca por el hash del token. La sección 8.4 no incluye ese índice.
 - Decisión: no se crea (colección pequeña). Si crece, proponer un índice `sparse` al equipo de BD.
+
+## DEC-B15 — Diferencia de tiempo en `forgot-password`
+
+- Estado: PROPUESTA (limitación conocida)
+- Fecha: 2026-09-25
+- Contexto: el cuerpo y el status de `forgot-password` son idénticos exista o no el correo, pero el envío SMTP es síncrono (hosting compartido sin colas). Una cuenta existente tarda más en responder, lo que en teoría permite enumerar correos midiendo tiempos.
+- Mitigación actual: rate limiting por IP (`RATE_LIMIT_FORGOT_*`).
+- Alternativa futura: responder primero y enviar después (`litespeed_finish_request()` / `fastcgi_finish_request()` si Hostinger lo permite).
