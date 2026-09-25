@@ -76,7 +76,7 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 - Estado: DECISION_REQUIRED
 - Fecha: 2026-09-25
 - Contexto: `estado_cuenta` admite `pendiente_verificacion`, pero no hay flujo de verificación definido.
-- Provisional: login rechazado con `403 ACCOUNT_PENDING`.
+- Provisional: login rechazado con `403 ACCOUNT_PENDING`. Cualquier otro valor de `estado_cuenta` distinto de `activa` (incluidos valores fuera del modelo) se trata como `403 ACCOUNT_BLOCKED`.
 - Falta decidir: cómo y quién verifica una cuenta.
 
 ## DEC-B09 — Recuperación de contraseña solo para cuentas activas

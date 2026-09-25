@@ -1,0 +1,73 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Siiis\Controllers;
+
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Siiis\Config\Settings;
+use Siiis\Middleware\AuthMiddleware;
+use Siiis\Security\RateLimiter;
+use Siiis\Services\AuthService;
+use Siiis\Support\ApiException;
+use Siiis\Support\ClientIp;
+use Siiis\Support\JsonResponse;
+use Siiis\Validation\LoginValidator;
+
+/**
+ * Endpoints de autenticación local (spec 10.7 y 11.3). Login con Google: fuera de la fase 1.
+ */
+final class AuthController
+{
+    public function __construct(
+        private readonly AuthService $auth,
+        private readonly RateLimiter $rateLimiter,
+        private readonly Settings $settings,
+        private readonly LoginValidator $loginValidator,
+    ) {
+    }
+
+    /**
+     * POST /api/v1/auth/login
+     */
+    public function login(ServerRequestInterface $request): ResponseInterface
+    {
+        $ip = ClientIp::from($request);
+        $this->limit('login', $ip, $this->settings->rateLimitLoginMax, $this->settings->rateLimitLoginWindowSeconds);
+
+        $input = $this->loginValidator->validate($request->getParsedBody());
+
+        return JsonResponse::ok($this->auth->login($input['correo'], $input['password'], $ip))
+            ->withHeader('Cache-Control', 'no-store');
+    }
+
+    /**
+     * GET /api/v1/auth/me
+     */
+    public function me(ServerRequestInterface $request): ResponseInterface
+    {
+        $usuarioId = (string) $request->getAttribute(AuthMiddleware::ATTR_USUARIO_ID);
+
+        return JsonResponse::ok(['usuario' => $this->auth->usuarioActual($usuarioId)])
+            ->withHeader('Cache-Control', 'no-store');
+    }
+
+    /**
+     * POST /api/v1/auth/logout (PROPUESTA DEC-B05)
+     */
+    public function logout(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->auth->logout((string) $request->getAttribute(AuthMiddleware::ATTR_SESSION_HASH));
+
+        return JsonResponse::noContent();
+    }
+
+    private function limit(string $action, string $ip, int $max, int $window): void
+    {
+        $retryAfter = $this->rateLimiter->hit($action, $ip, $max, $window);
+        if ($retryAfter > 0) {
+            throw ApiException::rateLimited($retryAfter);
+        }
+    }
+}
