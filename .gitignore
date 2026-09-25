@@ -1,0 +1,29 @@
+# Secretos: nunca versionar .env reales (solo .env.example)
+.env
+.env.*
+!.env.example
+
+# Dependencias
+backend/vendor/
+
+# Storage del backend (se versionan solo los .gitkeep)
+backend/storage/logs/*
+backend/storage/ratelimit/*
+backend/storage/cache/*
+!backend/storage/logs/.gitkeep
+!backend/storage/ratelimit/.gitkeep
+!backend/storage/cache/.gitkeep
+
+# Herramientas de calidad
+backend/.phpunit.cache/
+backend/.php-cs-fixer.cache
+backend/coverage/
+
+# Datos locales de seed (si se personalizan)
+backend/scripts/data/multimedia_seed.json
+
+# Sistema / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

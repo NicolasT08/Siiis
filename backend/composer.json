@@ -1,0 +1,57 @@
+{
+    "name": "siiis/backend",
+    "description": "API backend del sitio web SIIIS V3 (Semillero SIIIS, UPTC)",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.2",
+        "ext-curl": "*",
+        "ext-fileinfo": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-mongodb": "^1.21",
+        "ext-openssl": "*",
+        "firebase/php-jwt": "^7.0",
+        "mongodb/mongodb": "^1.21.4",
+        "php-di/php-di": "^7.0",
+        "phpmailer/phpmailer": "^6.9",
+        "slim/psr7": "^1.7",
+        "slim/slim": "^4.14",
+        "vlucas/phpdotenv": "^5.6"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.64",
+        "phpstan/phpstan": "^1.12",
+        "phpunit/phpunit": "^11.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Siiis\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Siiis\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "platform": {
+            "php": "8.2.34",
+            "ext-mongodb": "1.21.9"
+        },
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "scripts": {
+        "serve": [
+            "Composer\\Config::disableProcessTimeout",
+            "php -S localhost:8000 -t public public/index.php"
+        ],
+        "test": "phpunit",
+        "lint": "php-cs-fixer fix --dry-run --diff",
+        "lint:fix": "php-cs-fixer fix",
+        "analyse": "phpstan analyse --memory-limit=512M"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
