@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.application import create_app
 from app.container import Container
 from tests.fakes import (
+    FakeMailService,
     InMemoryCredencialesRepository,
     InMemoryDatabase,
     InMemorySesionesRepository,
@@ -27,6 +28,7 @@ class AuthEnv:
         self.credenciales = InMemoryCredencialesRepository(self.db)
         self.clock = FixedClock()
         self.logger = MemoryLogger()
+        self.mail = FakeMailService()
 
     def build_container(self, **settings: Any) -> Container:
         config = make_settings(
@@ -40,6 +42,7 @@ class AuthEnv:
             credenciales=self.credenciales,
             usuarios=InMemoryUsuariosRepository(self.db),
             sesiones=InMemorySesionesRepository(self.db),
+            mail=self.mail,
         )
 
     def client(self, container: Container | None = None, **settings: Any) -> TestClient:

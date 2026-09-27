@@ -1,5 +1,6 @@
 """Dobles en memoria de Mongo y de los repositorios (equivalentes a tests/Support de PHP)."""
 
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -7,6 +8,7 @@ import bcrypt
 from bson import ObjectId
 
 from app.database import Document, Mongo
+from app.mail import MailError, MailService
 from app.repositories.credenciales import CredencialesRepository
 from app.repositories.multimedia import MultimediaRepository
 from app.repositories.sesiones import SesionesRepository
@@ -198,3 +200,24 @@ class InMemorySesionesRepository(SesionesRepository):
         for doc in self._db.sesiones.values():
             if doc["usuario_id"] == usuario_id:
                 doc["activa"] = False
+
+
+class FakeMailService(MailService):
+    """Guarda los correos en memoria o simula una falla SMTP."""
+
+    def __init__(self, fallar: bool = False) -> None:
+        self._fallar = fallar
+        self.enviados: list[dict[str, str]] = []
+
+    def send(self, to: str, subject: str, html: str, text: str = "") -> None:
+        if self._fallar:
+            raise MailError("SMTP caído (simulado)")
+        self.enviados.append({"to": to, "subject": subject, "html": html, "text": text})
+
+    def ultimo_token(self) -> str:
+        match = (
+            re.search(r"token=([a-f0-9]{64})", self.enviados[-1]["text"]) if self.enviados else None
+        )
+        if match is None:
+            raise AssertionError("No se envió ningún token")
+        return match.group(1)

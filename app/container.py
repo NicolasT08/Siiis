@@ -12,6 +12,7 @@ from app.clock import Clock, SystemClock
 from app.config import Settings
 from app.database import Mongo
 from app.logger import Logger
+from app.mail import MailService
 from app.rate_limit import RateLimiter
 from app.repositories.credenciales import CredencialesRepository
 from app.repositories.multimedia import MultimediaRepository
@@ -19,6 +20,7 @@ from app.repositories.sesiones import SesionesRepository
 from app.repositories.usuarios import UsuariosRepository
 from app.security import JwtService, PasswordHasher
 from app.services.auth_service import AuthService
+from app.services.password_reset_service import PasswordResetService
 
 DEFAULT_STORAGE_PATH = Path(__file__).resolve().parent.parent / "storage"
 
@@ -36,7 +38,9 @@ class Container:
     usuarios: UsuariosRepository
     sesiones: SesionesRepository
     multimedia: MultimediaRepository
+    mail: MailService
     auth: AuthService
+    password_reset: PasswordResetService
 
     @classmethod
     def build(
@@ -52,6 +56,7 @@ class Container:
         usuarios: UsuariosRepository | None = None,
         sesiones: SesionesRepository | None = None,
         multimedia: MultimediaRepository | None = None,
+        mail: MailService | None = None,
     ) -> "Container":
         clock = clock or SystemClock()
         logger = logger or Logger(storage_path / "logs")
@@ -61,6 +66,7 @@ class Container:
         credenciales = credenciales or CredencialesRepository(mongo)
         usuarios = usuarios or UsuariosRepository(mongo)
         sesiones = sesiones or SesionesRepository(mongo)
+        mail = mail or MailService(settings)
 
         return cls(
             settings=settings,
@@ -74,8 +80,12 @@ class Container:
             usuarios=usuarios,
             sesiones=sesiones,
             multimedia=multimedia or MultimediaRepository(mongo),
+            mail=mail,
             auth=AuthService(
                 credenciales, usuarios, sesiones, hasher, jwt, clock, settings, logger
+            ),
+            password_reset=PasswordResetService(
+                credenciales, usuarios, sesiones, hasher, mail, clock, settings, logger
             ),
         )
 
