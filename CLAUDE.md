@@ -7,9 +7,19 @@ El frontend debe poder cambiar de backend **solo cambiando la URL base**.
 
 1. `docs/api.md`: contrato exacto implementado en PHP. **No modificarlo.** Si contradice al spec, gana `api.md`.
 2. `docs/decisions.md`: decisiones DEC-B01 a DEC-B15 del backend PHP.
-3. `docs/SIIIS_V3_SPEC_DRIVEN_1.md`: requisitos, modelo de datos (sección 8) y seguridad (sección 18). Ignorar las partes exclusivas de PHP/Hostinger (0.5, 0.6, 10.13, 16, 17.3–17.7).
+3. `docs/SIIIS_V3_SPEC_DRIVEN.md`: requisitos, modelo de datos (sección 8) y seguridad (sección 18). Ignorar las partes exclusivas de PHP/Hostinger (0.5, 0.6, 10.13, 16, 17.3–17.7).
 4. `docs/PROMPT_CLAUDE_CODE_BACKEND_PYTHON_FASE1.md`: alcance e instrucciones de esta fase.
 5. `docs/decisions-python.md`: diferencias con PHP y decisiones nuevas (`DECISION_REQUIRED` / `TODO_SPEC`).
+6. Código PHP de referencia: `D:\NickG\Documentos\Programacion\Uni\PHP\SIIIS\backend` (textos exactos
+   de `message`/`fields` y comportamiento). **Solo lectura**: no modificar nada, no leer su
+   `backend/.env` ni ejecutar git en ese proyecto.
+
+## Módulos (`app/`)
+
+`application.py` (crea la app) · `main.py` (entrada de uvicorn) · `config.py` · `container.py`
+(dependencias, sustituibles en pruebas) · `errors.py` · `responses.py` · `request_body.py`
+(JsonBodyMiddleware) · `cors.py` · `validation.py` (InputReader + validadores) · `security.py` ·
+`serializers.py` · `database.py` · `logger.py` · `clock.py` · `client_ip.py`.
 
 ## Stack
 

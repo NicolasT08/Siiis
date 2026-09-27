@@ -30,6 +30,10 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+filterwarnings = [
+    # Starlette 1.x sugiere httpx2 para TestClient; httpx sigue funcionando (ver decisions-python.md).
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
 markers = [
     "integration: pruebas contra MONGO_DB_NAME_TEST en Atlas (se saltan sin MONGO_URI)",
 ]

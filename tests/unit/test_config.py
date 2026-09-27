@@ -60,3 +60,40 @@ def test_variables_de_entorno_tienen_prioridad(
     env = escribir_env(tmp_path, f"MONGO_URI=mongodb://archivo\nJWT_SECRET={SECRETO_VALIDO}\n")
     monkeypatch.setenv("MONGO_URI", "mongodb://entorno")
     assert load_settings(env).mongo_uri == "mongodb://entorno"
+
+
+def test_reglas_de_php_trim_bool_y_defaults(tmp_path: Path) -> None:
+    env = escribir_env(
+        tmp_path,
+        "MONGO_URI=  mongodb://localhost  \n"
+        f"JWT_SECRET={SECRETO_VALIDO}\n"
+        "APP_DEBUG=on\n"
+        "MAIL_FROM_NAME=   \n"
+        "HOME_MAX_ITEMS=\n",
+    )
+    settings = load_settings(env)
+    assert settings.mongo_uri == "mongodb://localhost"
+    assert settings.app_debug is True
+    assert settings.app_env == "production"
+    assert settings.mail_from_name == "Semillero SIIIS"
+    assert settings.home_max_items == 20
+
+
+def test_app_debug_con_texto_desconocido_es_false(tmp_path: Path) -> None:
+    env = escribir_env(tmp_path, f"MONGO_URI=m\nJWT_SECRET={SECRETO_VALIDO}\nAPP_DEBUG=quizas\n")
+    assert load_settings(env).app_debug is False
+
+
+@pytest.mark.parametrize("valor", ["0", "-5", "+5", "5.0", "diez"])
+def test_enteros_deben_ser_positivos(tmp_path: Path, valor: str) -> None:
+    env = escribir_env(
+        tmp_path, f"MONGO_URI=m\nJWT_SECRET={SECRETO_VALIDO}\nRATE_LIMIT_LOGIN_MAX={valor}\n"
+    )
+    with pytest.raises(ConfigError, match="RATE_LIMIT_LOGIN_MAX: debe ser un entero positivo"):
+        load_settings(env)
+
+
+def test_secreto_con_solo_espacios_cuenta_como_ausente(tmp_path: Path) -> None:
+    env = escribir_env(tmp_path, "MONGO_URI=m\nJWT_SECRET=      \n")
+    with pytest.raises(ConfigError, match="JWT_SECRET: falta la variable"):
+        load_settings(env)
