@@ -19,7 +19,9 @@ El frontend debe poder cambiar de backend **solo cambiando la URL base**.
 `application.py` (crea la app) · `main.py` (entrada de uvicorn) · `config.py` · `container.py`
 (dependencias, sustituibles en pruebas) · `errors.py` · `responses.py` · `request_body.py`
 (JsonBodyMiddleware) · `cors.py` · `validation.py` (InputReader + validadores) · `security.py` ·
-`serializers.py` · `database.py` · `logger.py` · `clock.py` · `client_ip.py`.
+`serializers.py` · `database.py` · `logger.py` · `clock.py` · `client_ip.py` · `auth.py`
+(AuthMiddleware) · `rate_limit.py` · `mail.py` · `repositories/` · `services/` · `routers/`.
+Dobles de prueba en `tests/fakes.py`; entorno de pruebas de auth en `tests/api/auth_env.py`.
 
 ## Stack
 
@@ -31,8 +33,9 @@ PyJWT (HS256) · bcrypt · smtplib · pytest + httpx · ruff · mypy (strict).
 ```powershell
 py -3.14 -m venv .venv                                  # crear entorno
 .venv\Scripts\python -m pip install -r requirements-dev.txt
-.venv\Scripts\uvicorn app.main:app --reload --port 8001 # correr (puerto 8001; PHP usa 8000)
-.venv\Scripts\python -m pytest                          # pruebas
+.venv\Scripts\uvicorn app.main:app --reload --port 8001 --no-proxy-headers  # PHP usa 8000
+.venv\Scripts\python -m pytest                          # pruebas (-m "not integration": sin Atlas)
+.venv\Scripts\python -m scripts.crear_superadmin --test # superadmin en MONGO_DB_NAME_TEST
 .venv\Scripts\ruff check .                              # lint
 .venv\Scripts\ruff format --check .                     # formato
 .venv\Scripts\mypy                                      # tipos

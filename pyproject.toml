@@ -19,7 +19,7 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "N", "S", "RUF"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "tests"]
+files = ["app", "tests", "scripts"]
 exclude = ["^\\.venv/"]
 
 [tool.pydantic-mypy]

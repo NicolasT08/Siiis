@@ -110,10 +110,27 @@ Complementa `docs/decisions.md` (backend PHP). Formato según la sección 29 del
 
 - Estado: PROPUESTA
 - Contexto: PHP usa `REMOTE_ADDR` y no confía en `X-Forwarded-For`. Uvicorn, por defecto, sí acepta `X-Forwarded-For` cuando la petición viene de `127.0.0.1`.
-- Decisión: `app/client_ip.py` usa la dirección de la conexión. Para igualar a PHP también en local, se recomienda arrancar con `--no-proxy-headers` (se documentará en el README).
+- Decisión: `app/client_ip.py` usa la dirección de la conexión. Para igualar a PHP también en local, se recomienda arrancar con `--no-proxy-headers` (documentado en el README).
 
 ## DEC-P14 — `httpx` para `TestClient`
 
 - Estado: PROPUESTA
 - Contexto: Starlette 1.x muestra un aviso de obsolescencia al usar `httpx` en `TestClient` y sugiere `httpx2`. El prompt fija `httpx`.
 - Decisión: se mantiene `httpx==0.28.1` (funciona) y el aviso se silencia en `pyproject.toml`. Cambiar a `httpx2` es una decisión del equipo.
+
+## DEC-P15 — Sin script de índices en Python
+
+- Estado: APROBADA (prompt de la fase: "no crees índices nuevos ni con opciones distintas")
+- Decisión: este proyecto no crea ni modifica índices. Los índices oficiales los crea `php scripts/crear_indices.php` (`correo_unico`, `credencial_id_unico`, `categoria_estado`, `estado_solicitud`, `token` y `fecha_expiracion_ttl` con `expireAfterSeconds: 0`). Una prueba de integración comprueba que el índice único `correo_unico` existe en `siiis_test`.
+- **Hallazgo (2026-09-27, solo lectura):** en `siiis_test` están los 6 índices oficiales. En la base principal `siiis` no hay ninguno (las colecciones todavía no existen), así que `crear_indices.php` solo se ha ejecutado con `--test`. Antes de crear usuarios reales hay que ejecutarlo contra `siiis` desde el proyecto PHP.
+
+## DEC-P16 — `crear_superadmin` en Python
+
+- Estado: PROPUESTA
+- Decisión: `python -m scripts.crear_superadmin [--test]` escribe los mismos campos y aplica las mismas validaciones y la misma transacción que `crear_superadmin.php`. El hash sale con prefijo `$2b$`: PHP lo verifica (comprobado) y lo reescribe como `$2y$` en su primer login (DEC-P03).
+- No se replica `seed_multimedia.php`, que no es obligatorio en la fase 1.
+
+## DEC-P17 — Detalles del correo
+
+- Estado: APROBADA (backend)
+- Decisión: mismo asunto, HTML y texto que PHP (`htmlspecialchars` con `&apos;`). El texto alternativo sin HTML se genera igual que `strip_tags()` de PHP, que no decodifica las entidades HTML (`&amp;` se queda así). En recuperación de contraseña siempre se envía el texto explícito, así que esto solo importa si otro módulo usa el servicio de correo.
