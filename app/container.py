@@ -12,8 +12,13 @@ from app.clock import Clock, SystemClock
 from app.config import Settings
 from app.database import Mongo
 from app.logger import Logger
+from app.rate_limit import RateLimiter
+from app.repositories.credenciales import CredencialesRepository
 from app.repositories.multimedia import MultimediaRepository
+from app.repositories.sesiones import SesionesRepository
+from app.repositories.usuarios import UsuariosRepository
 from app.security import JwtService, PasswordHasher
+from app.services.auth_service import AuthService
 
 DEFAULT_STORAGE_PATH = Path(__file__).resolve().parent.parent / "storage"
 
@@ -26,7 +31,12 @@ class Container:
     mongo: Mongo
     hasher: PasswordHasher
     jwt: JwtService
+    rate_limiter: RateLimiter
+    credenciales: CredencialesRepository
+    usuarios: UsuariosRepository
+    sesiones: SesionesRepository
     multimedia: MultimediaRepository
+    auth: AuthService
 
     @classmethod
     def build(
@@ -38,18 +48,35 @@ class Container:
         logger: Logger | None = None,
         mongo: Mongo | None = None,
         hasher: PasswordHasher | None = None,
+        credenciales: CredencialesRepository | None = None,
+        usuarios: UsuariosRepository | None = None,
+        sesiones: SesionesRepository | None = None,
         multimedia: MultimediaRepository | None = None,
     ) -> "Container":
         clock = clock or SystemClock()
+        logger = logger or Logger(storage_path / "logs")
         mongo = mongo or Mongo(settings.mongo_uri, settings.mongo_db_name)
+        hasher = hasher or PasswordHasher()
+        jwt = JwtService(settings.jwt_secret, settings.jwt_ttl_seconds, clock)
+        credenciales = credenciales or CredencialesRepository(mongo)
+        usuarios = usuarios or UsuariosRepository(mongo)
+        sesiones = sesiones or SesionesRepository(mongo)
+
         return cls(
             settings=settings,
             clock=clock,
-            logger=logger or Logger(storage_path / "logs"),
+            logger=logger,
             mongo=mongo,
-            hasher=hasher or PasswordHasher(),
-            jwt=JwtService(settings.jwt_secret, settings.jwt_ttl_seconds, clock),
+            hasher=hasher,
+            jwt=jwt,
+            rate_limiter=RateLimiter(clock),
+            credenciales=credenciales,
+            usuarios=usuarios,
+            sesiones=sesiones,
             multimedia=multimedia or MultimediaRepository(mongo),
+            auth=AuthService(
+                credenciales, usuarios, sesiones, hasher, jwt, clock, settings, logger
+            ),
         )
 
 
