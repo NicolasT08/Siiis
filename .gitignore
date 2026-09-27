@@ -26,3 +26,7 @@ storage/
 .idea/
 Thumbs.db
 .DS_Store
+
+backend/docs/
+
+CLAUDE.md
