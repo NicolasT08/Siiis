@@ -12,6 +12,7 @@ from app.clock import Clock, SystemClock
 from app.config import Settings
 from app.database import Mongo
 from app.logger import Logger
+from app.repositories.multimedia import MultimediaRepository
 from app.security import JwtService, PasswordHasher
 
 DEFAULT_STORAGE_PATH = Path(__file__).resolve().parent.parent / "storage"
@@ -25,6 +26,7 @@ class Container:
     mongo: Mongo
     hasher: PasswordHasher
     jwt: JwtService
+    multimedia: MultimediaRepository
 
     @classmethod
     def build(
@@ -36,15 +38,18 @@ class Container:
         logger: Logger | None = None,
         mongo: Mongo | None = None,
         hasher: PasswordHasher | None = None,
+        multimedia: MultimediaRepository | None = None,
     ) -> "Container":
         clock = clock or SystemClock()
+        mongo = mongo or Mongo(settings.mongo_uri, settings.mongo_db_name)
         return cls(
             settings=settings,
             clock=clock,
             logger=logger or Logger(storage_path / "logs"),
-            mongo=mongo or Mongo(settings.mongo_uri, settings.mongo_db_name),
+            mongo=mongo,
             hasher=hasher or PasswordHasher(),
             jwt=JwtService(settings.jwt_secret, settings.jwt_ttl_seconds, clock),
+            multimedia=multimedia or MultimediaRepository(mongo),
         )
 
 

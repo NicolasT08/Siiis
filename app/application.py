@@ -14,13 +14,18 @@ from app.container import Container
 from app.cors import CorsMiddleware
 from app.errors import ErrorBoundaryMiddleware, register_exception_handlers
 from app.request_body import parse_body
+from app.routers import health, home
 
 API_PREFIX = "/api/v1"
 
 
 def build_api_router() -> APIRouter:
-    """Router /api/v1. Las rutas de cada módulo se registran aquí."""
-    return APIRouter(prefix=API_PREFIX, dependencies=[Depends(parse_body)])
+    """Router /api/v1. Las rutas de cada módulo se registran aquí (POST /auth/google: fuera de
+    la fase 1, responde 404)."""
+    api = APIRouter(prefix=API_PREFIX, dependencies=[Depends(parse_body)])
+    api.include_router(health.router)
+    api.include_router(home.router)
+    return api
 
 
 def create_app(settings: Settings, container: Container | None = None) -> FastAPI:
