@@ -2,7 +2,6 @@
 
 Versión 3 del sitio web del **Semillero de Investigación SIIIS** (Ingeniería de Sistemas y Computación, UPTC). Reemplaza la versión actual del sitio y facilita la publicación de proyectos, artículos y noticias, la inscripción al semillero y la participación de la comunidad académica.
 
-> Proyecto académico de 16 semanas. Metodología: **Spec-Driven Development**. La fuente de verdad es [`backend/docs/SIIIS_V3_SPEC_DRIVEN.md`](backend/docs/SIIIS_V3_SPEC_DRIVEN.md).
 
 ---
 
@@ -14,8 +13,6 @@ Versión 3 del sitio web del **Semillero de Investigación SIIIS** (Ingeniería 
 ├── backend/      # API REST en Python + FastAPI
 └── README.md
 ```
-
-Cada carpeta tiene su propio `README.md` con los detalles de instalación y desarrollo.
 
 ---
 
@@ -132,35 +129,6 @@ cd backend
 
 ---
 
-## Documentación
-
-| Documento | Contenido |
-|---|---|
-| [`backend/docs/SIIIS_V3_SPEC_DRIVEN.md`](backend/docs/SIIIS_V3_SPEC_DRIVEN.md) | Especificación maestra: requisitos, modelo de datos, seguridad y reglas |
-| [`backend/docs/api.md`](backend/docs/api.md) | Contrato de la API para el frontend |
-| [`backend/docs/decisions.md`](backend/docs/decisions.md) · [`backend/docs/decisions-python.md`](backend/docs/decisions-python.md) | Registro de decisiones técnicas y temas pendientes |
-| [`backend/README.md`](backend/README.md) | Detalles del backend |
-| `frontend/README.md` | Detalles del frontend |
-
----
-
-## Estado del proyecto
-
-| Módulo | Backend | Frontend |
-|---|---|---|
-| Autenticación (login, logout, sesión) | ✅ Listo | 🔄 En integración |
-| Recuperación de contraseña | ✅ Listo (falta configurar el correo SMTP) | 🔄 En progreso |
-| Página de inicio (slider y videos) | ✅ Listo | 🔄 En progreso |
-| Login con Google | ⏳ Pendiente | ⏳ Pendiente |
-| Artículos, proyectos y noticias | ⏳ Pendiente | ⏳ Pendiente |
-| Usuarios e integrantes | ⏳ Pendiente | ⏳ Pendiente |
-| Reseñas | ⏳ Pendiente | ⏳ Pendiente |
-| Inscripción al semillero | ⏳ Pendiente | ⏳ Pendiente |
-| Contacto | ⏳ Pendiente | ⏳ Pendiente |
-| Panel de administración | ⏳ Pendiente | ⏳ Pendiente |
-
----
-
 ## Equipo
 
 | Rol | Integrante |
@@ -171,13 +139,3 @@ cd backend
 | Desarrollo Back-End | Nicolás Samuel Tinjaca Topia |
 
 **Cliente:** Semillero de Investigación SIIIS — Escuela de Ingeniería de Sistemas y Computación, UPTC.
-
----
-
-## Reglas de colaboración
-
-- Trabajar en ramas y abrir un pull request para cambios relevantes.
-- Commits pequeños, con mensajes descriptivos en español.
-- No subir secretos (`.env`), dependencias instaladas (`.venv/`, `node_modules/`) ni archivos temporales.
-- Cualquier cambio en el contrato de la API se coordina entre frontend y backend y se documenta en `backend/docs/api.md`.
-- Las decisiones de arquitectura o de base de datos se registran en `backend/docs/decisions.md`.
