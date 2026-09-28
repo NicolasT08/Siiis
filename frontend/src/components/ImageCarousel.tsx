@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { api } from '../lib/api';
 
-const IMAGES = [
+// Respaldo si GET /home/slider falla o no trae imágenes.
+const FALLBACK_IMAGES = [
   'https://res.cloudinary.com/we3ya7sq/image/upload/w_1600,q_auto:best,f_auto,e_sharpen:50,e_saturation:8/v1789084069/Foto_1.jpg',
   'https://res.cloudinary.com/we3ya7sq/image/upload/w_1600,q_auto:best,f_auto,e_sharpen:50,e_saturation:8/v1789084067/Foto_2.jpg',
   'https://res.cloudinary.com/we3ya7sq/image/upload/w_1600,q_auto:best,f_auto,e_sharpen:50,e_saturation:8/v1789084067/Foto_3.jpg',
@@ -16,6 +18,7 @@ const RESUME_DELAY_MS = 5000;
 const DRAG_THRESHOLD = 60;
 
 export default function ImageCarousel() {
+  const [images, setImages] = useState<string[]>(FALLBACK_IMAGES);
   const [index, setIndex] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -23,9 +26,27 @@ export default function ImageCarousel() {
   const [barKey, setBarKey] = useState(0);
   const dragStartRef = useRef<number | null>(null);
 
-  const singleImage = IMAGES.length === 1;
-  const slides = [IMAGES[IMAGES.length - 1], ...IMAGES, IMAGES[0]];
-  const currentIndex = ((index - 1) % IMAGES.length + IMAGES.length) % IMAGES.length;
+  useEffect(() => {
+    const controller = new AbortController();
+    api
+      .slider(controller.signal)
+      .then(({ data }) => {
+        const urls = data.filter((item) => item.tipo === 'imagen' && item.url).map((item) => item.url);
+        if (urls.length) {
+          setImages(urls);
+          setIndex(1);
+          setBarKey((prev) => prev + 1);
+        }
+      })
+      .catch(() => {
+        // Se quedan las imágenes de respaldo.
+      });
+    return () => controller.abort();
+  }, []);
+
+  const singleImage = images.length === 1;
+  const slides = [images[images.length - 1], ...images, images[0]];
+  const currentIndex = ((index - 1) % images.length + images.length) % images.length;
 
   const goTo = (nextIndex: number) => {
     setIndex(nextIndex);
@@ -49,12 +70,12 @@ export default function ImageCarousel() {
   useEffect(() => {
     if (index === 0) {
       const timeout = window.setTimeout(() => {
-        setIndex(IMAGES.length);
+        setIndex(images.length);
       }, 350);
       return () => window.clearTimeout(timeout);
     }
 
-    if (index === IMAGES.length + 1) {
+    if (index === images.length + 1) {
       const timeout = window.setTimeout(() => {
         setIndex(1);
       }, 350);
@@ -62,7 +83,7 @@ export default function ImageCarousel() {
     }
 
     return undefined;
-  }, [index]);
+  }, [index, images.length]);
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -131,7 +152,7 @@ export default function ImageCarousel() {
       <div className="carousel carousel--single" aria-label="Carrusel de imágenes">
         <div className="carousel-track" style={{ transform: 'translate3d(0%, 0, 0)' }}>
           <div className="carousel-slide">
-            <img src={IMAGES[0]} alt="Foto del semillero" draggable={false} />
+            <img src={images[0]} alt="Foto del semillero" draggable={false} />
           </div>
         </div>
       </div>
@@ -178,7 +199,7 @@ export default function ImageCarousel() {
       </button>
 
       <div className="carousel-dots" aria-label="Selector de imágenes">
-        {IMAGES.map((_, dotIndex) => (
+        {images.map((_, dotIndex) => (
           <button
             type="button"
             key={dotIndex}
@@ -191,7 +212,7 @@ export default function ImageCarousel() {
       </div>
 
       <div className="carousel-counter" id="carouselCounter">
-        {currentIndex + 1} / {IMAGES.length}
+        {currentIndex + 1} / {images.length}
       </div>
 
       <div className="carousel-progress" aria-hidden="true">

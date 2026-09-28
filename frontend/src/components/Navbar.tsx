@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { nombreCompleto, useAuth } from '../lib/auth';
 import AuthModal from './AuthModal';
 
 const links = [
@@ -14,6 +15,7 @@ const links = [
 
 export default function Navbar() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const { usuario, logout } = useAuth();
 
   return (
     <>
@@ -43,9 +45,18 @@ export default function Navbar() {
             ))}
           </div>
 
-          <button type="button" className="nav__cta" onClick={() => setIsAuthOpen(true)}>
-            Iniciar sesión
-          </button>
+          {usuario ? (
+            <div className="nav__user">
+              <span className="nav__user-name">{nombreCompleto(usuario)}</span>
+              <button type="button" className="nav__cta" onClick={() => void logout()}>
+                Cerrar sesión
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="nav__cta" onClick={() => setIsAuthOpen(true)}>
+              Iniciar sesión
+            </button>
+          )}
         </nav>
       </header>
 

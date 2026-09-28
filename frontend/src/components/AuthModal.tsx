@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { api, errorText } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 type AuthModalProps = {
   isOpen: boolean;
@@ -15,7 +17,10 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<'login' | 'forgot' | 'success'>('login');
-  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login } = useAuth();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -70,30 +75,52 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     if (!isOpen) {
       setShowPassword(false);
       setMode('login');
-      setForgotEmail('');
+      setForgotMessage('');
+      setError('');
+      setIsSubmitting(false);
     }
   }, [isOpen]);
 
-  const handleLoginSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    console.log('Formulario de inicio de sesión enviado');
+    const form = new FormData(event.currentTarget);
+    setError('');
+    setIsSubmitting(true);
+    try {
+      await login(String(form.get('email') ?? ''), String(form.get('password') ?? ''), form.get('remember') === 'on');
+      onClose();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleForgotSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleForgotSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const email = (event.currentTarget.elements.namedItem('email') as HTMLInputElement)?.value ?? '';
-    setForgotEmail(email);
-    setMode('success');
-    console.log('Enlace de recuperación solicitado para:', email);
+    const correo = String(new FormData(event.currentTarget).get('email') ?? '');
+    setError('');
+    setIsSubmitting(true);
+    try {
+      const { mensaje } = await api.forgotPassword(correo);
+      setForgotMessage(mensaje);
+      setMode('success');
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const openForgot = () => {
-    setForgotEmail('');
+    setForgotMessage('');
+    setError('');
     setMode('forgot');
     forgotFormRef.current?.reset();
   };
 
   const backToLogin = () => {
+    setError('');
     setMode('login');
   };
 
@@ -161,6 +188,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             <p className="lead">Usa tu correo institucional para continuar.</p>
 
             <form ref={loginFormRef} id="loginForm" onSubmit={handleLoginSubmit} noValidate>
+              {mode === 'login' && error && (
+                <p className="form__error" role="alert">
+                  {error}
+                </p>
+              )}
               <div className="field">
                 <label htmlFor="loginEmail">Correo electrónico</label>
                 <div className="field__control">
@@ -215,7 +247,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 </button>
               </div>
 
-              <button type="submit" className="form__submit">Ingresar</button>
+              <button type="submit" className="form__submit" disabled={isSubmitting}>
+                {isSubmitting && mode === 'login' ? 'Ingresando…' : 'Ingresar'}
+              </button>
 
               <p className="form__switch">
                 ¿No estás en el Semillero?
@@ -276,6 +310,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             {mode !== 'success' ? (
               <div id="forgotFormView">
                 <form ref={forgotFormRef} id="forgotForm" onSubmit={handleForgotSubmit} noValidate>
+                  {error && (
+                    <p className="form__error" role="alert">
+                      {error}
+                    </p>
+                  )}
                   <div className="field">
                     <label htmlFor="forgotEmail">Correo electrónico</label>
                     <div className="field__control">
@@ -291,7 +330,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                     </div>
                   </div>
 
-                  <button type="submit" className="form__submit">Enviar enlace</button>
+                  <button type="submit" className="form__submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Enviando…' : 'Enviar enlace'}
+                  </button>
                 </form>
 
                 <p className="form__switch">
@@ -306,9 +347,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   </svg>
                 </div>
                 <h3>Revisa tu correo</h3>
-                <p>
-                  Enviamos un enlace para restablecer tu contraseña a <strong>{forgotEmail}</strong>.
-                </p>
+                <p>{forgotMessage}</p>
                 <button type="button" className="form__submit" onClick={backToLogin}>
                   Volver a iniciar sesión
                 </button>
