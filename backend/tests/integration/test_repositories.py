@@ -92,7 +92,7 @@ def test_credenciales_y_usuarios(it_mongo: Mongo, creados: Creados) -> None:
 
 
 def test_correo_unico_por_indice_existente(creados: Creados) -> None:
-    """Comprueba el índice único creado por el backend PHP (Python no crea índices)."""
+    """Comprueba el índice único `correo_unico` (lo crea `scripts/crear_indices.py --test`)."""
     correo = correo_unico()
     creados.insertar(Collections.CREDENCIALES, {"correo": correo})
 

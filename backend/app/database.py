@@ -1,6 +1,6 @@
 """Cliente único a MongoDB Atlas y nombres oficiales de las colecciones (spec 8.2).
 
-Sin reglas de negocio. No crea ni modifica índices: ya existen en Atlas (creados por PHP).
+Sin reglas de negocio. No crea ni modifica índices: los crea `scripts/crear_indices.py` (o el PHP).
 """
 
 from datetime import UTC
