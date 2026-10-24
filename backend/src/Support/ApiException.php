@@ -39,6 +39,11 @@ final class ApiException extends RuntimeException
         return new self(401, 'UNAUTHORIZED', $message);
     }
 
+    public static function forbidden(string $message = 'No tienes permisos para realizar esta acción.'): self
+    {
+        return new self(403, 'FORBIDDEN', $message);
+    }
+
     public static function rateLimited(int $retryAfterSeconds): self
     {
         return new self(
