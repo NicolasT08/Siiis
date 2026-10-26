@@ -7,7 +7,9 @@ namespace Siiis\Config;
 use Siiis\Controllers\AuthController;
 use Siiis\Controllers\HealthController;
 use Siiis\Controllers\HomeController;
+use Siiis\Controllers\UsersController;
 use Siiis\Middleware\AuthMiddleware;
+use Siiis\Middleware\OptionalAuthMiddleware;
 use Siiis\Middleware\RoleMiddleware;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
@@ -37,6 +39,11 @@ final class Routes
                 $auth->post('/forgot-password', [AuthController::class, 'forgotPassword']);
                 $auth->post('/reset-password', [AuthController::class, 'resetPassword']);
             });
+
+            $v1->group('/users', function (RouteCollectorProxy $users): void {
+                $users->get('', [UsersController::class, 'index']);
+                $users->get('/{id}', [UsersController::class, 'show']);
+            })->add(OptionalAuthMiddleware::class);
 
             $v1->group('/home', function (RouteCollectorProxy $home): void {
                 $home->get('/slider', [HomeController::class, 'slider']);

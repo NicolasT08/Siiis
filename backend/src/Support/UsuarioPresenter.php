@@ -14,6 +14,29 @@ final class UsuarioPresenter
     }
 
     /**
+     * Vista pública (DEC-B19): sin correo, teléfono, estado ni fechas.
+     *
+     * @param array<string, mixed> $usuario
+     *
+     * @return array<string, mixed>
+     */
+    public static function publico(array $usuario): array
+    {
+        $data = Serializer::serialize([
+            '_id' => $usuario['_id'] ?? null,
+            'nombre' => $usuario['nombre'] ?? null,
+            'apellido' => $usuario['apellido'] ?? null,
+            'rol' => $usuario['rol'] ?? null,
+            'programa_academico' => $usuario['programa_academico'] ?? null,
+            'semestre' => $usuario['semestre'] ?? null,
+            'foto_perfil' => self::foto($usuario),
+            'biografia' => $usuario['biografia'] ?? null,
+        ]);
+
+        return is_array($data) ? $data : [];
+    }
+
+    /**
      * Vista de administrador: perfil completo + correo y estado de la cuenta (de `Credenciales`).
      *
      * @param array<string, mixed>      $usuario

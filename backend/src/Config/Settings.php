@@ -46,6 +46,8 @@ final readonly class Settings
         public int $perfilSemestreMax,
         public int $perfilTelefonoMinDigits,
         public int $perfilTelefonoMaxDigits,
+        public int $usersPerPageDefault,
+        public int $usersPerPageMax,
         public string $storagePath,
     ) {
     }
@@ -71,6 +73,12 @@ final readonly class Settings
                 'JWT_SECRET debe tener al menos %d caracteres.',
                 self::MIN_JWT_SECRET_LENGTH,
             ));
+        }
+
+        $usersPerPageMax = self::positiveInt($env, 'USERS_PER_PAGE_MAX', 50);
+        $usersPerPageDefault = self::positiveInt($env, 'USERS_PER_PAGE_DEFAULT', 20);
+        if ($usersPerPageDefault > $usersPerPageMax) {
+            throw new ConfigException('USERS_PER_PAGE_DEFAULT no puede ser mayor que USERS_PER_PAGE_MAX.');
         }
 
         return new self(
@@ -105,6 +113,9 @@ final readonly class Settings
             perfilSemestreMax: self::positiveInt($env, 'PERFIL_SEMESTRE_MAX', 10),
             perfilTelefonoMinDigits: self::positiveInt($env, 'PERFIL_TELEFONO_MIN_DIGITS', 7),
             perfilTelefonoMaxDigits: self::positiveInt($env, 'PERFIL_TELEFONO_MAX_DIGITS', 20),
+            // Paginación de GET /users (spec 10.13.4; DEC-B26, PROPUESTA).
+            usersPerPageDefault: $usersPerPageDefault,
+            usersPerPageMax: $usersPerPageMax,
             storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
         );
     }

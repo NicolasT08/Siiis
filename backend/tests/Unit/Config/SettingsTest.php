@@ -22,6 +22,8 @@ final class SettingsTest extends TestCase
         self::assertSame('siiis', $settings->mongoDbName);
         self::assertSame(28800, $settings->jwtTtlSeconds);
         self::assertSame(20, $settings->homeMaxItems);
+        self::assertSame(20, $settings->usersPerPageDefault);
+        self::assertSame(50, $settings->usersPerPageMax);
     }
 
     public function testRecortaJwtTtlAOchoHoras(): void
@@ -46,6 +48,10 @@ final class SettingsTest extends TestCase
         yield 'entero inválido' => [
             ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'HOME_MAX_ITEMS' => 'abc'],
             'HOME_MAX_ITEMS',
+        ];
+        yield 'per_page por defecto mayor que el máximo' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'USERS_PER_PAGE_DEFAULT' => '60'],
+            'USERS_PER_PAGE_DEFAULT',
         ];
     }
 

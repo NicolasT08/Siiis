@@ -30,6 +30,33 @@ class CredencialesRepository
         return $this->collection()->findOne(['correo' => $correo]);
     }
 
+    /**
+     * Datos de cuenta para la vista de administrador de varios usuarios en una sola consulta (evita N+1).
+     *
+     * @param list<ObjectId> $ids
+     *
+     * @return array<string, array<string, mixed>> indexado por el _id en texto
+     */
+    public function findCuentasByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $cursor = $this->collection()->find(
+            ['_id' => ['$in' => $ids]],
+            ['projection' => ['correo' => 1, 'estado_cuenta' => 1, 'ultimo_acceso' => 1]],
+        );
+
+        $cuentas = [];
+        foreach ($cursor as $doc) {
+            /** @var array<string, mixed> $doc */
+            $cuentas[(string) $doc['_id']] = $doc;
+        }
+
+        return $cuentas;
+    }
+
     public function existsByCorreo(string $correo): bool
     {
         return $this->collection()->countDocuments(['correo' => $correo], ['limit' => 1]) > 0;

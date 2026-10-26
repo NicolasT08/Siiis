@@ -30,6 +30,22 @@ final class InMemoryCredencialesRepository extends CredencialesRepository
         return null;
     }
 
+    /** Veces que se pidió un lote de cuentas (para comprobar que no hay N+1). */
+    public int $consultasCuentas = 0;
+
+    public function findCuentasByIds(array $ids): array
+    {
+        ++$this->consultasCuentas;
+        $cuentas = [];
+        foreach ($ids as $id) {
+            if (isset($this->db->credenciales[(string) $id])) {
+                $cuentas[(string) $id] = $this->db->credenciales[(string) $id];
+            }
+        }
+
+        return $cuentas;
+    }
+
     public function existsByCorreo(string $correo): bool
     {
         $this->consultas[] = $correo;

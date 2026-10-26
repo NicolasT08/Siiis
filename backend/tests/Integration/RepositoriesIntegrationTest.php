@@ -80,6 +80,43 @@ final class RepositoriesIntegrationTest extends IntegrationTestCase
         self::assertSame((string) $usuarioId, (string) $usuarios->findById($usuarioId)['_id']);
     }
 
+    public function testUsuariosPaginarOrdenEnEspanolYProyeccion(): void
+    {
+        // Rol y estado poco comunes para no depender de otros documentos de siiis_test.
+        $marca = 'IT-' . bin2hex(random_bytes(3));
+        $credencialIds = [];
+        foreach (['Zapata', 'bernal', 'Álvarez'] as $apellido) {
+            $credencialIds[] = $credencialId = $this->insertar(Collections::CREDENCIALES, [
+                'correo' => self::correoUnico(), 'password' => 'hash', 'estado_cuenta' => 'activa',
+            ]);
+            $this->insertar(Collections::USUARIOS, [
+                'credencial_id' => $credencialId, 'nombre' => $marca, 'apellido' => $apellido,
+                'rol' => 'docente_director', 'estado' => false, 'telefono' => '+573000000000',
+            ]);
+        }
+
+        $repo = new UsuariosRepository($this->mongo());
+        $pagina = $repo->paginar('docente_director', false, 1, 1000);
+        $propios = array_values(array_filter($pagina['items'], static fn (array $u): bool => $u['nombre'] === $marca));
+
+        self::assertSame(['Álvarez', 'bernal', 'Zapata'], array_column($propios, 'apellido'));
+        self::assertGreaterThanOrEqual(3, $pagina['total']);
+        self::assertSame('+573000000000', $propios[0]['telefono']);
+        self::assertSame($pagina['total'], $repo->paginar('docente_director', false, 2, 1000)['total']);
+        self::assertCount(1, $repo->paginar('docente_director', false, 1, 1)['items']);
+
+        $perfil = $repo->findPerfilById($propios[0]['_id']);
+        self::assertNotNull($perfil);
+        self::assertSame('+573000000000', $perfil['telefono']);
+
+        $cuentas = (new CredencialesRepository($this->mongo()))->findCuentasByIds($credencialIds);
+        self::assertCount(3, $cuentas);
+        foreach ($cuentas as $id => $cuenta) {
+            self::assertSame($id, (string) $cuenta['_id']);
+            self::assertSame(['_id', 'correo', 'estado_cuenta'], array_keys($cuenta));
+        }
+    }
+
     public function testCorreoUnicoPorIndice(): void
     {
         $correo = self::correoUnico();
