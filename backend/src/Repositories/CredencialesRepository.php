@@ -30,6 +30,11 @@ class CredencialesRepository
         return $this->collection()->findOne(['correo' => $correo]);
     }
 
+    public function existsByCorreo(string $correo): bool
+    {
+        return $this->collection()->countDocuments(['correo' => $correo], ['limit' => 1]) > 0;
+    }
+
     /**
      * @return array<string, mixed>|null
      */

@@ -8,14 +8,10 @@ use Siiis\Config\Settings;
 use Siiis\Support\ApiException;
 
 /**
- * POST /auth/reset-password — {"token", "password"} (RF-04).
- * Política de contraseña: solo longitud mínima configurable (TODO_SPEC, DEC-B11) y máximo 72 bytes
- * (límite de bcrypt).
+ * POST /auth/reset-password — {"token", "password"} (RF-04). Política de contraseña en PasswordRules.
  */
 final class ResetPasswordValidator
 {
-    public const MAX_PASSWORD_BYTES = 72;
-
     public function __construct(private readonly Settings $settings)
     {
     }
@@ -32,13 +28,9 @@ final class ResetPasswordValidator
         $password = InputReader::string($body, 'password', $errors, false);
 
         if (!isset($errors['password'])) {
-            if (mb_strlen($password) < $this->settings->passwordMinLength) {
-                $errors['password'] = sprintf(
-                    'La contraseña debe tener al menos %d caracteres.',
-                    $this->settings->passwordMinLength,
-                );
-            } elseif (strlen($password) > self::MAX_PASSWORD_BYTES) {
-                $errors['password'] = 'La contraseña es demasiado larga (máximo 72 bytes).';
+            $passwordError = PasswordRules::error($password, $this->settings);
+            if ($passwordError !== null) {
+                $errors['password'] = $passwordError;
             }
         }
 

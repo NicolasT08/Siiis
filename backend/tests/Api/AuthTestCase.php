@@ -6,11 +6,13 @@ namespace Siiis\Tests\Api;
 
 use Psr\Http\Message\ResponseInterface;
 use Siiis\Repositories\CredencialesRepository;
+use Siiis\Repositories\CuentasRepository;
 use Siiis\Repositories\SesionesRepository;
 use Siiis\Repositories\UsuariosRepository;
 use Siiis\Support\Clock;
 use Siiis\Tests\Support\FixedClock;
 use Siiis\Tests\Support\InMemoryCredencialesRepository;
+use Siiis\Tests\Support\InMemoryCuentasRepository;
 use Siiis\Tests\Support\InMemoryDatabase;
 use Siiis\Tests\Support\InMemorySesionesRepository;
 use Siiis\Tests\Support\InMemoryUsuariosRepository;
@@ -70,8 +72,36 @@ abstract class AuthTestCase extends ApiTestCase
             CredencialesRepository::class => $this->credenciales,
             UsuariosRepository::class => new InMemoryUsuariosRepository($this->db),
             SesionesRepository::class => new InMemorySesionesRepository($this->db),
+            CuentasRepository::class => new InMemoryCuentasRepository($this->db),
             Clock::class => $this->clock,
         ]);
+    }
+
+    /**
+     * Crea una cuenta activa con el rol dado, inicia sesión y devuelve [token, usuarioId].
+     *
+     * @param App<\Psr\Container\ContainerInterface> $app
+     * @param array<string, mixed>                   $usuario campos extra del perfil
+     *
+     * @return array{string, \MongoDB\BSON\ObjectId}
+     */
+    protected function sesionComo(App $app, string $rol, array $usuario = []): array
+    {
+        $correo = $rol . '-' . bin2hex(random_bytes(3)) . '@uptc.edu.co';
+        [, $usuarioId] = $this->db->crearCuenta($correo, self::PASSWORD, [], ['rol' => $rol] + $usuario);
+
+        $body = $this->json($this->login($app, $correo));
+        self::assertIsString($body['token'] ?? null);
+
+        return [$body['token'], $usuarioId];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected static function bearer(string $token): array
+    {
+        return ['Authorization' => 'Bearer ' . $token];
     }
 
     /**

@@ -11,15 +11,17 @@ use Siiis\Middleware\AuthMiddleware;
 use Siiis\Security\RateLimiter;
 use Siiis\Services\AuthService;
 use Siiis\Services\PasswordResetService;
+use Siiis\Services\UserAccountService;
 use Siiis\Support\ApiException;
 use Siiis\Support\ClientIp;
 use Siiis\Support\JsonResponse;
 use Siiis\Validation\ForgotPasswordValidator;
 use Siiis\Validation\LoginValidator;
+use Siiis\Validation\RegisterValidator;
 use Siiis\Validation\ResetPasswordValidator;
 
 /**
- * Endpoints de autenticación local (spec 10.7 y 11.3). Login con Google: fuera de la fase 1.
+ * Endpoints de autenticación local (spec 10.7 y 11.3). Login con Google: fuera de las fases 1 y 2.
  */
 final class AuthController
 {
@@ -31,7 +33,21 @@ final class AuthController
         private readonly PasswordResetService $passwordReset,
         private readonly ForgotPasswordValidator $forgotValidator,
         private readonly ResetPasswordValidator $resetValidator,
+        private readonly RegisterValidator $registerValidator,
+        private readonly UserAccountService $accounts,
     ) {
+    }
+
+    /**
+     * POST /api/v1/auth/register — solo superadministrador y administrador (DEC-B16, DEC-B17).
+     */
+    public function register(ServerRequestInterface $request): ResponseInterface
+    {
+        $input = $this->registerValidator->validate($request->getParsedBody());
+        $actorRol = (string) $request->getAttribute(AuthMiddleware::ATTR_ROL);
+
+        return JsonResponse::ok(['usuario' => $this->accounts->registrar($actorRol, $input)], 201)
+            ->withHeader('Cache-Control', 'no-store');
     }
 
     /**

@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 /*
  * Crea el par Credenciales + Usuarios con rol superadministrador, en una transacción de Atlas
- * (spec 10.13.4). Pide los datos por consola; la contraseña se lee sin eco.
- * Falla si el correo ya existe.
+ * (spec 10.13.4), con el mismo UserAccountService que POST /auth/register (DEC-B24).
+ * Pide los datos por consola; la contraseña se lee sin eco. Falla si el correo ya existe.
  *
  * Uso: php scripts/crear_superadmin.php [--test]
  */
 
-use MongoDB\BSON\ObjectId;
-use MongoDB\BSON\UTCDateTime;
-use MongoDB\Driver\Session;
-use Siiis\Database\Collections;
 use Siiis\Database\Mongo;
+use Siiis\Repositories\CredencialesRepository;
+use Siiis\Repositories\CuentasRepository;
 use Siiis\Security\PasswordHasher;
-
-use function MongoDB\with_transaction;
+use Siiis\Security\Roles;
+use Siiis\Services\UserAccountService;
+use Siiis\Support\ApiException;
+use Siiis\Support\SystemClock;
 
 /** @var array{0: \Siiis\Config\Settings, 1: Mongo} $bootstrap */
 $bootstrap = require __DIR__ . '/cli.php';
@@ -91,64 +91,22 @@ if (preguntarOculto('Repite la contraseña: ') !== $password) {
     fallar('las contraseñas no coinciden.');
 }
 
-$credenciales = $mongo->collection(Collections::CREDENCIALES);
-$usuarios = $mongo->collection(Collections::USUARIOS);
-
-if ($credenciales->countDocuments(['correo' => $correo], ['limit' => 1]) > 0) {
-    fallar('ya existe una cuenta con ese correo.');
-}
-
-$credencialId = new ObjectId();
-$usuarioId = new ObjectId();
-$ahora = new UTCDateTime();
-$hash = (new PasswordHasher())->hash($password);
+$service = new UserAccountService(
+    new CuentasRepository($mongo),
+    new CredencialesRepository($mongo),
+    new PasswordHasher(),
+    new SystemClock(),
+);
 
 try {
-    $session = $mongo->client()->startSession();
-    with_transaction($session, static function (Session $session) use (
-        $credenciales,
-        $usuarios,
-        $credencialId,
-        $usuarioId,
-        $correo,
-        $hash,
-        $nombre,
-        $apellido,
-        $ahora,
-    ): void {
-        $credenciales->insertOne([
-            '_id' => $credencialId,
-            'correo' => $correo,
-            'password' => $hash,
-            'usuario_id' => $usuarioId,
-            'estado_cuenta' => 'activa',
-            'token_recuperacion' => null,
-            'token_expiracion' => null,
-            'intentos_fallidos' => 0,
-            'fecha_creacion' => $ahora,
-            'ultimo_acceso' => null,
-        ], ['session' => $session]);
-
-        $usuarios->insertOne([
-            '_id' => $usuarioId,
-            'credencial_id' => $credencialId,
-            'nombre' => $nombre,
-            'apellido' => $apellido,
-            'rol' => 'superadministrador',
-            'programa_academico' => null,
-            'semestre' => null,
-            'foto_perfil' => null,
-            'biografia' => null,
-            'telefono' => null,
-            'estado' => true,
-            'fecha_ingreso' => $ahora,
-            'fecha_salida' => null,
-        ], ['session' => $session]);
-    });
-} catch (MongoDB\Driver\Exception\BulkWriteException $e) {
-    fallar(str_contains($e->getMessage(), 'E11000') ? 'ya existe una cuenta con ese correo.' : $e->getMessage());
+    $cuenta = $service->crearCuenta($correo, $password, Roles::SUPERADMINISTRADOR, [
+        'nombre' => $nombre,
+        'apellido' => $apellido,
+    ]);
+} catch (ApiException $e) {
+    fallar($e->errorCode === 'EMAIL_TAKEN' ? 'ya existe una cuenta con ese correo.' : $e->getMessage());
 } catch (Throwable $e) {
     fallar('no se pudo crear el superadministrador: ' . $e->getMessage());
 }
 
-fwrite(STDOUT, sprintf('Superadministrador creado. Usuarios._id = %s%s', $usuarioId, PHP_EOL));
+fwrite(STDOUT, sprintf('Superadministrador creado. Usuarios._id = %s%s', $cuenta['usuario']['_id'], PHP_EOL));

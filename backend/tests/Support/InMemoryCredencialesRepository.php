@@ -30,6 +30,13 @@ final class InMemoryCredencialesRepository extends CredencialesRepository
         return null;
     }
 
+    public function existsByCorreo(string $correo): bool
+    {
+        $this->consultas[] = $correo;
+
+        return $this->findByCorreo($correo) !== null;
+    }
+
     public function findByTokenRecuperacion(string $tokenHash): ?array
     {
         foreach ($this->db->credenciales as $doc) {
