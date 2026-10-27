@@ -4,7 +4,10 @@ API REST del sitio web del Semillero SIIIS (UPTC), bajo `/api/v1`. Spec: `../doc
 Contrato para el frontend: `../docs/api.md`. Decisiones pendientes: `../docs/decisions.md`.
 
 **Stack:** PHP 8.2+ · Slim 4 · PHP-DI · MongoDB Atlas (`ext-mongodb` + `mongodb/mongodb`) · `firebase/php-jwt` ·
-PHPMailer · phpdotenv · PHPUnit 11 · PHPStan (nivel 6) · PHP-CS-Fixer (PSR-12).
+PHPMailer · Cloudinary (`cloudinary/cloudinary_php`) · phpdotenv · PHPUnit 11 · PHPStan (nivel 6) · PHP-CS-Fixer (PSR-12).
+
+**Endpoints:** fase 1 (salud, login, sesión, recuperación de contraseña, Home) y fase 2 (registro administrativo,
+integrantes, edición, desactivación/reactivación y foto de perfil). El detalle está en `../docs/api.md`.
 
 ## Requisitos
 
@@ -32,8 +35,15 @@ Variables mínimas en `.env`:
 | `JWT_TTL_SECONDS` | Duración del token; se recorta a 28800 (8 h) |
 | `MAIL_*` | SMTP de Gmail con contraseña de aplicación (solo para recuperación de contraseña) |
 | `PASSWORD_RESET_URL` | Ruta del frontend para restablecer la contraseña |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Cuenta de Cloudinary para las fotos de perfil |
+| `CLOUDINARY_PERFILES_FOLDER` | Carpeta de las fotos (`siiis/perfiles`). Las pruebas usan siempre `siiis_test/perfiles` |
 
-Si falta `MONGO_URI` o `JWT_SECRET`, o el secreto es corto, la API responde `500 CONFIG_ERROR`. El detalle aparece en la respuesta si `APP_DEBUG=true` y siempre en el log de errores de PHP.
+Límites provisionales y configurables (todos tienen valor por defecto): `PERFIL_*` (longitudes del perfil, semestre,
+teléfono y `PERFIL_FOTO_MAX_BYTES`, 2 MB; DEC-B21) y `USERS_PER_PAGE_*` (DEC-B26).
+
+Si falta `MONGO_URI` o `JWT_SECRET`, o el secreto es corto, la API responde `500 CONFIG_ERROR`. El detalle aparece en la respuesta si `APP_DEBUG=true` y siempre en el log de errores de PHP. Sin `CLOUDINARY_*` la API arranca, pero subir una foto responde `502 CLOUDINARY_UNAVAILABLE`; sin `MAIL_*`, `forgot-password` responde igual que siempre y el fallo queda en `storage/logs`.
+
+> **Credenciales de desarrollo:** los valores de `MAIL_*` y `CLOUDINARY_*` de los equipos de desarrollo son cuentas personales. En producción se usan las del semillero.
 
 ## Scripts CLI
 
@@ -64,8 +74,11 @@ composer lint      # php-cs-fixer --dry-run (usa `composer lint:fix` para correg
 composer analyse   # phpstan nivel 6
 ```
 
-- **Unit** y **Api** no necesitan base de datos: la app Slim corre en memoria con repositorios, reloj y correo sustituidos por dobles.
-- **Integration** usa `MONGO_DB_NAME_TEST` en Atlas. Se salta automáticamente si no hay `MONGO_URI` o conexión, y nunca se ejecuta contra la base principal. Cada prueba borra los datos que crea.
+- **Unit** y **Api** no necesitan base de datos: la app Slim corre en memoria con repositorios, reloj, correo y Cloudinary sustituidos por dobles.
+- **Integration** usa `MONGO_DB_NAME_TEST` en Atlas. Se salta automáticamente si no hay `MONGO_URI` o conexión, y nunca se ejecuta contra la base principal. Cada prueba borra los datos que crea. Cubre repositorios, login y recuperación, la transacción de registro (incluida su reversión), la paginación real de `GET /users` y el ciclo edición → desactivación → reactivación.
+- Las pruebas con **Cloudinary real** se saltan si falta alguna `CLOUDINARY_*`. Suben solo a `siiis_test/perfiles` y vacían esa carpeta al terminar.
+
+**Antivirus en Windows:** si `forgot-password` deja en el log `certificate verify failed`, un antivirus que inspecciona el correo (p. ej. Avast Web/Mail Shield) está interceptando el TLS del SMTP. Excluye el SMTP de Gmail del escaneo; no desactives la verificación en el código.
 
 ## Estructura
 
@@ -75,14 +88,14 @@ backend/
 ├── public/                # index.php (front controller) y .htaccess
 ├── src/
 │   ├── Config/            # Settings, Container (PHP-DI), Routes, Application
-│   ├── Controllers/       # Health, Auth, Home (delgados)
+│   ├── Controllers/       # Health, Auth, Home, Users (delgados)
 │   ├── Database/          # Mongo (cliente único), Collections (nombres oficiales)
-│   ├── Middleware/        # AuthMiddleware, ErrorHandler, CorsMiddleware, JsonBodyMiddleware
-│   ├── Repositories/      # consultas a Credenciales, Usuarios, Sesiones y Multimedia
-│   ├── Security/          # PasswordHasher, JwtService, RateLimiter
-│   ├── Services/          # AuthService, PasswordResetService, MailService
-│   ├── Support/           # JsonResponse, Serializer, TokenGenerator, ObjectIdValidator, Logger, Clock
-│   └── Validation/        # validadores de entrada (antiinyección NoSQL)
+│   ├── Middleware/        # Auth, OptionalAuth, Role, ErrorHandler, Cors, JsonBody
+│   ├── Repositories/      # consultas a Credenciales, Usuarios, Sesiones y Multimedia; Cuentas (transacción)
+│   ├── Security/          # PasswordHasher, JwtService, RateLimiter, Roles (jerarquía), SessionAuthenticator
+│   ├── Services/          # Auth, PasswordReset, Mail, UserAccount (alta), Users (consulta/edición/foto), Cloudinary
+│   ├── Support/           # JsonResponse, Serializer, UsuarioPresenter, TokenGenerator, ObjectIdValidator, Logger, Clock
+│   └── Validation/        # validadores de entrada (antiinyección NoSQL) y FileValidator (MIME real)
 ├── scripts/               # CLI: índices, superadmin, seed
 ├── storage/               # logs/, ratelimit/, cache/ (no versionado)
 └── tests/                 # Unit/, Api/, Integration/, Support/ (dobles)
@@ -95,5 +108,6 @@ backend/
 3. Crea el `.env` de producción en `siiis-api/` con `APP_ENV=production` y `APP_DEBUG=false`, y da permisos de escritura a `storage/`.
 4. Copia `public/index.php` y `public/.htaccess` a `public_html/api/` y ajusta `BOOTSTRAP_PATH` a `../../siiis-api/bootstrap.php`.
 5. Ejecuta `crear_indices.php` y `crear_superadmin.php`, y verifica `GET /api/v1/health`.
+6. Revisa que `upload_max_filesize` y `post_max_size` permitan fotos de 2 MB, y prueba `forgot-password` y una foto de perfil.
 
 La checklist completa está en `../docs/deployment.md`.

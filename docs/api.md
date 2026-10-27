@@ -1,4 +1,4 @@
-# Contrato API — SIIIS V3 · Fase 1
+# Contrato API — SIIIS V3 · Fases 1 y 2
 
 Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_SPEC_DRIVEN.md`, sección 11.
 
@@ -34,15 +34,37 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 | `INVALID_JSON` | 400 | El cuerpo no es JSON válido o no es un objeto `{...}` |
 | `INVALID_CREDENTIALS` | 401 | Correo o contraseña incorrectos (mensaje genérico) |
 | `UNAUTHORIZED` | 401 | Falta el token, es inválido o vencido, o la sesión fue cerrada |
+| `FORBIDDEN` | 403 | El usuario está autenticado, pero su rol no permite la acción (ver "Roles y permisos") |
 | `ACCOUNT_BLOCKED` | 403 | La cuenta está bloqueada |
 | `ACCOUNT_PENDING` | 403 | La cuenta está pendiente de verificación |
 | `ACCOUNT_INACTIVE` | 403 | El usuario está inactivo (p. ej. por deserción) |
 | `INVALID_OR_EXPIRED_TOKEN` | 400 | El enlace de recuperación es inválido, está vencido o ya se usó |
-| `NOT_FOUND` | 404 | La ruta no existe |
+| `EMAIL_TAKEN` | 409 | Ya existe una cuenta con ese correo (registro) |
+| `FILE_TOO_LARGE` | 413 | El archivo supera el tamaño máximo |
+| `UNSUPPORTED_MEDIA_TYPE` | 415 | El contenido del archivo no es de un formato admitido |
+| `CLOUDINARY_UNAVAILABLE` | 502 | No se pudo guardar el archivo en Cloudinary |
+| `LAST_SUPERADMIN` | 409 | Se intentó quitar el rol o desactivar al último superadministrador activo |
+| `NOT_FOUND` | 404 | La ruta o el recurso no existe (p. ej. un usuario en `GET /users/{id}`) |
 | `METHOD_NOT_ALLOWED` | 405 | Método HTTP no soportado en la ruta |
 | `RATE_LIMITED` | 429 | Demasiados intentos; la cabecera `Retry-After` trae los segundos de espera |
 | `DB_UNAVAILABLE` | 503 | La base de datos no responde |
 | `INTERNAL_ERROR` | 500 | Error inesperado del servidor |
+
+### Roles y permisos
+
+`PROPUESTA` (DEC-B17), pendiente de aprobación del equipo. El rol sale del token; el frontend puede leerlo de `usuario.rol` (login o `/auth/me`) para mostrar u ocultar opciones, pero el backend siempre vuelve a validar.
+
+| Rol | Puede gestionar usuarios con rol |
+|---|---|
+| `superadministrador` | todos |
+| `administrador` | `docente_director`, `estudiante_lider`, `estudiante` |
+| `docente_director`, `estudiante_lider`, `estudiante` | ninguno (solo editan su propio perfil) |
+
+- Nadie cambia su propio `rol` ni su propio `estado`.
+- No se puede desactivar ni bajar de rol al último superadministrador activo.
+- Si a un usuario le cambian el rol o lo desactivan, todas sus sesiones se cierran: su siguiente petición protegida responde `401 UNAUTHORIZED` y debe volver a iniciar sesión.
+
+**Rutas públicas con sesión opcional** (p. ej. `GET /users`, fase 2): sin token, o con un token vencido o inválido, responden la vista pública (nunca `401`). Con un token válido de administrador incluyen datos adicionales.
 
 ---
 
@@ -170,6 +192,213 @@ Al restablecer, **se cierran todas las sesiones** del usuario.
 
 ---
 
+## 6b. `POST /auth/register`
+
+Protegido: solo `superadministrador` y `administrador` (DEC-B16, `PROPUESTA`). No hay registro público; los aspirantes usan el módulo de inscripción. El rol que se puede asignar depende del rol de quien crea la cuenta (ver "Roles y permisos"). La cuenta se crea activa y ya puede iniciar sesión.
+
+**Request**
+```json
+{
+  "correo": "luis@uptc.edu.co",
+  "password": "Clave-Segura-2026",
+  "rol": "estudiante",
+  "nombre": "Luis",
+  "apellido": "Gómez",
+  "programa_academico": "Ingeniería de Sistemas y Computación",
+  "semestre": 6,
+  "biografia": "Me interesa la IA.",
+  "telefono": "+57 300 123 4567"
+}
+```
+
+| Campo | Obligatorio | Regla (límites provisionales, DEC-B21) |
+|---|---|---|
+| `correo` | sí | formato de correo; se guarda sin espacios y en minúsculas |
+| `password` | sí | mínimo `PASSWORD_MIN_LENGTH` (8) caracteres y máximo 72 bytes |
+| `rol` | sí | `superadministrador`, `administrador`, `docente_director`, `estudiante_lider` o `estudiante` (exacto, en minúsculas) |
+| `nombre`, `apellido` | sí | texto de 1 a 80 caracteres |
+| `programa_academico` | no | texto de hasta 120 caracteres |
+| `semestre` | no | **número** entero de 1 a 10 (no texto: `6`, no `"6"`) |
+| `biografia` | no | texto de hasta 1000 caracteres |
+| `telefono` | no | **texto** con 7 a 20 dígitos y `+` inicial opcional; se aceptan espacios, guiones, puntos y paréntesis, que se eliminan al guardar |
+
+- Los opcionales pueden omitirse o enviarse como `null`; un texto vacío se guarda como `null`.
+- Cualquier otro campo (`estado`, `foto_perfil`, etc.) se ignora. La foto se sube después con `POST /users/{id}/photo`.
+
+**201**
+```json
+{
+  "usuario": {
+    "id": "6adcffcf84e888428a0cbc83",
+    "correo": "luis@uptc.edu.co",
+    "nombre": "Luis",
+    "apellido": "Gómez",
+    "rol": "estudiante",
+    "programa_academico": "Ingeniería de Sistemas y Computación",
+    "semestre": 6,
+    "biografia": "Me interesa la IA.",
+    "telefono": "+573001234567",
+    "foto_perfil": null,
+    "estado": true,
+    "estado_cuenta": "activa",
+    "fecha_ingreso": "2026-10-24T15:00:00Z",
+    "fecha_salida": null,
+    "ultimo_acceso": null
+  }
+}
+```
+
+Esta es la **vista de administrador** de un usuario; la usan también `GET /users` y `GET /users/{id}` con token de administrador.
+
+**Errores:** `400 VALIDATION_ERROR` (con `fields`), `400 INVALID_JSON`, `401 UNAUTHORIZED`, `403 FORBIDDEN` (el rol del actor no es administrativo o no puede asignar el `rol` pedido), `409 EMAIL_TAKEN`.
+
+---
+
+## 6c. `GET /users`
+
+Público con sesión opcional (RF-08). Listado paginado de integrantes, ordenado por `apellido` y `nombre` (orden alfabético en español: ignora tildes y mayúsculas). Contrato provisional: `PROPUESTA` DEC-B26.
+
+| Quién consulta | Vista | Ve inactivos |
+|---|---|---|
+| Sin token (o token vencido/inválido/cerrado) | pública | no |
+| `docente_director`, `estudiante_lider`, `estudiante` | pública | no |
+| `superadministrador`, `administrador` | administrador (la de `POST /auth/register`) | sí |
+
+**Query string** (todos opcionales)
+
+| Parámetro | Regla |
+|---|---|
+| `page` | entero de 1 a 10000; por defecto 1 |
+| `per_page` | entero de 1 a `USERS_PER_PAGE_MAX` (50); por defecto `USERS_PER_PAGE_DEFAULT` (20) |
+| `rol` | uno de los 5 roles, exacto y en minúsculas |
+| `estado` | `true` o `false`. **Solo administradores**; sin él ven activos e inactivos. Para los demás se ignora: siempre ven solo activos (DEC-B20) |
+
+Ejemplo: `GET /api/v1/users?rol=estudiante&page=2&per_page=12`
+
+**200** (vista pública)
+```json
+{
+  "data": [
+    {
+      "id": "6adcffcf84e888428a0cbc83",
+      "nombre": "Luis",
+      "apellido": "Gómez",
+      "rol": "estudiante",
+      "programa_academico": "Ingeniería de Sistemas y Computación",
+      "semestre": 6,
+      "foto_perfil": { "url": "https://res.cloudinary.com/.../luis.jpg" },
+      "biografia": "Me interesa la IA."
+    }
+  ],
+  "meta": { "page": 2, "per_page": 12, "total": 30, "total_pages": 3 }
+}
+```
+
+- La vista pública (DEC-B19) nunca incluye correo, teléfono, estado ni fechas. Los opcionales sin valor llegan como `null`.
+- Con token de administrador, cada elemento de `data` tiene la forma de la vista de administrador (ver 6b).
+- Una página fuera de rango responde `200` con `data: []` y el `meta` real.
+- Cabeceras: sin sesión, `Cache-Control: public, max-age=60`; con sesión, `no-store`. Siempre `Vary: Authorization`.
+
+**Errores:** `400 VALIDATION_ERROR`, con `fields` por parámetro (p. ej. `page=0`, `per_page=100`, `rol=egresado`, `estado=si` o un parámetro enviado como arreglo, `rol[]=x`). Nunca responde `401`.
+
+---
+
+## 6d. `GET /users/{id}`
+
+Público con sesión opcional. Perfil de un integrante.
+
+**200**
+```json
+{ "usuario": { "id": "6adcffcf84e888428a0cbc83", "nombre": "Luis", "...": "..." } }
+```
+
+| Quién consulta | Vista |
+|---|---|
+| Sin token, o un integrante que consulta a **otro** | pública (como en `GET /users`) |
+| El propio usuario (su `id` es el de `/auth/me`) | administrador: incluye su correo, teléfono y estado de cuenta; sirve para precargar el formulario de edición |
+| `superadministrador`, `administrador` | administrador, también para usuarios inactivos |
+
+**404** `NOT_FOUND`: el `id` no tiene formato válido, no existe o, en la vista pública, el usuario está inactivo (DEC-B20). Mismas cabeceras de caché que `GET /users`.
+
+---
+
+## 6e. `PATCH /users/{id}`
+
+Requiere token. Edición parcial de un perfil (RF-15): solo cambian los campos enviados. Contrato provisional: `PROPUESTA` DEC-B27 y DEC-B28.
+
+| Quién | Puede editar | Puede cambiar `rol` y `estado` |
+|---|---|---|
+| Cualquier usuario | su propio perfil | no (los suyos nunca) |
+| `administrador` | a `docente_director`, `estudiante_lider` y `estudiante` | sí; `rol` solo a esos tres roles |
+| `superadministrador` | a cualquier usuario | sí, a cualquier rol |
+
+**Request** (todos opcionales, al menos uno)
+```json
+{ "nombre": "Luis Alberto", "telefono": "+57 300 123 4567", "biografia": null, "rol": "estudiante_lider" }
+```
+
+- Campos: `nombre`, `apellido`, `programa_academico`, `semestre`, `biografia` y `telefono`, con las mismas reglas que en `POST /auth/register` (6b); además `rol` y `estado`.
+- `nombre` y `apellido`, si se envían, no pueden quedar vacíos. Un opcional enviado como `null` o `""` se borra.
+- Cualquier otro campo (`correo`, `foto_perfil`, `password`, …) se ignora.
+- `estado` debe ser booleano JSON (`true`/`false`, no `"true"` ni `1`). `{"estado": true}` **reactiva** a un usuario inactivo: `fecha_salida` vuelve a `null`, `fecha_ingreso` se conserva y el usuario debe iniciar sesión de nuevo. `{"estado": false}` equivale a `DELETE /users/{id}` (6f).
+- Enviar el `rol` o el `estado` actuales no cuenta como cambio: el formulario puede reenviar el objeto completo.
+- Cambiar el `rol` o desactivar a un usuario **cierra todas sus sesiones**: tendrá que volver a iniciar sesión.
+
+**200**: `{"usuario": {...}}` con la vista de administrador (6b). Cabecera `Cache-Control: no-store`.
+
+**Errores:**
+- `400 VALIDATION_ERROR`: con `fields` por campo inválido; sin `fields` si no llegó ningún campo editable.
+- `400 INVALID_JSON`, `401 UNAUTHORIZED`.
+- `403 FORBIDDEN`: un integrante intenta editar a otro (también si ese id no existe), alguien intenta cambiar su propio rol o estado, o un administrador intenta editar a un usuario o asignar un rol fuera de su jerarquía.
+- `404 NOT_FOUND`: (administradores) el usuario no existe o el `id` no es válido.
+- `409 LAST_SUPERADMIN`: se intentó quitar el rol o desactivar al último superadministrador activo.
+
+---
+
+## 6f. `DELETE /users/{id}`
+
+Solo `superadministrador` y `administrador`, dentro de su jerarquía (ver "Roles y permisos"). Desactivación **lógica** por deserción (RF-09): el usuario no se borra. Contrato provisional: `PROPUESTA` DEC-B28.
+
+- Deja `estado = false` y `fecha_salida` con la fecha actual, y cierra todas las sesiones del usuario.
+- Desde ese momento no puede iniciar sesión (`403 ACCOUNT_INACTIVE`) y deja de aparecer en la vista pública de `GET /users` y `GET /users/{id}`.
+- Repetir la petición sobre un usuario ya inactivo responde `200` sin cambios (conserva la `fecha_salida` original).
+- Para reactivarlo: `PATCH /users/{id}` con `{"estado": true}` (6e).
+
+**200**: `{"usuario": {...}}` con la vista de administrador (6b), ya con `"estado": false`. Cabecera `Cache-Control: no-store`.
+
+**Errores:**
+- `401 UNAUTHORIZED`.
+- `403 FORBIDDEN`: el rol del actor no es administrativo, intenta desactivarse a sí mismo o el usuario está fuera de su jerarquía.
+- `404 NOT_FOUND`: el usuario no existe o el `id` no es válido.
+- `409 LAST_SUPERADMIN`: es el último superadministrador activo.
+
+---
+
+## 6g. `POST /users/{id}/photo`
+
+Requiere token. Sube o cambia la foto de perfil (RF-06). Mismos permisos que editar el perfil (6e): el propio usuario, o un administrador sobre los roles que gestiona. Contrato provisional: `PROPUESTA` DEC-B29.
+
+**Request**: `multipart/form-data` con el archivo en el campo `foto`. No fijes la cabecera `Content-Type` a mano: el navegador la arma con el `boundary`.
+
+```ts
+const form = new FormData();
+form.append('foto', archivo); // File de un <input type="file" accept="image/jpeg,image/png,image/webp">
+await fetch(`/api/v1/users/${id}/photo`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+```
+
+- Formatos: JPEG, PNG o WebP, hasta `PERFIL_FOTO_MAX_BYTES` (2 MB). El backend revisa el **contenido** del archivo; cambiar la extensión no sirve.
+- La foto anterior se borra de Cloudinary después de guardar la nueva.
+
+**200**: `{"usuario": {...}}` con la vista de administrador (6b); `foto_perfil` es `{"url": "https://res.cloudinary.com/..."}`. Cabecera `Cache-Control: no-store`.
+
+**Errores:**
+- `400 VALIDATION_ERROR` (`fields.foto`): no llegó el archivo, está vacío o la subida quedó incompleta.
+- `401 UNAUTHORIZED`, `403 FORBIDDEN`, `404 NOT_FOUND`: como en 6e.
+- `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE`.
+- `502 CLOUDINARY_UNAVAILABLE`: Cloudinary no respondió; la foto anterior se conserva.
+
+---
+
 ## 7. `GET /home/slider`
 
 Público. Imágenes del carrusel (RF-07), de la colección `Multimedia` con `seccion = slider_principal`, ordenadas por `orden` ascendente. Máximo `HOME_MAX_ITEMS` ítems (por defecto 20).
@@ -218,6 +447,6 @@ Público. Videos de presentación (RF-11), de `Multimedia` con `seccion = video_
 
 ## Fuera de esta fase
 
-- `POST /auth/google` (login con Google, RF-17): no está registrada; responde `404`.
+- `POST /auth/google` (login con Google, RF-17): no está registrada; responde `404`. Sigue fuera en la fase 2.
 - Hero, bloques S-I-I-I-S, llamada a la acción y footer de la página de inicio: por ahora son contenido estático del frontend (DEC-B12). El botón "Inscríbete" solo navega a la página de inscripción.
-- Registro, usuarios, documentos, reseñas, inscripciones y contacto: fases siguientes.
+- Documentos, reseñas, inscripciones y contacto: fases siguientes.

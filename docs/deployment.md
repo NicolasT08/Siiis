@@ -9,6 +9,7 @@ Resumen de las secciones 17.4, 17.6 y 17.7 del spec. Registra aquí los resultad
 | PHP | 8.2.34 | `TODO_SPEC` |
 | Extensión `mongodb` | 1.21.9 | `TODO_SPEC: confirmar versión de ext-mongodb en Hostinger` (spec: 1.18.x reportada en 2025) |
 | `mongodb/mongodb` | 1.21.5 (`^1.21.4`) | Requiere la extensión **≥ 1.21** (DEC-B03) |
+| `cloudinary/cloudinary_php` | 3.3.0 (`^3.1`, fase 2) | Usa Guzzle sobre `ext-curl`; necesita salida HTTPS a `api.cloudinary.com` |
 
 `composer.json → config.platform` usa provisionalmente `php 8.2.34` y `ext-mongodb 1.21.9`. Cuando el profesor confirme la versión real con `phpinfo()`:
 
@@ -22,10 +23,11 @@ Resumen de las secciones 17.4, 17.6 y 17.7 del spec. Registra aquí los resultad
 - [ ] Extensiones `fileinfo`, `curl`, `openssl` y `mbstring` activas
 - [ ] Conexión saliente a MongoDB Atlas (puerto 27017, URI `mongodb+srv://`): `GET /api/v1/health` responde `{"status":"ok","db":"ok"}`
 - [ ] Lista de acceso IP de Atlas: IP saliente del servidor ______ agregada en *Atlas → Network Access*. Si la IP no es estable, decidir sobre `0.0.0.0/0` (DECISION-015)
-- [ ] Conexión saliente a `smtp.gmail.com:587/465` (probar `forgot-password` y revisar `storage/logs`), a `api.cloudinary.com` y a `www.googleapis.com`
-- [ ] Límites de PHP: `upload_max_filesize` ___ · `post_max_size` ___ · `max_execution_time` ___ · `memory_limit` ___
+- [ ] Conexión saliente a `smtp.gmail.com:587/465` (probar `forgot-password` y revisar `storage/logs`), a `api.cloudinary.com` y a `www.googleapis.com`. En desarrollo ya se verificaron el SMTP de Gmail y Cloudinary (2026-10-27); falta verificarlos desde Hostinger
+- [ ] Límites de PHP: `upload_max_filesize` ___ · `post_max_size` ___ · `max_execution_time` ___ · `memory_limit` ___. Para las fotos de perfil (DEC-B29): `upload_max_filesize` ≥ `PERFIL_FOTO_MAX_BYTES` (2 MB) y `post_max_size` algo mayor (p. ej. 3 MB). Si el cuerpo supera `post_max_size`, PHP descarta el archivo y la API responde `400` en lugar de `413`
+- [ ] Foto de perfil de punta a punta: `POST /api/v1/users/{id}/photo` con una imagen real → `200` y la URL de Cloudinary abre; la foto queda en `CLOUDINARY_PERFILES_FOLDER` (`siiis/perfiles`)
 - [ ] Disponibilidad de SSH, Composer o despliegue con Git (DECISION-014). Sin SSH: `composer install --no-dev` en local o CI y subir `vendor/`
-- [ ] Los métodos `PATCH` y `DELETE` y la cabecera `Authorization` llegan a PHP (`GET /api/v1/auth/me` con token → `200`)
+- [ ] Los métodos `PATCH` y `DELETE` y la cabecera `Authorization` llegan a PHP (`GET /api/v1/auth/me` con token → `200`). La fase 2 los usa: `PATCH /api/v1/users/{id}` con `{"biografia": "x"}` sobre el propio usuario → `200`, y `DELETE /api/v1/users/{id}` sin token → `401` (no `405`). Si alguno se filtra, usar `POST` con `X-HTTP-Method-Override` (nota Hostinger de la spec 11.3)
 - [ ] Cron jobs disponibles
 
 ## Estructura en el servidor (PROPUESTA, spec 17.4)
@@ -64,11 +66,11 @@ RewriteRule ^ index.html [L]
 2. Agrega la IP del servidor en la lista de acceso de MongoDB Atlas.
 3. `composer install --no-dev --optimize-autoloader` (por SSH o en local/CI).
 4. Sube `siiis-api/` (código y `vendor/`) por Git, FTP o el Administrador de archivos.
-5. Crea el `.env` de producción en `siiis-api/` (fuera de `public_html`) con `APP_ENV=production` y `APP_DEBUG=false`. Usa un `JWT_SECRET` nuevo de al menos 32 caracteres.
+5. Crea el `.env` de producción en `siiis-api/` (fuera de `public_html`) con `APP_ENV=production` y `APP_DEBUG=false`. Usa un `JWT_SECRET` nuevo de al menos 32 caracteres, y las credenciales `MAIL_*` y `CLOUDINARY_*` **del semillero** (las de desarrollo son cuentas personales). Deja `CLOUDINARY_PERFILES_FOLDER=siiis/perfiles`.
 6. Da permisos de escritura a `siiis-api/storage/` (logs, ratelimit, cache).
 7. Sube `public_html/api/index.php` y su `.htaccess`.
 8. Ejecuta una vez, por SSH o en local contra Atlas: `php scripts/crear_indices.php` y `php scripts/crear_superadmin.php`.
-9. Verifica `GET https://siiis.com.co/api/v1/health`.
+9. Verifica `GET https://siiis.com.co/api/v1/health` y completa la checklist de arriba (correo, foto de perfil, `PATCH`/`DELETE`).
 10. Frontend: compila con la URL base `/api/v1` y súbelo a `public_html/` **sin borrar** `api/` ni el `.htaccess`.
 
 ## Mantenimiento
@@ -76,3 +78,5 @@ RewriteRule ^ index.html [L]
 - Las sesiones vencidas las borra Atlas con el índice TTL de `Sesiones.fecha_expiracion` (no hace falta cron).
 - Los contadores de rate limiting se sobrescriben por IP. `TODO_SPEC`: si crecen, crear `cron/limpiar_ratelimit.php` (spec 9) que llame a `RateLimiter::purge()` desde un cron de hPanel.
 - Logs en `storage/logs/app-YYYY-MM-DD.log`. No registran contraseñas ni tokens.
+- Fotos huérfanas en Cloudinary: si falla el borrado de una foto reemplazada, la API responde igual `200` y deja en el log `No se pudo borrar una foto de Cloudinary` con su `public_id`. Revisa el log de vez en cuando y bórralas desde la consola de Cloudinary.
+- Los usuarios desactivados no se borran (borrado lógico, DEC-B22): conservan sus datos y su foto.
