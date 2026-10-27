@@ -10,11 +10,12 @@ use Siiis\Middleware\AuthMiddleware;
 use Siiis\Security\Roles;
 use Siiis\Services\UsersService;
 use Siiis\Support\JsonResponse;
+use Siiis\Validation\UpdateUserValidator;
 use Siiis\Validation\UsersQueryValidator;
 
 /**
- * Integrantes (spec 10.8 y 11.3). Rutas públicas con sesión opcional (OptionalAuthMiddleware):
- * el rol, si lo hay, sale del JWT.
+ * Integrantes (spec 10.8 y 11.3). Las consultas son públicas con sesión opcional
+ * (OptionalAuthMiddleware); la edición exige sesión. El rol, si lo hay, sale del JWT.
  */
 final class UsersController
 {
@@ -24,6 +25,7 @@ final class UsersController
     public function __construct(
         private readonly UsersService $users,
         private readonly UsersQueryValidator $queryValidator,
+        private readonly UpdateUserValidator $updateValidator,
     ) {
     }
 
@@ -53,6 +55,24 @@ final class UsersController
         $usuario = $this->users->obtener($args['id'], is_string($actorId) ? $actorId : null, $actorRol);
 
         return self::conCache(JsonResponse::ok(['usuario' => $usuario]), $actorRol !== null);
+    }
+
+    /**
+     * PATCH /api/v1/users/{id} — requiere sesión (AuthMiddleware); permisos en UsersService (DEC-B17).
+     *
+     * @param array{id: string} $args
+     */
+    public function update(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $input = $this->updateValidator->validate($request->getParsedBody());
+        $usuario = $this->users->actualizar(
+            $args['id'],
+            (string) $request->getAttribute(AuthMiddleware::ATTR_USUARIO_ID),
+            (string) $request->getAttribute(AuthMiddleware::ATTR_ROL),
+            $input,
+        );
+
+        return JsonResponse::ok(['usuario' => $usuario])->withHeader('Cache-Control', 'no-store');
     }
 
     private static function actorRol(ServerRequestInterface $request): ?string

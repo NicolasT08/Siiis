@@ -8,6 +8,7 @@ use MongoDB\BSON\ObjectId;
 use MongoDB\Collection;
 use Siiis\Database\Collections;
 use Siiis\Database\Mongo;
+use Siiis\Security\Roles;
 
 /**
  * Acceso a la colección Usuarios (spec 8.2).
@@ -93,6 +94,21 @@ class UsuariosRepository
         $items = array_values($cursor->toArray());
 
         return ['items' => $items, 'total' => $this->collection()->countDocuments($filtro)];
+    }
+
+    /**
+     * `$set` llega validado: sus claves salen de listas blancas de campos de `Usuarios`.
+     *
+     * @param array<string, mixed> $set
+     */
+    public function actualizar(ObjectId $id, array $set): void
+    {
+        $this->collection()->updateOne(['_id' => $id], ['$set' => $set]);
+    }
+
+    public function contarSuperadministradoresActivos(): int
+    {
+        return $this->collection()->countDocuments(['rol' => Roles::SUPERADMINISTRADOR, 'estado' => true]);
     }
 
     /**

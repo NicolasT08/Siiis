@@ -44,6 +44,21 @@ final class InMemoryUsuariosRepository extends UsuariosRepository
         return ['items' => array_slice($items, ($page - 1) * $perPage, $perPage), 'total' => count($items)];
     }
 
+    public function actualizar(ObjectId $id, array $set): void
+    {
+        if (isset($this->db->usuarios[(string) $id])) {
+            $this->db->usuarios[(string) $id] = $set + $this->db->usuarios[(string) $id];
+        }
+    }
+
+    public function contarSuperadministradoresActivos(): int
+    {
+        return count(array_filter(
+            $this->db->usuarios,
+            static fn (array $u): bool => $u['rol'] === 'superadministrador' && $u['estado'] === true,
+        ));
+    }
+
     public function findByCredencialId(ObjectId $credencialId): ?array
     {
         foreach ($this->db->usuarios as $doc) {

@@ -1,0 +1,52 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Siiis\Validation;
+
+use Siiis\Security\Roles;
+use Siiis\Support\ApiException;
+
+/**
+ * PATCH /users/{id} (DEC-B27): edición parcial de los campos de perfil y, opcionalmente, `rol`.
+ * Valida forma y lista blanca de roles; los permisos los decide UsersService. Otros campos se ignoran.
+ */
+final class UpdateUserValidator
+{
+    public function __construct(private readonly PerfilValidator $perfil)
+    {
+    }
+
+    /**
+     * @return array{perfil: array<string, string|int|null>, rol: string|null}
+     *
+     * @throws ApiException 400 VALIDATION_ERROR
+     */
+    public function validate(mixed $body): array
+    {
+        $body = is_array($body) ? $body : [];
+        $errors = [];
+
+        $rol = null;
+        if (array_key_exists('rol', $body)) {
+            $rol = InputReader::string($body, 'rol', $errors);
+            if (!isset($errors['rol']) && !Roles::esValido($rol)) {
+                $errors['rol'] = 'El rol no es válido. Valores permitidos: ' . implode(', ', Roles::TODOS) . '.';
+            }
+        }
+
+        $perfil = $this->perfil->validate($body, true, $errors);
+
+        if ($errors !== []) {
+            throw ApiException::validation($errors);
+        }
+        if ($perfil === [] && $rol === null) {
+            throw ApiException::validation([], sprintf(
+                'Envía al menos un campo para actualizar: %s o rol.',
+                implode(', ', PerfilValidator::CAMPOS),
+            ));
+        }
+
+        return ['perfil' => $perfil, 'rol' => $rol];
+    }
+}

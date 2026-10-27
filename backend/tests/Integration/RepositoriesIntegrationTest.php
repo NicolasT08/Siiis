@@ -117,6 +117,27 @@ final class RepositoriesIntegrationTest extends IntegrationTestCase
         }
     }
 
+    public function testUsuariosActualizarYContarSuperadministradores(): void
+    {
+        $repo = new UsuariosRepository($this->mongo());
+        $antes = $repo->contarSuperadministradoresActivos();
+        $id = $this->insertar(Collections::USUARIOS, [
+            'nombre' => 'IT', 'apellido' => 'Super', 'rol' => 'superadministrador', 'estado' => true,
+            'biografia' => 'Se conserva',
+        ]);
+        self::assertSame($antes + 1, $repo->contarSuperadministradoresActivos());
+
+        $repo->actualizar($id, ['rol' => 'estudiante', 'nombre' => 'IT2', 'semestre' => null]);
+
+        $perfil = $repo->findPerfilById($id);
+        self::assertNotNull($perfil);
+        self::assertSame('estudiante', $perfil['rol']);
+        self::assertSame('IT2', $perfil['nombre']);
+        self::assertNull($perfil['semestre']);
+        self::assertSame('Se conserva', $perfil['biografia']);
+        self::assertSame($antes, $repo->contarSuperadministradoresActivos());
+    }
+
     public function testCorreoUnicoPorIndice(): void
     {
         $correo = self::correoUnico();

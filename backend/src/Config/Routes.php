@@ -44,6 +44,8 @@ final class Routes
                 $users->get('', [UsersController::class, 'index']);
                 $users->get('/{id}', [UsersController::class, 'show']);
             })->add(OptionalAuthMiddleware::class);
+            // Fuera del grupo: con OptionalAuthMiddleware la sesión se validaría dos veces.
+            $v1->patch('/users/{id}', [UsersController::class, 'update'])->add(AuthMiddleware::class);
 
             $v1->group('/home', function (RouteCollectorProxy $home): void {
                 $home->get('/slider', [HomeController::class, 'slider']);
