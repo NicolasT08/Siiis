@@ -6,10 +6,12 @@ namespace Siiis\Controllers;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Siiis\Config\Settings;
 use Siiis\Middleware\AuthMiddleware;
 use Siiis\Security\Roles;
 use Siiis\Services\UsersService;
 use Siiis\Support\JsonResponse;
+use Siiis\Validation\FileValidator;
 use Siiis\Validation\UpdateUserValidator;
 use Siiis\Validation\UsersQueryValidator;
 
@@ -26,6 +28,8 @@ final class UsersController
         private readonly UsersService $users,
         private readonly UsersQueryValidator $queryValidator,
         private readonly UpdateUserValidator $updateValidator,
+        private readonly FileValidator $fileValidator,
+        private readonly Settings $settings,
     ) {
     }
 
@@ -86,6 +90,28 @@ final class UsersController
             $args['id'],
             (string) $request->getAttribute(AuthMiddleware::ATTR_USUARIO_ID),
             (string) $request->getAttribute(AuthMiddleware::ATTR_ROL),
+        );
+
+        return JsonResponse::ok(['usuario' => $usuario])->withHeader('Cache-Control', 'no-store');
+    }
+
+    /**
+     * POST /api/v1/users/{id}/photo — multipart/form-data con el archivo en el campo `foto` (RF-06).
+     *
+     * @param array{id: string} $args
+     */
+    public function photo(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $imagen = $this->fileValidator->imagen(
+            $request->getUploadedFiles(),
+            'foto',
+            $this->settings->perfilFotoMaxBytes,
+        );
+        $usuario = $this->users->cambiarFoto(
+            $args['id'],
+            (string) $request->getAttribute(AuthMiddleware::ATTR_USUARIO_ID),
+            (string) $request->getAttribute(AuthMiddleware::ATTR_ROL),
+            $imagen['path'],
         );
 
         return JsonResponse::ok(['usuario' => $usuario])->withHeader('Cache-Control', 'no-store');

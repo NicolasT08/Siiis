@@ -9,6 +9,8 @@ use Siiis\Repositories\UsuariosRepository;
 
 final class InMemoryUsuariosRepository extends UsuariosRepository
 {
+    public bool $fallarAlActualizar = false;
+
     public function __construct(private readonly InMemoryDatabase $db)
     {
     }
@@ -46,6 +48,9 @@ final class InMemoryUsuariosRepository extends UsuariosRepository
 
     public function actualizar(ObjectId $id, array $set): void
     {
+        if ($this->fallarAlActualizar) {
+            throw new \RuntimeException('Fallo simulado de MongoDB');
+        }
         if (isset($this->db->usuarios[(string) $id])) {
             $this->db->usuarios[(string) $id] = $set + $this->db->usuarios[(string) $id];
         }

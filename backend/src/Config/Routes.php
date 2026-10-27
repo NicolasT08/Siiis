@@ -46,6 +46,7 @@ final class Routes
             })->add(OptionalAuthMiddleware::class);
             // Fuera del grupo: con OptionalAuthMiddleware la sesión se validaría dos veces.
             $v1->patch('/users/{id}', [UsersController::class, 'update'])->add(AuthMiddleware::class);
+            $v1->post('/users/{id}/photo', [UsersController::class, 'photo'])->add(AuthMiddleware::class);
             $v1->delete('/users/{id}', [UsersController::class, 'destroy'])
                 ->add(RoleMiddleware::administrativos())
                 ->add(AuthMiddleware::class);

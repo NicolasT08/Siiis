@@ -6,14 +6,17 @@ namespace Siiis\Services;
 
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\UTCDateTime;
+use Siiis\Config\Settings;
 use Siiis\Repositories\CredencialesRepository;
 use Siiis\Repositories\SesionesRepository;
 use Siiis\Repositories\UsuariosRepository;
 use Siiis\Security\Roles;
 use Siiis\Support\ApiException;
 use Siiis\Support\Clock;
+use Siiis\Support\Logger;
 use Siiis\Support\ObjectIdValidator;
 use Siiis\Support\UsuarioPresenter;
+use Throwable;
 
 /**
  * Consulta y edición de integrantes (RF-08, RF-15, spec 10.8). Vista pública o de administrador según
@@ -26,6 +29,9 @@ class UsersService
         private readonly CredencialesRepository $credenciales,
         private readonly SesionesRepository $sesiones,
         private readonly Clock $clock,
+        private readonly CloudinaryService $cloudinary,
+        private readonly Settings $settings,
+        private readonly Logger $logger,
     ) {
     }
 
@@ -117,18 +123,7 @@ class UsersService
      */
     public function actualizar(string $id, string $actorId, string $actorRol, array $input): array
     {
-        $objectId = ObjectIdValidator::toObjectId($id);
-        // Se compara el id normalizado: el hex de la URL puede venir en mayúsculas.
-        $esPropio = $objectId !== null && (string) $objectId === $actorId;
-        // Antes de buscar: un integrante no distingue entre "no existe" y "no es tuyo".
-        if (!$esPropio && !self::esAdmin($actorRol)) {
-            throw ApiException::forbidden('Solo puedes editar tu propio perfil.');
-        }
-
-        $usuario = $objectId === null ? null : $this->usuarios->findPerfilById($objectId);
-        if ($objectId === null || $usuario === null) {
-            throw self::noEncontrado();
-        }
+        [$objectId, $usuario, $esPropio] = $this->editable($id, $actorId, $actorRol);
 
         $rolActual = (string) ($usuario['rol'] ?? '');
         $nuevoRol = $input['rol'] !== null && $input['rol'] !== $rolActual ? $input['rol'] : null;
@@ -143,13 +138,8 @@ class UsersService
             if ($nuevoEstado !== null) {
                 throw ApiException::forbidden('No puedes cambiar tu propio estado.');
             }
-        } else {
-            if (!Roles::puedeGestionar($actorRol, $rolActual)) {
-                throw ApiException::forbidden(sprintf('No puedes editar usuarios con el rol %s.', $rolActual));
-            }
-            if ($nuevoRol !== null && !Roles::puedeGestionar($actorRol, $nuevoRol)) {
-                throw ApiException::forbidden(sprintf('No puedes asignar el rol %s.', $nuevoRol));
-            }
+        } elseif ($nuevoRol !== null && !Roles::puedeGestionar($actorRol, $nuevoRol)) {
+            throw ApiException::forbidden(sprintf('No puedes asignar el rol %s.', $nuevoRol));
         }
 
         $desactiva = $nuevoEstado === false;
@@ -193,6 +183,101 @@ class UsersService
     public function desactivar(string $id, string $actorId, string $actorRol): array
     {
         return $this->actualizar($id, $actorId, $actorRol, ['perfil' => [], 'rol' => null, 'estado' => false]);
+    }
+
+    /**
+     * POST /users/{id}/photo (RF-06, spec 10.13.8 y 13, DEC-B29): mismos permisos que editar el perfil.
+     * Sube la nueva foto, guarda `{url, public_id}` y, solo entonces, borra la anterior. Si MongoDB falla,
+     * borra la recién subida (compensación) para no dejar archivos huérfanos.
+     *
+     * @param string $path imagen ya validada por FileValidator (temporal de PHP)
+     *
+     * @return array<string, mixed> vista de administrador con la foto nueva
+     *
+     * @throws ApiException 403 FORBIDDEN, 404 NOT_FOUND, 502 CLOUDINARY_UNAVAILABLE
+     */
+    public function cambiarFoto(string $id, string $actorId, string $actorRol, string $path): array
+    {
+        [$objectId, $usuario] = $this->editable($id, $actorId, $actorRol);
+        $fotoAnterior = $usuario['foto_perfil'] ?? null;
+        $anterior = is_array($fotoAnterior) ? ($fotoAnterior['public_id'] ?? null) : null;
+
+        try {
+            $foto = $this->cloudinary->upload($path, $this->settings->cloudinaryPerfilesFolder);
+        } catch (CloudinaryException $e) {
+            $this->logger->error('No se pudo subir la foto de perfil', [
+                'usuario_id' => (string) $objectId,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new ApiException(
+                502,
+                'CLOUDINARY_UNAVAILABLE',
+                'No se pudo guardar la imagen. Intenta de nuevo más tarde.',
+            );
+        }
+
+        try {
+            $this->usuarios->actualizar($objectId, ['foto_perfil' => $foto]);
+        } catch (Throwable $e) {
+            $this->borrarFoto($foto['public_id'], 'compensación tras fallo en MongoDB');
+
+            throw $e;
+        }
+
+        if (is_string($anterior) && $anterior !== '' && $anterior !== $foto['public_id']) {
+            $this->borrarFoto($anterior, 'reemplazo de foto de perfil');
+        }
+
+        return $this->obtener((string) $objectId, $actorId, $actorRol);
+    }
+
+    /**
+     * Usuario que `$actor` puede editar (DEC-B17): el propio o, para roles administrativos, uno de los
+     * roles que gestiona. Las reglas sobre `rol` y `estado` las aplica `actualizar`.
+     *
+     * @return array{ObjectId, array<string, mixed>, bool} [id, perfil, esPropio]
+     *
+     * @throws ApiException 403 FORBIDDEN, 404 NOT_FOUND
+     */
+    private function editable(string $id, string $actorId, string $actorRol): array
+    {
+        $objectId = ObjectIdValidator::toObjectId($id);
+        // Se compara el id normalizado: el hex de la URL puede venir en mayúsculas.
+        $esPropio = $objectId !== null && (string) $objectId === $actorId;
+        // Antes de buscar: un integrante no distingue entre "no existe" y "no es tuyo".
+        if (!$esPropio && !self::esAdmin($actorRol)) {
+            throw ApiException::forbidden('Solo puedes editar tu propio perfil.');
+        }
+
+        $usuario = $objectId === null ? null : $this->usuarios->findPerfilById($objectId);
+        if ($objectId === null || $usuario === null) {
+            throw self::noEncontrado();
+        }
+
+        $rol = (string) ($usuario['rol'] ?? '');
+        if (!$esPropio && !Roles::puedeGestionar($actorRol, $rol)) {
+            throw ApiException::forbidden(sprintf('No puedes editar usuarios con el rol %s.', $rol));
+        }
+
+        return [$objectId, $usuario, $esPropio];
+    }
+
+    /**
+     * Borrado sin propagar errores: la operación principal ya terminó; un fallo solo deja un archivo
+     * huérfano, que queda en el log para limpiarlo a mano.
+     */
+    private function borrarFoto(string $publicId, string $motivo): void
+    {
+        try {
+            $this->cloudinary->delete($publicId);
+        } catch (CloudinaryException $e) {
+            $this->logger->error('No se pudo borrar una foto de Cloudinary', [
+                'public_id' => $publicId,
+                'motivo' => $motivo,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private static function esAdmin(?string $actorRol): bool

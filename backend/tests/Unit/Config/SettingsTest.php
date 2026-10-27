@@ -24,6 +24,20 @@ final class SettingsTest extends TestCase
         self::assertSame(20, $settings->homeMaxItems);
         self::assertSame(20, $settings->usersPerPageDefault);
         self::assertSame(50, $settings->usersPerPageMax);
+        self::assertSame(2097152, $settings->perfilFotoMaxBytes);
+        self::assertSame('siiis/perfiles', $settings->cloudinaryPerfilesFolder);
+        self::assertSame('', $settings->cloudinaryCloudName);
+    }
+
+    public function testCarpetaDeCloudinarySinBarrasExtremas(): void
+    {
+        $settings = Settings::fromEnv([
+            'MONGO_URI' => 'mongodb://x',
+            'JWT_SECRET' => self::SECRET,
+            'CLOUDINARY_PERFILES_FOLDER' => '/siiis_test/perfiles/',
+        ]);
+
+        self::assertSame('siiis_test/perfiles', $settings->cloudinaryPerfilesFolder);
     }
 
     public function testRecortaJwtTtlAOchoHoras(): void
