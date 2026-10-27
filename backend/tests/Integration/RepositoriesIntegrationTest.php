@@ -136,6 +136,18 @@ final class RepositoriesIntegrationTest extends IntegrationTestCase
         self::assertNull($perfil['semestre']);
         self::assertSame('Se conserva', $perfil['biografia']);
         self::assertSame($antes, $repo->contarSuperadministradoresActivos());
+
+        // Desactivación y reactivación (DEC-B22): un superadministrador inactivo no cuenta.
+        $repo->actualizar($id, ['rol' => 'superadministrador', 'estado' => false, 'fecha_salida' => new UTCDateTime()]);
+        self::assertSame($antes, $repo->contarSuperadministradoresActivos());
+        self::assertInstanceOf(UTCDateTime::class, $repo->findPerfilById($id)['fecha_salida'] ?? null);
+
+        $repo->actualizar($id, ['estado' => true, 'fecha_salida' => null]);
+        self::assertSame($antes + 1, $repo->contarSuperadministradoresActivos());
+        $reactivado = $repo->findPerfilById($id);
+        self::assertNotNull($reactivado);
+        self::assertArrayHasKey('fecha_salida', $reactivado);
+        self::assertNull($reactivado['fecha_salida']);
     }
 
     public function testCorreoUnicoPorIndice(): void

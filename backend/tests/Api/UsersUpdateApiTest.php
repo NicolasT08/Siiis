@@ -34,7 +34,7 @@ final class UsersUpdateApiTest extends AuthTestCase
             'telefono' => '+57 (300) 123-4567',
             'biografia' => '',
             'semestre' => 7,
-            'estado' => false,
+            'estado' => true,
             'correo' => 'otro@uptc.edu.co',
             'foto_perfil' => ['url' => 'https://evil.example/x.jpg'],
         ], $token);
@@ -49,7 +49,7 @@ final class UsersUpdateApiTest extends AuthTestCase
         self::assertSame(7, $usuario['semestre']);
         self::assertSame('Ingeniería de Sistemas y Computación', $usuario['programa_academico']);
         self::assertSame('estudiante', $usuario['rol']);
-        // Campos no editables por PATCH se ignoran.
+        // Reenviar el propio estado no es un cambio; los campos no editables se ignoran.
         self::assertTrue($usuario['estado']);
         self::assertStringStartsWith('estudiante-', $usuario['correo']);
         self::assertSame(['url' => 'https://res.cloudinary.com/demo/yo.jpg'], $usuario['foto_perfil']);
@@ -279,7 +279,7 @@ final class UsersUpdateApiTest extends AuthTestCase
     {
         [$token, $id] = $this->sesionComo($this->app, 'estudiante');
 
-        foreach (['{}', '{"estado": true, "correo": "x@uptc.edu.co"}'] as $cuerpo) {
+        foreach (['{}', '{"correo": "x@uptc.edu.co", "foto_perfil": null}'] as $cuerpo) {
             $response = $this->app->handle($this->request('PATCH', '/api/v1/users/' . $id, $cuerpo, self::bearer($token)));
 
             $this->assertError($response, 400, 'VALIDATION_ERROR');

@@ -75,6 +75,22 @@ final class UsersController
         return JsonResponse::ok(['usuario' => $usuario])->withHeader('Cache-Control', 'no-store');
     }
 
+    /**
+     * DELETE /api/v1/users/{id} — desactivación lógica; solo roles administrativos (RoleMiddleware).
+     *
+     * @param array{id: string} $args
+     */
+    public function destroy(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $usuario = $this->users->desactivar(
+            $args['id'],
+            (string) $request->getAttribute(AuthMiddleware::ATTR_USUARIO_ID),
+            (string) $request->getAttribute(AuthMiddleware::ATTR_ROL),
+        );
+
+        return JsonResponse::ok(['usuario' => $usuario])->withHeader('Cache-Control', 'no-store');
+    }
+
     private static function actorRol(ServerRequestInterface $request): ?string
     {
         $rol = $request->getAttribute(AuthMiddleware::ATTR_ROL);

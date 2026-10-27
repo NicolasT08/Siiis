@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Siiis\Services;
 
 use MongoDB\BSON\ObjectId;
+use MongoDB\BSON\UTCDateTime;
 use Siiis\Repositories\CredencialesRepository;
 use Siiis\Repositories\SesionesRepository;
 use Siiis\Repositories\UsuariosRepository;
 use Siiis\Security\Roles;
 use Siiis\Support\ApiException;
+use Siiis\Support\Clock;
 use Siiis\Support\ObjectIdValidator;
 use Siiis\Support\UsuarioPresenter;
 
@@ -23,6 +25,7 @@ class UsersService
         private readonly UsuariosRepository $usuarios,
         private readonly CredencialesRepository $credenciales,
         private readonly SesionesRepository $sesiones,
+        private readonly Clock $clock,
     ) {
     }
 
@@ -102,10 +105,11 @@ class UsersService
     }
 
     /**
-     * PATCH /users/{id} (DEC-B17, DEC-B27). Cada quien edita su perfil; los administradores, además,
-     * el de los roles que gestionan y su `rol`. Cambiar el rol cierra las sesiones del usuario.
+     * PATCH /users/{id} (DEC-B17, DEC-B22, DEC-B27, DEC-B28). Cada quien edita su perfil; los
+     * administradores, además, el de los roles que gestionan, su `rol` y su `estado`. Cambiar el rol o
+     * desactivar cierra las sesiones del usuario.
      *
-     * @param array{perfil: array<string, string|int|null>, rol: string|null} $input
+     * @param array{perfil: array<string, string|int|null>, rol: string|null, estado: bool|null} $input
      *
      * @return array<string, mixed> vista de administrador del usuario actualizado
      *
@@ -128,10 +132,16 @@ class UsersService
 
         $rolActual = (string) ($usuario['rol'] ?? '');
         $nuevoRol = $input['rol'] !== null && $input['rol'] !== $rolActual ? $input['rol'] : null;
+        $estadoActual = ($usuario['estado'] ?? null) === true;
+        // Igual que con el rol: reenviar el estado actual no es un cambio (DELETE repetido es idempotente).
+        $nuevoEstado = $input['estado'] !== null && $input['estado'] !== $estadoActual ? $input['estado'] : null;
 
         if ($esPropio) {
             if ($nuevoRol !== null) {
                 throw ApiException::forbidden('No puedes cambiar tu propio rol.');
+            }
+            if ($nuevoEstado !== null) {
+                throw ApiException::forbidden('No puedes cambiar tu propio estado.');
             }
         } else {
             if (!Roles::puedeGestionar($actorRol, $rolActual)) {
@@ -142,10 +152,11 @@ class UsersService
             }
         }
 
+        $desactiva = $nuevoEstado === false;
         if (
-            $nuevoRol !== null
+            ($nuevoRol !== null || $desactiva)
             && $rolActual === Roles::SUPERADMINISTRADOR
-            && ($usuario['estado'] ?? null) === true
+            && $estadoActual
             && $this->usuarios->contarSuperadministradoresActivos() <= 1
         ) {
             throw self::ultimoSuperadministrador();
@@ -155,15 +166,33 @@ class UsersService
         if ($nuevoRol !== null) {
             $set['rol'] = $nuevoRol;
         }
+        if ($nuevoEstado !== null) {
+            // Reactivar borra la fecha de salida y conserva fecha_ingreso (DEC-B22).
+            $set['estado'] = $nuevoEstado;
+            $set['fecha_salida'] = $desactiva ? new UTCDateTime($this->clock->now()) : null;
+        }
         if ($set !== []) {
             $this->usuarios->actualizar($objectId, $set);
         }
-        if ($nuevoRol !== null) {
-            // El rol viaja en el JWT: se cierran las sesiones para que no quede desactualizado.
+        if ($nuevoRol !== null || $desactiva) {
+            // El rol viaja en el JWT y un inactivo no debe seguir operando: se cierran sus sesiones.
             $this->sesiones->desactivarTodas($objectId);
         }
 
         return $this->obtener((string) $objectId, $actorId, $actorRol);
+    }
+
+    /**
+     * DELETE /users/{id} (RF-09, DEC-B22): desactivación lógica por deserción, con las mismas reglas que
+     * `PATCH {"estado": false}`. Repetirla sobre un inactivo no cambia nada (conserva su fecha_salida).
+     *
+     * @return array<string, mixed> vista de administrador del usuario desactivado
+     *
+     * @throws ApiException 403 FORBIDDEN, 404 NOT_FOUND, 409 LAST_SUPERADMIN
+     */
+    public function desactivar(string $id, string $actorId, string $actorRol): array
+    {
+        return $this->actualizar($id, $actorId, $actorRol, ['perfil' => [], 'rol' => null, 'estado' => false]);
     }
 
     private static function esAdmin(?string $actorRol): bool
@@ -198,7 +227,7 @@ class UsersService
         return new ApiException(
             409,
             'LAST_SUPERADMIN',
-            'No se puede quitar el rol al último superadministrador activo.',
+            'No se puede quitar el rol ni desactivar al último superadministrador activo.',
         );
     }
 }
