@@ -64,7 +64,7 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 - No se puede desactivar ni bajar de rol al último superadministrador activo.
 - Si a un usuario le cambian el rol o lo desactivan, todas sus sesiones se cierran: su siguiente petición protegida responde `401 UNAUTHORIZED` y debe volver a iniciar sesión.
 
-**Rutas públicas con sesión opcional** (p. ej. `GET /users` y `GET /projects`): sin token, o con un token vencido o inválido, responden la vista pública (nunca `401`). Con un token válido incluyen datos adicionales (vista de administrador en `/users`; borradores propios o de revisión en `/projects`, ver sección 9).
+**Rutas públicas con sesión opcional** (p. ej. `GET /users` y `GET /projects`): sin token, o con un token vencido o inválido, responden la vista pública (nunca `401`). Con un token válido incluyen datos adicionales (vista de administrador en `/users`; borradores propios o de revisión en `/projects` y `/articles`, ver secciones 9 y 10).
 
 ---
 
@@ -451,7 +451,7 @@ Público. Videos de presentación (RF-11), de `Multimedia` con `seccion = video_
 
 ## 9. Contenido: proyectos (`/projects`)
 
-Fase 3. Proyectos de la colección `Documentos` (`categoria = proyecto`). Artículos y noticias (`/articles`) siguen el mismo contrato en el paso 2 de la fase 3. Contrato provisional: `PROPUESTA` DEC-B30 a DEC-B41, pendiente de aprobación del equipo.
+Fase 3. Proyectos de la colección `Documentos` (`categoria = proyecto`). Artículos y noticias usan el mismo contrato en `/articles` (sección 10). Contrato provisional: `PROPUESTA` DEC-B30 a DEC-B41, pendiente de aprobación del equipo.
 
 ### Reglas
 
@@ -588,9 +588,70 @@ Requiere token. Borrado **físico**: el proyecto desaparece. Puede hacerlo el au
 
 ---
 
+## 10. Contenido: artículos y noticias (`/articles`)
+
+Fase 3. Artículos y noticias de la colección `Documentos` (`categoria = articulo` o `noticia`). Usa **el mismo contrato que `/projects`** (sección 9): mismas reglas de quién crea, edita, publica, borra y ve; mismo objeto `documento`, paginación, caché y errores. Contrato provisional: `PROPUESTA` DEC-B30 a DEC-B41.
+
+Lo que cambia respecto a `/projects`:
+
+| Tema | `/articles` |
+|---|---|
+| Categorías | `articulo` y `noticia` (DEC-B30). No hay una ruta aparte para noticias |
+| Estados | `en_revision` y `publicado` (DEC-B31). `ejecucion` y `finalizado` son solo de proyectos → `400 VALIDATION_ERROR` |
+| Qué es público | Igual: `visible = true` y `estado` distinto de `en_revision`; en la práctica, `publicado` y visible |
+| Para publicar | `PATCH` de un revisor con `{"estado": "publicado", "visible": true}` |
+| Mensaje del 404 | `"El artículo o noticia no existe."` |
+
+### 10a. `GET /articles`
+
+Los parámetros de 9a, más `categoria`:
+
+| Parámetro | Regla |
+|---|---|
+| `categoria` | `articulo` o `noticia`; sin el parámetro (o vacío) trae las dos |
+| `estado` | `en_revision` o `publicado` |
+| `page`, `per_page`, `autor`, `integrante`, `visible` | como en 9a |
+
+Ejemplos: `GET /articles?categoria=noticia&per_page=3` (últimas noticias para la página de inicio); `GET /articles?integrante={id}` (publicaciones de un integrante en su perfil, RF-05).
+
+**Errores:** `400 VALIDATION_ERROR` con `fields` (p. ej. `categoria=proyecto` o `estado=ejecucion`).
+
+### 10b. `GET /articles/{id}`
+
+Como 9b. Un proyecto pedido por esta ruta responde `404`, y un artículo pedido por `/projects/{id}` también.
+
+### 10c. `POST /articles`
+
+Como 9c, con **`categoria` obligatoria**:
+
+```json
+{
+  "categoria": "noticia",
+  "titulo": "El semillero gana el premio regional",
+  "descripcion": "Resumen corto para el listado.",
+  "contenido": "## Detalles\n\nTexto en **Markdown**."
+}
+```
+
+| Campo | Obligatorio | Regla |
+|---|---|---|
+| `categoria` | sí | `articulo` o `noticia` (exacto, en minúsculas) |
+| `estado` | no | `en_revision` o `publicado`; solo revisores |
+| demás campos | | como en 9c |
+
+### 10d. `PATCH /articles/{id}`
+
+Como 9d. Además se puede cambiar `categoria` entre `articulo` y `noticia`, con los mismos permisos que el resto de campos (el autor, mientras está en revisión; los revisores, siempre). Un `PATCH` sin campos editables lista también `categoria` en el mensaje.
+
+### 10e. `DELETE /articles/{id}`
+
+Como 9e: borrado físico, `204`.
+
+---
+
 ## Fuera de esta fase
 
 - `POST /auth/google` (login con Google, RF-17): no está registrada; responde `404`. Sigue fuera en la fase 2.
 - Hero, bloques S-I-I-I-S, llamada a la acción y footer de la página de inicio: por ahora son contenido estático del frontend (DEC-B12). El botón "Inscríbete" solo navega a la página de inscripción.
-- Artículos y noticias (`/articles`) y archivos adjuntos (`/files`): pasos 2 y 3 de la fase 3.
+- Archivos adjuntos (`/files`) de proyectos, artículos y noticias: paso 3 de la fase 3.
 - Reseñas, inscripciones y contacto: fases siguientes.

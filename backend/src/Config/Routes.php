@@ -53,7 +53,7 @@ final class Routes
                 ->add(RoleMiddleware::administrativos())
                 ->add(AuthMiddleware::class);
 
-            foreach ([ModuloDocumentos::PROYECTOS] as $modulo) {
+            foreach (ModuloDocumentos::cases() as $modulo) {
                 self::documentos($v1, $modulo);
             }
             $v1->group('/home', function (RouteCollectorProxy $home): void {

@@ -7,25 +7,12 @@ namespace Siiis\Tests\Api;
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\UTCDateTime;
 use PHPUnit\Framework\Attributes\DataProvider;
-use Psr\Http\Message\ResponseInterface;
-use Slim\App;
 
 /**
  * /projects (spec 10.9 y 11.3; DEC-B30 a DEC-B41) con repositorios en memoria.
  */
-final class ProjectsApiTest extends AuthTestCase
+final class ProjectsApiTest extends DocumentosTestCase
 {
-    /** @var App<\Psr\Container\ContainerInterface> */
-    private App $app;
-
-    private int $segundos = 0;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->app = $this->authApp();
-    }
-
     // ---------------------------------------------------------------- listado
 
     public function testAnonimoSoloVeProyectosPublicos(): void
@@ -144,16 +131,6 @@ final class ProjectsApiTest extends AuthTestCase
             [(string) $comoIntegrante, (string) $miBorrador],
             array_column($this->json($this->get('/api/v1/projects?estado=en_revision', $token))['data'], 'id'),
         );
-    }
-
-    /**
-     * @return iterable<string, array{string}>
-     */
-    public static function revisores(): iterable
-    {
-        yield 'superadministrador' => ['superadministrador'];
-        yield 'administrador' => ['administrador'];
-        yield 'docente_director' => ['docente_director'];
     }
 
     #[DataProvider('revisores')]
@@ -575,16 +552,6 @@ final class ProjectsApiTest extends AuthTestCase
 
     // ---------------------------------------------------------------- ayudas
 
-    private function get(string $path, ?string $token = null): ResponseInterface
-    {
-        return $this->send('GET', $path, null, $token);
-    }
-
-    private function send(string $method, string $path, mixed $body = null, ?string $token = null): ResponseInterface
-    {
-        return $this->app->handle($this->request($method, $path, $body, $token === null ? [] : self::bearer($token)));
-    }
-
     /**
      * @param array<string, mixed> $cambios
      *
@@ -597,42 +564,5 @@ final class ProjectsApiTest extends AuthTestCase
             'descripcion' => 'Resumen del proyecto',
             'contenido' => "## Objetivo\n\nTexto en **Markdown**.",
         ];
-    }
-
-    /**
-     * @param array<string, mixed> $campos
-     */
-    private function usuario(string $rol, array $campos = []): ObjectId
-    {
-        [, $id] = $this->db->crearCuenta('u-' . bin2hex(random_bytes(4)) . '@uptc.edu.co', self::PASSWORD, [], ['rol' => $rol] + $campos);
-
-        return $id;
-    }
-
-    /**
-     * Inserta un documento directamente; cada uno un segundo más reciente que el anterior.
-     *
-     * @param array<string, mixed> $campos
-     */
-    private function documento(array $campos): ObjectId
-    {
-        $id = new ObjectId();
-        $fecha = new UTCDateTime(($this->clock->now()->getTimestamp() + ++$this->segundos) * 1000);
-        $this->db->documentos[(string) $id] = $campos + [
-            '_id' => $id,
-            'categoria' => 'proyecto',
-            'titulo' => 'Proyecto IT',
-            'descripcion' => 'Descripción breve',
-            'contenido' => 'Contenido',
-            'autor_id' => new ObjectId(),
-            'integrantes' => [],
-            'archivos_adjuntos' => [],
-            'estado' => 'en_revision',
-            'visible' => false,
-            'fecha_creacion' => $fecha,
-            'fecha_actualizacion' => $fecha,
-        ];
-
-        return $id;
     }
 }
