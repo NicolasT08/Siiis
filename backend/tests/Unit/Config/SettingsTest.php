@@ -27,6 +27,12 @@ final class SettingsTest extends TestCase
         self::assertSame(2097152, $settings->perfilFotoMaxBytes);
         self::assertSame('siiis/perfiles', $settings->cloudinaryPerfilesFolder);
         self::assertSame('', $settings->cloudinaryCloudName);
+        self::assertSame(12, $settings->documentosPerPageDefault);
+        self::assertSame(50, $settings->documentosPerPageMax);
+        self::assertSame(200, $settings->documentoTituloMaxLength);
+        self::assertSame(1000, $settings->documentoDescripcionMaxLength);
+        self::assertSame(50000, $settings->documentoContenidoMaxLength);
+        self::assertSame(20, $settings->documentoIntegrantesMax);
     }
 
     public function testCarpetaDeCloudinarySinBarrasExtremas(): void
@@ -66,6 +72,10 @@ final class SettingsTest extends TestCase
         yield 'per_page por defecto mayor que el máximo' => [
             ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'USERS_PER_PAGE_DEFAULT' => '60'],
             'USERS_PER_PAGE_DEFAULT',
+        ];
+        yield 'per_page de documentos mayor que el máximo' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'DOCUMENTOS_PER_PAGE_MAX' => '10'],
+            'DOCUMENTOS_PER_PAGE_DEFAULT',
         ];
     }
 

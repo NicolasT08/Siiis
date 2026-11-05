@@ -301,3 +301,142 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 - Variables: `PERFIL_FOTO_MAX_BYTES`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_PERFILES_FOLDER`.
 - Impacto: `FileValidator`, `CloudinaryService`, `UsersService::cambiarFoto`, `UsersController::photo`, `Routes`, `Settings`, `.env.example`, `composer.json` (`cloudinary/cloudinary_php` ^3.1), `docs/api.md`.
 - Requiere migración: no.
+
+---
+
+# Fase 3 — Contenido (proyectos, artículos y noticias)
+
+El spec (8.2, 10.9 y 11.3) define la colección `Documentos` y las rutas `/projects` y `/articles`, pero no
+quién publica, si hay revisión ni quién edita o borra. Las decisiones DEC-B30 a DEC-B40 responden las 11 dudas
+del plan de la fase 3. Backend las aprobó el 2026-11-04 con estas recomendaciones y están **pendientes de
+aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato de las rutas.
+
+## DEC-B30 — Rutas y categorías: las noticias van en `/articles`
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-04
+- Contexto: `Documentos.categoria` admite `proyecto`, `articulo` y `noticia`, pero el spec 11.3 solo tiene `/projects` y `/articles`.
+- Decisión: `/projects` sirve solo `categoria = proyecto` (la categoría es fija; si el cuerpo trae otra, se ignora). `/articles` sirve `articulo` y `noticia`: al crear, `categoria` es obligatoria, y el listado se filtra con `?categoria=articulo|noticia`. Un documento de otro módulo responde `404` (p. ej. un artículo pedido por `/projects/{id}`). Un solo `DocumentosController`, como pide el spec 9.
+- Alternativas: una ruta `/news` (no está en el contrato).
+- Impacto: `ModuloDocumentos`, `Routes`, `DocumentosController`, `DocumentoValidator`, `DocumentosQueryValidator`.
+- Requiere migración: no.
+
+## DEC-B31 — Estados por categoría y vista pública
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo). Relacionada con DECISION-010 del spec (estados definitivos).
+- Fecha: 2026-11-04
+- Contexto: `estado` mezcla el avance de un proyecto (`ejecucion`, `finalizado`) con la revisión (`en_revision`, `publicado`). Si el público solo viera `publicado`, nunca vería un proyecto en ejecución.
+- Decisión:
+  - Proyecto: `en_revision`, `ejecucion`, `finalizado`.
+  - Artículo y noticia: `en_revision`, `publicado`.
+  - Un estado de otra categoría responde `400 VALIDATION_ERROR` (p. ej. `publicado` en un proyecto).
+  - **Vista pública: `visible = true` y `estado` distinto de `en_revision`.** `visible = false` sirve para ocultar algo ya aprobado sin borrarlo.
+- Impacto: `ModuloDocumentos::estadosDe`, `DocumentosRepository::filtro`, `DocumentosService`.
+- Requiere migración: no.
+
+## DEC-B32 — Quién crea documentos
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-04
+- Decisión: cualquier usuario con sesión, de cualquier rol, crea proyectos, artículos y noticias, y queda como autor (`autor_id` sale del token, nunca del cuerpo). Lo que crea queda en `en_revision` y con `visible = false`. Si alguien que no es revisor intenta crearlo con otro estado o con `visible: true`, recibe `403 FORBIDDEN`; reenviar `en_revision` o `false` está permitido.
+- Impacto: `DocumentosService::crear`.
+- Requiere migración: no.
+
+## DEC-B33 — Revisión y publicación
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-04
+- Decisión: hay revisión antes de publicar. Solo los **revisores** (`superadministrador`, `administrador` y `docente_director`; `Roles::REVISORES_CONTENIDO`) cambian `estado` o `visible`, en cualquier documento y en cualquier sentido (también pueden devolverlo a `en_revision`). Pueden crear un documento ya publicado. Para el contenido no se aplica la jerarquía de usuarios de DEC-B17: un revisor puede publicar el documento de un superadministrador.
+- Impacto: `Roles`, `DocumentosService`.
+- Requiere migración: no.
+
+## DEC-B34 — Quién edita
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-04
+- Decisión:
+  - El **autor** edita su documento solo mientras está `en_revision`; después recibe `403` y debe pedir el cambio a un revisor.
+  - Los **revisores** editan cualquier documento, siempre.
+  - Los **integrantes** no editan: solo aparecen en la lista.
+  - `PATCH` es parcial. Reenviar `estado` o `visible` con su valor actual no es un cambio. `autor_id`, `archivos_adjuntos` y las fechas se ignoran si llegan en el cuerpo.
+  - Para que la edición de un autor no pise una publicación simultánea, la escritura exige en la misma consulta que el documento siga en `en_revision`; si ya no lo está, responde `403`.
+- Alternativas: el autor también edita lo publicado y el documento vuelve a `en_revision`.
+- Impacto: `DocumentosService::actualizar`, `DocumentosRepository::actualizar`.
+- Requiere migración: no.
+
+## DEC-B35 — Borrado físico
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-04
+- Contexto: el modelo de `Documentos` no tiene un campo de "eliminado", y para ocultar ya existe `visible = false`.
+- Decisión: `DELETE` borra el documento de verdad (`204`). Puede hacerlo el autor mientras está `en_revision` (con la misma condición atómica de DEC-B34) o un revisor en cualquier momento. Desde el paso 3 también se borran sus adjuntos en Cloudinary.
+- Alternativas: borrado lógico con `visible = false` (no distingue "oculto" de "eliminado").
+- Impacto: `DocumentosService::eliminar`, `DocumentosRepository::eliminar`.
+- Requiere migración: no.
+
+## DEC-B36 — Qué ve cada actor
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-04
+- Decisión:
+  - Sin sesión: solo lo público (DEC-B31).
+  - Con sesión: lo público más lo suyo, como autor o como integrante, incluidos sus borradores.
+  - Revisores: todo, y además pueden filtrar por `visible`.
+  - Lo que el actor no puede ver responde `404` (no `403`) en `GET`, `PATCH` y `DELETE`: así no se revela si existe un borrador con ese id.
+- Impacto: `DocumentoCriterios`, `DocumentosRepository::filtro`, `DocumentosService`.
+- Requiere migración: no.
+
+## DEC-B37 — `contenido` en Markdown y límites de texto
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo) · **pendiente de confirmar con el frontend**
+- Fecha: 2026-11-04
+- Contexto: el spec 8.2 dice que `contenido` es "texto enriquecido" sin definir el formato. Guardar HTML exigiría sanitizarlo en el backend (una librería nueva) para evitar XSS.
+- Decisión: `contenido` es **Markdown**, opcional, de hasta 50 000 caracteres. Se guarda tal cual (sin espacios alrededor; vacío o `null` → `null`). El frontend debe mostrarlo con un renderizador de Markdown que **no interprete HTML incrustado**. `titulo` es obligatorio (máx. 200) y `descripcion` también (máx. 1000): la descripción es el resumen que aparece en los listados.
+- Pendiente: confirmar con el frontend el formato y el renderizador.
+- Variables: `DOCUMENTO_TITULO_MAX_LENGTH`, `DOCUMENTO_DESCRIPCION_MAX_LENGTH`, `DOCUMENTO_CONTENIDO_MAX_LENGTH`.
+- Impacto: `DocumentoValidator`, `Settings`, `.env.example`.
+- Requiere migración: no.
+
+## DEC-B38 — Integrantes de un documento
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-04
+- Decisión:
+  - `integrantes` es una lista de ids de `Usuarios`, sin repetidos y de hasta 20. Se valida que existan (spec 8.5).
+  - Para **agregar** a alguien, debe estar activo. Los integrantes que ya estaban y luego se desactivaron (egresados) pueden quedarse y siguen apareciendo en el documento, porque es su autoría.
+  - El autor y los integrantes se muestran con su vista pública mínima: `id`, `nombre`, `apellido`, `rol` y `foto_perfil` (solo `url`). Los de toda una página se resuelven con una sola consulta (sin N+1).
+  - `PATCH` con `integrantes` reemplaza la lista completa; `[]` o `null` la vacían.
+- Variables: `DOCUMENTO_INTEGRANTES_MAX`.
+- Impacto: `DocumentoValidator`, `DocumentosService::validarIntegrantes`, `UsuariosRepository::findResumenesByIds`, `DocumentoPresenter`.
+- Requiere migración: no.
+
+## DEC-B39 — Rutas para los archivos adjuntos
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo) · se implementa en el paso 3
+- Fecha: 2026-11-04
+- Contexto: el spec 11.3 no tiene rutas para subir o quitar adjuntos.
+- Decisión: sub-rutas como la de la foto de perfil, con un archivo por petición: `POST /{projects|articles}/{id}/files` (`multipart/form-data`) y `DELETE /{projects|articles}/{id}/files/{archivo}`. `{archivo}` es el identificador que devuelve el detalle en `archivos_adjuntos[].archivo` (el último segmento del `public_id`; el `public_id` completo nunca sale). Mismos permisos que editar el documento (DEC-B34).
+- Impacto: `Routes`, `DocumentosController`, `DocumentosService`, `DocumentoPresenter::adjuntos`.
+- Requiere migración: no.
+
+## DEC-B40 — Tipos y tamaño de los adjuntos
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo) · se implementa en el paso 3
+- Fecha: 2026-11-04
+- Contexto: el spec 13.3 prohíbe fijar en el código límites que el equipo no haya aprobado.
+- Decisión: PDF, JPG, PNG y WebP, detectados por el contenido real (`finfo`), de hasta 5 MB por archivo y con un máximo de 10 adjuntos por documento. Todo en `.env`. Hostinger debe permitir subidas de al menos 5 MB.
+- Impacto: `FileValidator`, `CloudinaryService`, `Settings`, `docs/deployment.md`.
+- Requiere migración: no.
+
+## DEC-B41 — Contrato de `/projects` y `/articles`
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-04
+- Decisión:
+  - Listado: `page` (1 a 10000), `per_page` (1 a `DOCUMENTOS_PER_PAGE_MAX`, por defecto `DOCUMENTOS_PER_PAGE_DEFAULT`; 50 y 12), `estado`, `autor` e `integrante` (ids, para el perfil de RF-05 y RF-08), `categoria` (solo `/articles`) y `visible` (solo revisores; para los demás se ignora). Un valor fuera de la lista blanca, un id inválido o un parámetro enviado como arreglo → `400 VALIDATION_ERROR` con `fields`. Respuesta `{"data", "meta"}`, igual que `GET /users`. Orden: más recientes primero (`fecha_creacion` y `_id` descendentes).
+  - Los listados devuelven el resumen, sin `contenido` ni adjuntos (spec 10.13.4). El detalle agrega `contenido`, `archivos_adjuntos` y `permisos` (`editar`, `borrar` y `publicar` para el actor; el frontend los usa para mostrar u ocultar botones).
+  - Respuestas: `POST` → `201 {"documento"}`; `PATCH` → `200 {"documento"}`; `DELETE` → `204`. `GET` sin sesión lleva `Cache-Control: public, max-age=60`; con sesión, `no-store`; siempre `Vary: Authorization`.
+  - Sin índices nuevos: se usa el oficial `categoria + estado` (spec 8.4). Si la colección crece, proponer al equipo de BD `{categoria, fecha_creacion}` y uno sobre `integrantes`.
+- Variables: `DOCUMENTOS_PER_PAGE_DEFAULT`, `DOCUMENTOS_PER_PAGE_MAX`.
+- Impacto: `DocumentosController`, `DocumentosService`, `DocumentosQueryValidator`, `QueryReader`, `DocumentosRepository`, `DocumentoPresenter`, `Routes`, `docs/api.md`.
+- Requiere migración: no.

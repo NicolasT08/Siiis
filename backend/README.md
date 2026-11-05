@@ -39,7 +39,8 @@ Variables mínimas en `.env`:
 | `CLOUDINARY_PERFILES_FOLDER` | Carpeta de las fotos (`siiis/perfiles`). Las pruebas usan siempre `siiis_test/perfiles` |
 
 Límites provisionales y configurables (todos tienen valor por defecto): `PERFIL_*` (longitudes del perfil, semestre,
-teléfono y `PERFIL_FOTO_MAX_BYTES`, 2 MB; DEC-B21) y `USERS_PER_PAGE_*` (DEC-B26).
+teléfono y `PERFIL_FOTO_MAX_BYTES`, 2 MB; DEC-B21), `USERS_PER_PAGE_*` (DEC-B26), `DOCUMENTOS_PER_PAGE_*` (DEC-B41) y
+`DOCUMENTO_*` (longitudes de título, descripción y contenido, e integrantes por documento; DEC-B37 y DEC-B38).
 
 Si falta `MONGO_URI` o `JWT_SECRET`, o el secreto es corto, la API responde `500 CONFIG_ERROR`. El detalle aparece en la respuesta si `APP_DEBUG=true` y siempre en el log de errores de PHP. Sin `CLOUDINARY_*` la API arranca, pero subir una foto responde `502 CLOUDINARY_UNAVAILABLE`; sin `MAIL_*`, `forgot-password` responde igual que siempre y el fallo queda en `storage/logs`.
 

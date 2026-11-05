@@ -41,6 +41,15 @@ class UsuariosRepository
         'fecha_salida' => 1,
     ];
 
+    /** Datos mínimos para mostrar el autor y los integrantes de un documento (vista pública, DEC-B19). */
+    private const PROJECTION_RESUMEN = [
+        'nombre' => 1,
+        'apellido' => 1,
+        'rol' => 1,
+        'foto_perfil' => 1,
+        'estado' => 1,
+    ];
+
     /** Orden alfabético en español: ignora tildes y mayúsculas ("Álvarez" antes que "Bernal"). */
     private const COLLATION_ES = ['locale' => 'es', 'strength' => 1];
 
@@ -94,6 +103,29 @@ class UsuariosRepository
         $items = array_values($cursor->toArray());
 
         return ['items' => $items, 'total' => $this->collection()->countDocuments($filtro)];
+    }
+
+    /**
+     * Resúmenes de varios usuarios en una sola consulta (spec 10.13.4: sin N+1), indexados por id.
+     * Los ids que no existen simplemente no aparecen.
+     *
+     * @param list<ObjectId> $ids
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function findResumenesByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $resumenes = [];
+        foreach ($this->collection()->find(['_id' => ['$in' => $ids]], ['projection' => self::PROJECTION_RESUMEN]) as $usuario) {
+            /** @var array<string, mixed> $usuario */
+            $resumenes[(string) $usuario['_id']] = $usuario;
+        }
+
+        return $resumenes;
     }
 
     /**

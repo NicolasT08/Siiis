@@ -53,6 +53,12 @@ final readonly class Settings
         public string $cloudinaryPerfilesFolder,
         public int $usersPerPageDefault,
         public int $usersPerPageMax,
+        public int $documentosPerPageDefault,
+        public int $documentosPerPageMax,
+        public int $documentoTituloMaxLength,
+        public int $documentoDescripcionMaxLength,
+        public int $documentoContenidoMaxLength,
+        public int $documentoIntegrantesMax,
         public string $storagePath,
     ) {
     }
@@ -84,6 +90,12 @@ final readonly class Settings
         $usersPerPageDefault = self::positiveInt($env, 'USERS_PER_PAGE_DEFAULT', 20);
         if ($usersPerPageDefault > $usersPerPageMax) {
             throw new ConfigException('USERS_PER_PAGE_DEFAULT no puede ser mayor que USERS_PER_PAGE_MAX.');
+        }
+
+        $documentosPerPageMax = self::positiveInt($env, 'DOCUMENTOS_PER_PAGE_MAX', 50);
+        $documentosPerPageDefault = self::positiveInt($env, 'DOCUMENTOS_PER_PAGE_DEFAULT', 12);
+        if ($documentosPerPageDefault > $documentosPerPageMax) {
+            throw new ConfigException('DOCUMENTOS_PER_PAGE_DEFAULT no puede ser mayor que DOCUMENTOS_PER_PAGE_MAX.');
         }
 
         return new self(
@@ -127,6 +139,13 @@ final readonly class Settings
             // Paginación de GET /users (spec 10.13.4; DEC-B26, PROPUESTA).
             usersPerPageDefault: $usersPerPageDefault,
             usersPerPageMax: $usersPerPageMax,
+            // Contenido de `Documentos` (fase 3; DEC-B37, DEC-B38 y DEC-B41, PROPUESTA).
+            documentosPerPageDefault: $documentosPerPageDefault,
+            documentosPerPageMax: $documentosPerPageMax,
+            documentoTituloMaxLength: self::positiveInt($env, 'DOCUMENTO_TITULO_MAX_LENGTH', 200),
+            documentoDescripcionMaxLength: self::positiveInt($env, 'DOCUMENTO_DESCRIPCION_MAX_LENGTH', 1000),
+            documentoContenidoMaxLength: self::positiveInt($env, 'DOCUMENTO_CONTENIDO_MAX_LENGTH', 50000),
+            documentoIntegrantesMax: self::positiveInt($env, 'DOCUMENTO_INTEGRANTES_MAX', 20),
             storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
         );
     }

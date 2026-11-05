@@ -1,4 +1,4 @@
-# Contrato API — SIIIS V3 · Fases 1 y 2
+# Contrato API — SIIIS V3 · Fases 1 a 3
 
 Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_SPEC_DRIVEN.md`, sección 11.
 
@@ -64,7 +64,7 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 - No se puede desactivar ni bajar de rol al último superadministrador activo.
 - Si a un usuario le cambian el rol o lo desactivan, todas sus sesiones se cierran: su siguiente petición protegida responde `401 UNAUTHORIZED` y debe volver a iniciar sesión.
 
-**Rutas públicas con sesión opcional** (p. ej. `GET /users`, fase 2): sin token, o con un token vencido o inválido, responden la vista pública (nunca `401`). Con un token válido de administrador incluyen datos adicionales.
+**Rutas públicas con sesión opcional** (p. ej. `GET /users` y `GET /projects`): sin token, o con un token vencido o inválido, responden la vista pública (nunca `401`). Con un token válido incluyen datos adicionales (vista de administrador en `/users`; borradores propios o de revisión en `/projects`, ver sección 9).
 
 ---
 
@@ -449,8 +449,148 @@ Público. Videos de presentación (RF-11), de `Multimedia` con `seccion = video_
 
 ---
 
+## 9. Contenido: proyectos (`/projects`)
+
+Fase 3. Proyectos de la colección `Documentos` (`categoria = proyecto`). Artículos y noticias (`/articles`) siguen el mismo contrato en el paso 2 de la fase 3. Contrato provisional: `PROPUESTA` DEC-B30 a DEC-B41, pendiente de aprobación del equipo.
+
+### Reglas
+
+| Tema | Regla |
+|---|---|
+| Estados de un proyecto | `en_revision`, `ejecucion`, `finalizado` |
+| Qué es público | `visible = true` y `estado` distinto de `en_revision` |
+| Quién crea | Cualquier usuario con sesión. Queda como autor; lo nuevo queda en `en_revision` y con `visible = false` |
+| Revisores | `superadministrador`, `administrador` y `docente_director`: aprueban, publican (cambian `estado` y `visible`), editan y borran cualquier documento |
+| Autor | Edita y borra su documento solo mientras está `en_revision` |
+| Integrantes | Aparecen en el documento y ven sus borradores, pero no editan |
+| Qué ve cada quien | Sin sesión: lo público. Con sesión: lo público más lo suyo (como autor o integrante). Revisores: todo |
+| Lo que no puedes ver | Responde `404 NOT_FOUND`, también en `PATCH` y `DELETE` |
+| `contenido` | **Markdown**, hasta 50 000 caracteres. Muéstralo con un renderizador de Markdown que **no interprete HTML** (el backend lo guarda tal cual). Pendiente de confirmar con frontend (DEC-B37) |
+
+### Objeto `documento`
+
+Los listados traen el **resumen**; el detalle (`GET /projects/{id}`, `POST`, `PATCH`) agrega `contenido`, `archivos_adjuntos` y `permisos`.
+
+```json
+{
+  "id": "6aebe4272aead60a1d0a0177",
+  "categoria": "proyecto",
+  "titulo": "Visión por computador para cultivos",
+  "descripcion": "Resumen corto que aparece en las tarjetas del listado.",
+  "estado": "ejecucion",
+  "visible": true,
+  "autor": {
+    "id": "6adcffcf84e888428a0cbc83",
+    "nombre": "Luis",
+    "apellido": "Gómez",
+    "rol": "estudiante",
+    "foto_perfil": { "url": "https://res.cloudinary.com/..." }
+  },
+  "integrantes": [
+    { "id": "6adcffcf84e888428a0cbc84", "nombre": "Ana", "apellido": "Pérez", "rol": "estudiante_lider", "foto_perfil": null }
+  ],
+  "fecha_creacion": "2026-11-04T15:00:00Z",
+  "fecha_actualizacion": "2026-11-04T16:30:00Z",
+
+  "contenido": "## Objetivo\n\nTexto en **Markdown**.",
+  "archivos_adjuntos": [
+    { "archivo": "abc123.pdf", "url": "https://res.cloudinary.com/.../abc123.pdf", "nombre_archivo": "informe.pdf" }
+  ],
+  "permisos": { "editar": false, "borrar": false, "publicar": false }
+}
+```
+
+- `autor` es `null` si el usuario ya no existe. Los integrantes que se desactivaron (egresados) **siguen apareciendo** (DEC-B38).
+- `permisos` dice qué puede hacer quien consulta. Úsalo para mostrar u ocultar los botones de editar, borrar y publicar; el backend vuelve a validar de todas formas.
+- `archivos_adjuntos[].archivo` es el identificador para quitar el adjunto (paso 3 de la fase 3).
+
+### 9a. `GET /projects`
+
+Público, con sesión opcional. Paginado y ordenado del más reciente al más antiguo.
+
+| Parámetro | Regla |
+|---|---|
+| `page` | 1 a 10000; por defecto 1 |
+| `per_page` | 1 a `DOCUMENTOS_PER_PAGE_MAX` (50); por defecto `DOCUMENTOS_PER_PAGE_DEFAULT` (12) |
+| `estado` | `en_revision`, `ejecucion` o `finalizado` (sin sesión, `en_revision` siempre devuelve una lista vacía) |
+| `autor` | id de usuario: proyectos de esa persona como autora |
+| `integrante` | id de usuario: proyectos donde participa (para la página de perfil) |
+| `visible` | `true` o `false`; **solo revisores** (para los demás se ignora) |
+
+**200**: `{"data": [resumen, ...], "meta": {"page", "per_page", "total", "total_pages"}}`, igual que `GET /users`. Una página fuera de rango devuelve `data: []`.
+
+Caché: sin sesión, `Cache-Control: public, max-age=60`; con sesión, `no-store`. Siempre `Vary: Authorization`.
+
+**Errores:** `400 VALIDATION_ERROR` con `fields` si un parámetro no es válido (estado fuera de la lista, id mal formado, parámetro repetido como arreglo).
+
+### 9b. `GET /projects/{id}`
+
+Público, con sesión opcional. **200** `{"documento": {...}}` con el detalle. Misma caché que el listado.
+
+**Errores:** `404 NOT_FOUND` (`"El proyecto no existe."`) si el id no es válido, no existe, es un artículo o noticia, o quien consulta no puede verlo.
+
+### 9c. `POST /projects`
+
+Requiere token.
+
+**Request**
+```json
+{
+  "titulo": "Visión por computador para cultivos",
+  "descripcion": "Resumen corto para el listado.",
+  "contenido": "## Objetivo\n\nTexto en **Markdown**.",
+  "integrantes": ["6adcffcf84e888428a0cbc84"],
+  "estado": "ejecucion",
+  "visible": true
+}
+```
+
+| Campo | Obligatorio | Regla (límites provisionales en `.env`) |
+|---|---|---|
+| `titulo` | sí | texto de 1 a 200 caracteres |
+| `descripcion` | sí | texto de 1 a 1000 caracteres |
+| `contenido` | no | Markdown de hasta 50 000 caracteres; vacío o `null` → `null` |
+| `integrantes` | no | lista de ids de usuarios **activos**, sin repetidos, hasta 20 |
+| `estado` | no | solo revisores; por defecto `en_revision` |
+| `visible` | no | booleano JSON (`true`/`false`); solo revisores; por defecto `false` |
+
+- `categoria`, `autor_id`, `archivos_adjuntos` y las fechas se ignoran: la categoría es siempre `proyecto` y el autor sale del token.
+- Si alguien que no es revisor envía `estado` distinto de `en_revision` o `visible: true`, recibe `403 FORBIDDEN`. Reenviar los valores por defecto está permitido.
+
+**201** `{"documento": {...}}` con el detalle. Cabecera `Cache-Control: no-store`.
+
+**Errores:**
+- `400 VALIDATION_ERROR` (`fields`): campos faltantes o largos, tipos incorrectos, `estado` que no es de proyecto (p. ej. `publicado`), o `integrantes` que no existen o están inactivos (el mensaje lista los ids).
+- `401 UNAUTHORIZED`, `403 FORBIDDEN`.
+
+### 9d. `PATCH /projects/{id}`
+
+Requiere token. Edición parcial: solo cambian los campos enviados. Los campos y reglas son los de `POST`; `integrantes` reemplaza la lista completa (`[]` la vacía). Un integrante que ya estaba y se desactivó puede quedarse, pero no se puede agregar uno inactivo.
+
+- El autor edita solo mientras el proyecto está `en_revision`. Reenviar `estado` o `visible` con su valor actual no es un cambio.
+- Los revisores editan cualquier proyecto y cambian `estado` y `visible`. Para publicar: `{"estado": "ejecucion", "visible": true}`.
+
+**200** `{"documento": {...}}` con el detalle. Cabecera `Cache-Control: no-store`.
+
+**Errores:**
+- `400 VALIDATION_ERROR`: como en `POST`; sin ningún campo editable, sin `fields`.
+- `401 UNAUTHORIZED`.
+- `403 FORBIDDEN`: no eres el autor ni revisor; el proyecto ya no está en revisión; o intentas cambiar `estado` o `visible` sin ser revisor.
+- `404 NOT_FOUND`: como en 9b.
+
+### 9e. `DELETE /projects/{id}`
+
+Requiere token. Borrado **físico**: el proyecto desaparece. Puede hacerlo el autor mientras está `en_revision`, o un revisor en cualquier momento.
+
+**204** sin cuerpo.
+
+**Errores:** `401 UNAUTHORIZED`, `403 FORBIDDEN` (como en 9d), `404 NOT_FOUND`.
+
+---
+
 ## Fuera de esta fase
 
 - `POST /auth/google` (login con Google, RF-17): no está registrada; responde `404`. Sigue fuera en la fase 2.
 - Hero, bloques S-I-I-I-S, llamada a la acción y footer de la página de inicio: por ahora son contenido estático del frontend (DEC-B12). El botón "Inscríbete" solo navega a la página de inscripción.
-- Documentos, reseñas, inscripciones y contacto: fases siguientes.
+- Artículos y noticias (`/articles`) y archivos adjuntos (`/files`): pasos 2 y 3 de la fase 3.
+- Reseñas, inscripciones y contacto: fases siguientes.

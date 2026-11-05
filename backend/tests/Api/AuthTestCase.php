@@ -7,6 +7,7 @@ namespace Siiis\Tests\Api;
 use Psr\Http\Message\ResponseInterface;
 use Siiis\Repositories\CredencialesRepository;
 use Siiis\Repositories\CuentasRepository;
+use Siiis\Repositories\DocumentosRepository;
 use Siiis\Repositories\SesionesRepository;
 use Siiis\Repositories\UsuariosRepository;
 use Siiis\Support\Clock;
@@ -14,6 +15,7 @@ use Siiis\Tests\Support\FixedClock;
 use Siiis\Tests\Support\InMemoryCredencialesRepository;
 use Siiis\Tests\Support\InMemoryCuentasRepository;
 use Siiis\Tests\Support\InMemoryDatabase;
+use Siiis\Tests\Support\InMemoryDocumentosRepository;
 use Siiis\Tests\Support\InMemorySesionesRepository;
 use Siiis\Tests\Support\InMemoryUsuariosRepository;
 use Slim\App;
@@ -28,6 +30,8 @@ abstract class AuthTestCase extends ApiTestCase
 
     protected InMemoryDatabase $db;
     protected InMemoryCredencialesRepository $credenciales;
+    protected InMemoryUsuariosRepository $usuarios;
+    protected InMemoryDocumentosRepository $documentos;
     protected FixedClock $clock;
     protected string $storage;
 
@@ -38,6 +42,8 @@ abstract class AuthTestCase extends ApiTestCase
     {
         $this->db = new InMemoryDatabase();
         $this->credenciales = new InMemoryCredencialesRepository($this->db);
+        $this->usuarios = new InMemoryUsuariosRepository($this->db);
+        $this->documentos = new InMemoryDocumentosRepository($this->db);
         $this->clock = new FixedClock();
         $this->storage = sys_get_temp_dir() . '/siiis-api-' . bin2hex(random_bytes(4));
     }
@@ -70,7 +76,8 @@ abstract class AuthTestCase extends ApiTestCase
 
         return \Siiis\Config\Application::create($settings, $this->extraOverrides + [
             CredencialesRepository::class => $this->credenciales,
-            UsuariosRepository::class => new InMemoryUsuariosRepository($this->db),
+            UsuariosRepository::class => $this->usuarios,
+            DocumentosRepository::class => $this->documentos,
             SesionesRepository::class => new InMemorySesionesRepository($this->db),
             CuentasRepository::class => new InMemoryCuentasRepository($this->db),
             Clock::class => $this->clock,

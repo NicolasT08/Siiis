@@ -46,6 +46,22 @@ final class InMemoryUsuariosRepository extends UsuariosRepository
         return ['items' => array_slice($items, ($page - 1) * $perPage, $perPage), 'total' => count($items)];
     }
 
+    /** Cuántas veces se resolvieron resúmenes (para comprobar que no hay N+1). */
+    public int $consultasResumen = 0;
+
+    public function findResumenesByIds(array $ids): array
+    {
+        ++$this->consultasResumen;
+        $resumenes = [];
+        foreach ($ids as $id) {
+            if (isset($this->db->usuarios[(string) $id])) {
+                $resumenes[(string) $id] = $this->db->usuarios[(string) $id];
+            }
+        }
+
+        return $resumenes;
+    }
+
     public function actualizar(ObjectId $id, array $set): void
     {
         if ($this->fallarAlActualizar) {

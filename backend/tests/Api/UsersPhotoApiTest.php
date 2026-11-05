@@ -6,10 +6,8 @@ namespace Siiis\Tests\Api;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\ResponseInterface;
-use Siiis\Repositories\UsuariosRepository;
 use Siiis\Services\CloudinaryService;
 use Siiis\Tests\Support\FakeCloudinaryService;
-use Siiis\Tests\Support\InMemoryUsuariosRepository;
 use Siiis\Tests\Support\TestImages;
 use Slim\App;
 use Slim\Psr7\UploadedFile;
@@ -20,7 +18,6 @@ use Slim\Psr7\UploadedFile;
 final class UsersPhotoApiTest extends AuthTestCase
 {
     private FakeCloudinaryService $cloudinary;
-    private InMemoryUsuariosRepository $usuarios;
 
     /** @var App<\Psr\Container\ContainerInterface> */
     private App $app;
@@ -29,10 +26,8 @@ final class UsersPhotoApiTest extends AuthTestCase
     {
         parent::setUp();
         $this->cloudinary = new FakeCloudinaryService();
-        $this->usuarios = new InMemoryUsuariosRepository($this->db);
         $this->extraOverrides = [
             CloudinaryService::class => $this->cloudinary,
-            UsuariosRepository::class => $this->usuarios,
         ];
         $this->app = $this->authApp();
     }

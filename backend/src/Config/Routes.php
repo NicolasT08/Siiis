@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Siiis\Config;
 
 use Siiis\Controllers\AuthController;
+use Siiis\Controllers\DocumentosController;
 use Siiis\Controllers\HealthController;
 use Siiis\Controllers\HomeController;
 use Siiis\Controllers\UsersController;
 use Siiis\Middleware\AuthMiddleware;
 use Siiis\Middleware\OptionalAuthMiddleware;
 use Siiis\Middleware\RoleMiddleware;
+use Siiis\Support\ModuloDocumentos;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
 
@@ -51,10 +53,37 @@ final class Routes
                 ->add(RoleMiddleware::administrativos())
                 ->add(AuthMiddleware::class);
 
+            foreach ([ModuloDocumentos::PROYECTOS] as $modulo) {
+                self::documentos($v1, $modulo);
+            }
             $v1->group('/home', function (RouteCollectorProxy $home): void {
                 $home->get('/slider', [HomeController::class, 'slider']);
                 $home->get('/videos', [HomeController::class, 'videos']);
             });
         });
+    }
+    /**
+     * CRUD de un módulo de contenido (spec 11.3; DEC-B30). El argumento `modulo` le dice a
+     * DocumentosController qué categorías sirve la ruta.
+     *
+     * @param RouteCollectorProxy<\Psr\Container\ContainerInterface|null> $v1
+     */
+    private static function documentos(RouteCollectorProxy $v1, ModuloDocumentos $modulo): void
+    {
+        $base = '/' . $modulo->value;
+        $v1->group($base, function (RouteCollectorProxy $group) use ($modulo): void {
+            $group->get('', [DocumentosController::class, 'index'])->setArgument('modulo', $modulo->value);
+            $group->get('/{id}', [DocumentosController::class, 'show'])->setArgument('modulo', $modulo->value);
+        })->add(OptionalAuthMiddleware::class);
+        // Fuera del grupo: con OptionalAuthMiddleware la sesión se validaría dos veces.
+        $v1->post($base, [DocumentosController::class, 'store'])
+            ->setArgument('modulo', $modulo->value)
+            ->add(AuthMiddleware::class);
+        $v1->patch($base . '/{id}', [DocumentosController::class, 'update'])
+            ->setArgument('modulo', $modulo->value)
+            ->add(AuthMiddleware::class);
+        $v1->delete($base . '/{id}', [DocumentosController::class, 'destroy'])
+            ->setArgument('modulo', $modulo->value)
+            ->add(AuthMiddleware::class);
     }
 }
