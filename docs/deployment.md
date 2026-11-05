@@ -7,19 +7,36 @@ Resumen de las secciones 17.4, 17.6 y 17.7 del spec. Registra aquí los resultad
 | Componente | Local (2026-09-25) | Producción (Hostinger) |
 |---|---|---|
 | PHP | 8.2.34 | `TODO_SPEC` |
-| Extensión `mongodb` | 1.21.9 | `TODO_SPEC: confirmar versión de ext-mongodb en Hostinger` (spec: 1.18.x reportada en 2025) |
-| `mongodb/mongodb` | 1.21.5 (`^1.21.4`) | Requiere la extensión **≥ 1.21** (DEC-B03) |
+| Extensión `mongodb` | 1.21.9 | Se asume **1.18.1** (reporte de marzo de 2025). `TODO_SPEC`: confirmar la versión real con `phpinfo()` |
+| `mongodb/mongodb` | 1.19.1 (`~1.19.1`, desde 2026-11-04) | Requiere la extensión **≥ 1.18** (DEC-B03) |
 | `cloudinary/cloudinary_php` | 3.3.0 (`^3.1`, fase 2) | Usa Guzzle sobre `ext-curl`; necesita salida HTTPS a `api.cloudinary.com` |
 
-`composer.json → config.platform` usa provisionalmente `php 8.2.34` y `ext-mongodb 1.21.9`. Cuando el profesor confirme la versión real con `phpinfo()`:
+`composer.json → config.platform` fija `php 8.2.34` y `ext-mongodb 1.18.1`, la versión que se asume en Hostinger
+(DEC-B03). Así Composer solo instala dependencias compatibles con esa extensión.
 
-1. Actualiza `config.platform` con la versión de producción y corre `composer update --lock`.
-2. Si la extensión de Hostinger es menor que 1.21, el backend no arranca con `mongodb/mongodb` 1.21. Hay que decidir entre pedir o activar una versión más nueva en hPanel, o aceptar la 1.18 ignorando el aviso de seguridad PKSA-61k5-cqr9-b8b4 (ver DEC-B03).
+**Riesgo aceptado (DEC-B03).** `mongodb/mongodb` 1.19.1 tiene dos avisos de seguridad que Composer permite
+mediante `config.audit.ignore`:
+
+- PKSA-61k5-cqr9-b8b4 (nombres de base de datos o colección con `.` o NUL). Los nombres salen de
+  `Collections` y `.env`, nunca de la entrada del usuario.
+- PKSA-y93m-jgy6-r9ns (inyección en GridFS). El backend no usa GridFS.
+
+Mientras siga la 1.19, no se pueden construir nombres de colección desde la entrada ni usar GridFS.
+`composer audit` los muestra como *ignored*; eso es lo esperado.
+
+Cuando se confirme la versión real con `phpinfo()`:
+
+1. Si es **1.18.x, 1.19.x o 1.20.x**: deja `config.platform.ext-mongodb` con la versión exacta y corre
+   `composer update --lock`. No cambia nada más.
+2. Si es **≥ 1.21**: vuelve a `mongodb/mongodb` `^1.21.5` y a `ext-mongodb` `^1.21`, pon la versión real en
+   `config.platform`, quita los dos avisos de `audit.ignore` y corre `composer update mongodb/mongodb`.
+3. Si es **< 1.18**: el backend no arranca. Hay que activar una versión más nueva en hPanel o pedirla a
+   soporte.
 
 ## Checklist de verificación en Hostinger (spec 17.6)
 
 - [ ] Versión de PHP seleccionada (≥ 8.2): ______
-- [ ] Extensión `mongodb` activada en hPanel y su versión exacta (`phpinfo()`): ______ ; `mongodb/mongodb` compatible fijada
+- [ ] Extensión `mongodb` activada en hPanel y su versión exacta (`phpinfo()`): ______ (se asume 1.18.1; si difiere, seguir los pasos de "Versiones fijadas")
 - [ ] Extensiones `fileinfo`, `curl`, `openssl` y `mbstring` activas
 - [ ] Conexión saliente a MongoDB Atlas (puerto 27017, URI `mongodb+srv://`): `GET /api/v1/health` responde `{"status":"ok","db":"ok"}`
 - [ ] Lista de acceso IP de Atlas: IP saliente del servidor ______ agregada en *Atlas → Network Access*. Si la IP no es estable, decidir sobre `0.0.0.0/0` (DECISION-015)

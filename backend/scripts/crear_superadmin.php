@@ -18,6 +18,7 @@ use Siiis\Security\Roles;
 use Siiis\Services\UserAccountService;
 use Siiis\Support\ApiException;
 use Siiis\Support\SystemClock;
+use Siiis\Validation\PasswordRules;
 
 /** @var array{0: \Siiis\Config\Settings, 1: Mongo} $bootstrap */
 $bootstrap = require __DIR__ . '/cli.php';
@@ -81,11 +82,9 @@ if ($nombre === '' || $apellido === '') {
 }
 
 $password = preguntarOculto('Contraseña: ');
-if (mb_strlen($password) < $settings->passwordMinLength) {
-    fallar(sprintf('la contraseña debe tener al menos %d caracteres.', $settings->passwordMinLength));
-}
-if (strlen($password) > 72) {
-    fallar('la contraseña no puede superar 72 bytes (límite de bcrypt).');
+$passwordError = PasswordRules::error($password, $settings);
+if ($passwordError !== null) {
+    fallar($passwordError);
 }
 if (preguntarOculto('Repite la contraseña: ') !== $password) {
     fallar('las contraseñas no coinciden.');

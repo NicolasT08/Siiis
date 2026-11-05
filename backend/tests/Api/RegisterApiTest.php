@@ -221,6 +221,8 @@ final class RegisterApiTest extends AuthTestCase
         yield 'correo inválido' => [['correo' => 'no-es-correo'], ['correo']];
         yield 'contraseña corta' => [['password' => 'corta'], ['password']];
         yield 'contraseña > 72 bytes' => [['password' => str_repeat('ñ', 37)], ['password']];
+        yield 'contraseña sin número' => [['password' => 'solo-letras'], ['password']];
+        yield 'contraseña sin letra' => [['password' => '1234-5678'], ['password']];
         yield 'rol inexistente' => [['rol' => 'egresado'], ['rol']];
         yield 'rol con mayúsculas' => [['rol' => 'Estudiante'], ['rol']];
         yield 'inyección en correo' => [['correo' => ['$ne' => '']], ['correo']];

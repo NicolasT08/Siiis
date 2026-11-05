@@ -9,11 +9,11 @@
         "ext-fileinfo": "*",
         "ext-json": "*",
         "ext-mbstring": "*",
-        "ext-mongodb": "^1.21",
+        "ext-mongodb": "^1.18",
         "ext-openssl": "*",
         "cloudinary/cloudinary_php": "^3.1",
         "firebase/php-jwt": "^7.0",
-        "mongodb/mongodb": "^1.21.4",
+        "mongodb/mongodb": "~1.19.1",
         "php-di/php-di": "^7.0",
         "phpmailer/phpmailer": "^6.9",
         "slim/psr7": "^1.7",
@@ -38,10 +38,16 @@
     "config": {
         "platform": {
             "php": "8.2.34",
-            "ext-mongodb": "1.21.9"
+            "ext-mongodb": "1.18.1"
         },
         "sort-packages": true,
-        "optimize-autoloader": true
+        "optimize-autoloader": true,
+        "audit": {
+            "ignore": {
+                "PKSA-61k5-cqr9-b8b4": "Los nombres de base de datos y de colecciones son constantes de Siiis\\Database\\Collections y MONGO_DB_NAME del .env; nunca vienen de la entrada del usuario. Necesario para ext-mongodb 1.18 en Hostinger (DEC-B03).",
+                "PKSA-y93m-jgy6-r9ns": "Inyección de operadores en GridFS (GHSA-8fxw-fmj8-xp7j). El backend no usa GridFS: los archivos van a Cloudinary. Prohibido usar GridFS sin antes actualizar mongodb/mongodb a >= 1.21.5 (DEC-B03)."
+            }
+        }
     },
     "scripts": {
         "serve": [

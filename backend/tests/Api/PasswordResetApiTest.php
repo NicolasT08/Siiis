@@ -187,6 +187,27 @@ final class PasswordResetApiTest extends AuthTestCase
 
         $larga = $this->reset($app, str_repeat('a', 64), str_repeat('x', 73));
         $this->assertError($larga, 400, 'VALIDATION_ERROR');
+
+        foreach (['solo-letras', '12345678'] as $debil) {
+            $response = $this->reset($app, str_repeat('a', 64), $debil);
+            $this->assertError($response, 400, 'VALIDATION_ERROR');
+            self::assertSame(
+                'La contraseña debe tener al menos una letra y un número.',
+                $this->json($response)['error']['fields']['password'],
+            );
+        }
+    }
+
+    public function testResetConContrasenaDebilNoConsumeElToken(): void
+    {
+        $this->db->crearCuenta(self::CORREO, self::PASSWORD);
+        $app = $this->authApp();
+        $this->forgot($app, self::CORREO);
+        $token = $this->mail->ultimoToken();
+
+        $this->assertError($this->reset($app, $token, 'sin-numeros'), 400, 'VALIDATION_ERROR');
+
+        self::assertSame(200, $this->reset($app, $token, 'Nueva-Clave-2026')->getStatusCode());
     }
 
     public function testResetConArraysEsRechazado(): void

@@ -11,7 +11,7 @@ integrantes, edición, desactivación/reactivación y foto de perfil). El detall
 
 ## Requisitos
 
-- PHP ≥ 8.2 con las extensiones `mongodb` (≥ 1.21), `fileinfo`, `curl`, `mbstring`, `openssl` y `json`.
+- PHP ≥ 8.2 con las extensiones `mongodb` (≥ 1.18; ver DEC-B03), `fileinfo`, `curl`, `mbstring`, `openssl` y `json`.
 - Composer 2.
 - Acceso a un clúster de MongoDB Atlas (con tu IP en *Network Access*).
 
@@ -103,7 +103,7 @@ backend/
 
 ## Despliegue en Hostinger (resumen de la sección 17.7 del spec)
 
-1. En hPanel activa PHP 8.2+ y la extensión `mongodb` (≥ 1.21, ver DEC-B03), y agrega la IP del servidor en Atlas.
+1. En hPanel activa PHP 8.2+ y la extensión `mongodb` (≥ 1.18, ver DEC-B03), y agrega la IP del servidor en Atlas.
 2. Ejecuta `composer install --no-dev --optimize-autoloader` y sube el backend (sin `public/`) a `siiis-api/`, fuera de `public_html`.
 3. Crea el `.env` de producción en `siiis-api/` con `APP_ENV=production` y `APP_DEBUG=false`, y da permisos de escritura a `storage/`.
 4. Copia `public/index.php` y `public/.htaccess` a `public_html/api/` y ajusta `BOOTSTRAP_PATH` a `../../siiis-api/bootstrap.php`.

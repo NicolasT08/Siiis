@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Siiis\Tests\Unit\Validation;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Siiis\Support\ApiException;
 use Siiis\Tests\Support\TestSettings;
 use Siiis\Validation\ForgotPasswordValidator;
+use Siiis\Validation\PasswordRules;
 use Siiis\Validation\ResetPasswordValidator;
 
 final class PasswordValidatorsTest extends TestCase
@@ -29,9 +31,31 @@ final class PasswordValidatorsTest extends TestCase
         $validator = new ResetPasswordValidator(TestSettings::make(['PASSWORD_MIN_LENGTH' => '10']));
 
         self::assertSame(
-            ['token' => 'abc', 'password' => 'diez-chars'],
-            $validator->validate(['token' => ' abc ', 'password' => 'diez-chars']),
+            ['token' => 'abc', 'password' => 'diez-char5'],
+            $validator->validate(['token' => ' abc ', 'password' => 'diez-char5']),
         );
+    }
+
+    /**
+     * @return iterable<string, array{string, ?string}>
+     */
+    public static function politica(): iterable
+    {
+        $complejidad = PasswordRules::COMPLEXITY_MESSAGE;
+
+        yield 'mínimo exacto con letra y número' => ['abcdefg1', null];
+        yield 'letras con tilde y ñ' => ['ñandú2026', null];
+        yield 'solo letras' => ['abcdefgh', $complejidad];
+        yield 'solo números' => ['12345678', $complejidad];
+        yield 'solo símbolos' => ['!@#$%^&*', $complejidad];
+        yield 'símbolos y número' => ['!@#$%^&1', $complejidad];
+        yield 'corta aunque cumpla complejidad' => ['abc1', 'La contraseña debe tener al menos 8 caracteres.'];
+    }
+
+    #[DataProvider('politica')]
+    public function testPoliticaDeContrasena(string $password, ?string $esperado): void
+    {
+        self::assertSame($esperado, PasswordRules::error($password, TestSettings::make()));
     }
 
     public function testResetUsaLongitudMinimaConfigurable(): void

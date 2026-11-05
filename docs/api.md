@@ -163,7 +163,7 @@ Público. Rate limit por IP: `RATE_LIMIT_FORGOT_MAX` cada `RATE_LIMIT_FORGOT_WIN
 { "mensaje": "Si el correo está registrado, recibirás un enlace para restablecer tu contraseña." }
 ```
 
-- Si la cuenta existe y está activa, llega un correo con el enlace `PASSWORD_RESET_URL?token=<64 caracteres hex>`. Por defecto: `http://localhost:5173/restablecer?token=...`. La ruta definitiva está pendiente (`TODO_SPEC`, DEC-B10).
+- Si la cuenta existe y está activa, llega un correo con el enlace `PASSWORD_RESET_URL?token=<64 caracteres hex>`. Por defecto: `http://localhost:5173/restablecer?token=...`. La ruta propuesta es `/restablecer` (DEC-B10); la vista está pendiente de crear en el frontend.
 - El token vence en `PASSWORD_RESET_TTL_MINUTES` (por defecto 30) y sirve una sola vez.
 
 **Errores:** `400 VALIDATION_ERROR`, `429 RATE_LIMITED`.
@@ -179,7 +179,7 @@ Público. La pantalla de restablecimiento lee `token` de la query string y lo en
 { "token": "3f9a...(64 hex)", "password": "Nueva-Clave-2026" }
 ```
 
-- `password`: mínimo `PASSWORD_MIN_LENGTH` caracteres (por defecto 8) y máximo 72 bytes. Las reglas de complejidad están pendientes (`TODO_SPEC`).
+- `password`: misma política que en el registro (DEC-B11): mínimo `PASSWORD_MIN_LENGTH` caracteres (por defecto 8), al menos una letra y un número, y máximo 72 bytes. Si no la cumple, responde `400 VALIDATION_ERROR` con `fields.password` = `"La contraseña debe tener al menos una letra y un número."` (o el mensaje de longitud). Una contraseña rechazada no consume el token.
 
 **200**
 ```json
@@ -214,7 +214,7 @@ Protegido: solo `superadministrador` y `administrador` (DEC-B16, `PROPUESTA`). N
 | Campo | Obligatorio | Regla (límites provisionales, DEC-B21) |
 |---|---|---|
 | `correo` | sí | formato de correo; se guarda sin espacios y en minúsculas |
-| `password` | sí | mínimo `PASSWORD_MIN_LENGTH` (8) caracteres y máximo 72 bytes |
+| `password` | sí | mínimo `PASSWORD_MIN_LENGTH` (8) caracteres, al menos una letra y un número, y máximo 72 bytes (DEC-B11) |
 | `rol` | sí | `superadministrador`, `administrador`, `docente_director`, `estudiante_lider` o `estudiante` (exacto, en minúsculas) |
 | `nombre`, `apellido` | sí | texto de 1 a 80 caracteres |
 | `programa_academico` | no | texto de hasta 120 caracteres |
@@ -224,6 +224,10 @@ Protegido: solo `superadministrador` y `administrador` (DEC-B16, `PROPUESTA`). N
 
 - Los opcionales pueden omitirse o enviarse como `null`; un texto vacío se guarda como `null`.
 - Cualquier otro campo (`estado`, `foto_perfil`, etc.) se ignora. La foto se sube después con `POST /users/{id}/photo`.
+- Política de contraseñas (DEC-B11, la misma de `reset-password`). Los mensajes de `fields.password` se revisan en este orden:
+  1. `"La contraseña debe tener al menos 8 caracteres."` (el número sale de `PASSWORD_MIN_LENGTH`).
+  2. `"La contraseña es demasiado larga (máximo 72 bytes)."`
+  3. `"La contraseña debe tener al menos una letra y un número."` Cuentan como letra las letras Unicode (incluidas las tildes y la `ñ`) y como número los dígitos `0`–`9`; los símbolos son opcionales.
 
 **201**
 ```json

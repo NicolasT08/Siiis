@@ -6,6 +6,7 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 - `TODO_SPEC`: dato pendiente de confirmar (no es una regla de negocio).
 - `PROPUESTA`: implementado así, pendiente de aprobación del equipo.
 - `APROBADA`: aprobada por el responsable de backend en esta fase.
+- `DECIDIDA`: decidida por el equipo; deja de ser provisional.
 
 ---
 
@@ -29,14 +30,21 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 - Impacto: `JwtService`. `JWT_SECRET` exige ≥ 32 caracteres.
 - Requiere migración: no.
 
-## DEC-B03 — `mongodb/mongodb` ^1.21.4 y `ext-mongodb` ≥ 1.21 en producción
+## DEC-B03 — `mongodb/mongodb` ~1.19.1 compatible con `ext-mongodb` 1.18
 
-- Estado: APROBADA (backend) · depende de TODO_SPEC en Hostinger
-- Fecha: 2026-09-25
-- Contexto: la rama 1.18 tiene el aviso PKSA-61k5-cqr9-b8b4 (severidad alta; nombres de BD/colección con `.` o NUL). En 1.x solo está corregido desde 1.21.4, que exige la extensión `mongodb` ^1.21. El spec reportaba la 1.18.x en Hostinger (2025).
-- Decisión: `mongodb/mongodb` ^1.21.4; `config.platform.ext-mongodb` = 1.21.9 (versión local, provisional).
-- Riesgo: si Hostinger ofrece una extensión < 1.21, el backend no arranca en producción.
-- `TODO_SPEC`: confirmar la versión de `ext-mongodb` en Hostinger con `phpinfo()` (ver `docs/deployment.md`).
+- Estado: DECIDIDA (equipo, 2026-11-04) · depende de TODO_SPEC en Hostinger (DEC-B13)
+- Fecha: 2026-09-25 · revisada el 2026-11-04
+- Contexto: un reporte de marzo de 2025 indica que Hostinger compartido trae `ext-mongodb` 1.18.1. Antes se usaba `mongodb/mongodb` ^1.21.4, que exige la extensión ^1.21; con la 1.18 el backend no arrancaría en producción.
+- Decisión: `mongodb/mongodb` `~1.19.1`, la versión más alta compatible con la extensión 1.18 (la 1.20 ya exige ^1.20). `require.ext-mongodb` = `^1.18` y `config.platform.ext-mongodb` = `1.18.1`. El código no usa nada que falte en la 1.18 (transacciones con `with_transaction`, `findOneAndUpdate`, `countDocuments`, `collation`, `typeMap`, `createIndex`); no hubo que cambiarlo.
+- Avisos de seguridad permitidos (`config.audit.ignore` en `composer.json`, con su justificación):
+  - **PKSA-61k5-cqr9-b8b4** (GHSA-65fr-j4p9-vc33, alta): la librería no rechaza `.` ni NUL en nombres de base de datos o colección (corregido en 1.21.4). Justificación: los nombres son constantes de `Siiis\Database\Collections` y `MONGO_DB_NAME` del `.env`; nunca vienen de la entrada del usuario.
+  - **PKSA-y93m-jgy6-r9ns** (GHSA-8fxw-fmj8-xp7j, CVE-2026-88023, moderada): inyección de operadores en IDs de archivo de GridFS (corregido en 1.21.5). Justificación: el backend no usa GridFS; los archivos van a Cloudinary.
+- Riesgo:
+  - Se trabaja con una librería con dos avisos conocidos. La mitigación depende de que se mantengan dos reglas: **nunca** construir nombres de base o de colección a partir de la entrada, y **no usar GridFS** sin antes subir la librería a ≥ 1.21.5.
+  - La 1.19 no recibirá más parches de seguridad; un aviso nuevo podría no tener corrección dentro de la rama compatible.
+  - En local la extensión es la 1.21.9, así que las pruebas usan la librería 1.19.1 pero no la extensión 1.18.1.
+- Salida: si Hostinger confirma una extensión ≥ 1.21, volver a `mongodb/mongodb` ^1.21.5, poner la versión real en `config.platform` y quitar ambos avisos de `audit.ignore`.
+- `TODO_SPEC`: confirmar la versión real de `ext-mongodb` en Hostinger con `phpinfo()` (ver `docs/deployment.md`).
 - Requiere migración: no.
 
 ## DEC-B04 — Variables de correo `MAIL_*`
@@ -58,11 +66,11 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 
 ## DEC-B06 — Umbral de intentos fallidos de login
 
-- Estado: DECISION_REQUIRED
-- Fecha: 2026-09-25
+- Estado: DECIDIDA (equipo, 2026-11-04)
+- Fecha: 2026-09-25 · decidida el 2026-11-04
 - Contexto: `Credenciales.intentos_fallidos` existe para bloqueo por fuerza bruta, pero no está definido qué pasa al llegar al umbral.
 - Provisional: se incrementa el contador en cada contraseña incorrecta y se reinicia en login exitoso. `MAX_LOGIN_ATTEMPTS` está en config, pero **no se bloquea** la cuenta (solo se registra en el log al alcanzarlo). El rate limiting por IP sigue activo.
-- Falta decidir: bloqueo temporal (¿cuánto?) vs `estado_cuenta = bloqueada` (¿quién desbloquea?).
+- Decisión del equipo: se mantiene solo el rate limiting por IP ya implementado (`RATE_LIMIT_*`); **no se bloquea la cuenta** al llegar a `MAX_LOGIN_ATTEMPTS`. El contador `intentos_fallidos` y el registro en el log siguen como están.
 - Impacto: `AuthController`, `CredencialesRepository`.
 
 ## DEC-B07 — Orden de verificación del login (anti-enumeración)
@@ -88,29 +96,31 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 
 ## DEC-B10 — Ruta de restablecimiento en el frontend
 
-- Estado: TODO_SPEC
-- Fecha: 2026-09-25
-- Provisional: `PASSWORD_RESET_URL=http://localhost:5173/restablecer`; el correo enlaza a `PASSWORD_RESET_URL?token=...`.
-- Falta: la ruta definitiva que defina Front-End.
+- Estado: DECIDIDA (equipo, 2026-11-04) · vista pendiente en el frontend
+- Fecha: 2026-09-25 · decidida el 2026-11-04
+- Decisión del equipo: se propone la ruta `/restablecer`. El correo enlaza a `PASSWORD_RESET_URL?token=...` (en desarrollo, `http://localhost:5173/restablecer`; en producción, el dominio del sitio + `/restablecer`).
+- Pendiente: el frontend debe crear la vista `/restablecer`, que lee `token` de la query string y llama a `POST /api/v1/auth/reset-password`. No requiere cambios en el backend.
 
 ## DEC-B11 — Política de contraseñas
 
-- Estado: TODO_SPEC
-- Provisional: solo longitud mínima `PASSWORD_MIN_LENGTH` (8) y máxima 72 bytes (límite de bcrypt).
-- Falta: reglas de complejidad, si las hay.
+- Estado: DECIDIDA (equipo, 2026-11-04) · implementada
+- Fecha: 2026-09-25 · decidida el 2026-11-04
+- Decisión del equipo: mínimo 8 caracteres (`PASSWORD_MIN_LENGTH`), con al menos una letra y un número. Se mantiene el máximo de 72 bytes (límite de bcrypt).
+- Implementación: `Siiis\Validation\PasswordRules`, usada por `POST /auth/register` (y `crear_superadmin.php`) y por `POST /auth/reset-password`. Letra = cualquier letra Unicode (incluye tildes y `ñ`); número = dígito `0`–`9`; los símbolos son opcionales. Mensaje: `"La contraseña debe tener al menos una letra y un número."` en `fields.password` (`400 VALIDATION_ERROR`).
+- Impacto: las contraseñas ya guardadas no se validan de nuevo; la regla aplica al crear o restablecer.
+- Requiere migración: no.
 
 ## DEC-B12 — Contenido de la página de inicio (hero, bloques S-I-I-I-S, CTA, footer)
 
-- Estado: DECISION_REQUIRED
-- Fecha: 2026-09-25
+- Estado: DECIDIDA (equipo, 2026-11-04)
+- Fecha: 2026-09-25 · decidida el 2026-11-04
 - Contexto: el diseño tiene hero con "Inscríbete", bloques alternados video/imagen + texto (acróstico S-I-I-I-S), CTA y footer. Solo el slider (`slider_principal`) y los videos (`video_presentacion`) tienen endpoint en el contrato.
-- Provisional: textos estáticos en el frontend; no se crean endpoints nuevos.
-- Falta decidir: si esos bloques deben ser administrables, y si sus imágenes vienen de `Multimedia` con `seccion = galeria` (requeriría un endpoint o parámetro nuevo).
+- Decisión del equipo: los bloques de la página de inicio (hero, acróstico S-I-I-I-S, CTA y footer) son **contenido estático del frontend**. El backend solo sirve `GET /home/slider` y `GET /home/videos`; no se crean endpoints nuevos.
 
 ## DEC-B13 — Versión de `ext-mongodb` en Hostinger
 
 - Estado: TODO_SPEC
-- Ver DEC-B03 y `docs/deployment.md`.
+- Supuesto actual: 1.18.1 (reporte de marzo de 2025). El backend ya es compatible (DEC-B03). Falta confirmar la versión real con `phpinfo()`; ver `docs/deployment.md`.
 
 ## DEC-B14 — Sin índice sobre `Credenciales.token_recuperacion`
 
@@ -176,10 +186,10 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 
 ## DEC-B20 — Egresados en la página pública de miembros
 
-- Estado: DECISION_REQUIRED
-- Fecha: 2026-10-24
-- Provisional: el listado público muestra solo integrantes con `estado = true`. Un usuario inactivo responde `404` en la vista pública.
-- Falta decidir: si los egresados (`estado = false`) deben mostrarse públicamente y cómo distinguirlos de quienes desertaron.
+- Estado: DECIDIDA (equipo, 2026-11-04) · por ahora
+- Fecha: 2026-10-24 · decidida el 2026-11-04
+- Decisión del equipo: **por ahora** la página pública muestra solo integrantes activos (`estado = true`); un usuario inactivo responde `404` en la vista pública. Es lo que ya está implementado.
+- Si más adelante se quieren mostrar egresados, habrá que distinguirlos de quienes desertaron (hoy ambos quedan con `estado = false`).
 
 ## DEC-B21 — Límites de perfil y de foto en configuración
 
