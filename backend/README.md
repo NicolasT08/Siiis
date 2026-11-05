@@ -35,12 +35,14 @@ Variables mínimas en `.env`:
 | `JWT_TTL_SECONDS` | Duración del token; se recorta a 28800 (8 h) |
 | `MAIL_*` | SMTP de Gmail con contraseña de aplicación (solo para recuperación de contraseña) |
 | `PASSWORD_RESET_URL` | Ruta del frontend para restablecer la contraseña |
-| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Cuenta de Cloudinary para las fotos de perfil |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Cuenta de Cloudinary para las fotos de perfil y los adjuntos de documentos. Para los PDF, la cuenta debe tener activado "Allow delivery of PDF and ZIP files" (DEC-B40) |
 | `CLOUDINARY_PERFILES_FOLDER` | Carpeta de las fotos (`siiis/perfiles`). Las pruebas usan siempre `siiis_test/perfiles` |
+| `CLOUDINARY_DOCUMENTOS_FOLDER` | Carpeta de los adjuntos (`siiis/documentos`). Las pruebas usan siempre `siiis_test/documentos` |
 
 Límites provisionales y configurables (todos tienen valor por defecto): `PERFIL_*` (longitudes del perfil, semestre,
 teléfono y `PERFIL_FOTO_MAX_BYTES`, 2 MB; DEC-B21), `USERS_PER_PAGE_*` (DEC-B26), `DOCUMENTOS_PER_PAGE_*` (DEC-B41) y
-`DOCUMENTO_*` (longitudes de título, descripción y contenido, e integrantes por documento; DEC-B37 y DEC-B38).
+`DOCUMENTO_*` (longitudes de título, descripción y contenido, integrantes por documento; DEC-B37 y DEC-B38; y
+adjuntos: `DOCUMENTO_ADJUNTO_MAX_BYTES`, 5 MB, y `DOCUMENTO_ADJUNTOS_MAX`, 10; DEC-B40).
 
 Si falta `MONGO_URI` o `JWT_SECRET`, o el secreto es corto, la API responde `500 CONFIG_ERROR`. El detalle aparece en la respuesta si `APP_DEBUG=true` y siempre en el log de errores de PHP. Sin `CLOUDINARY_*` la API arranca, pero subir una foto responde `502 CLOUDINARY_UNAVAILABLE`; sin `MAIL_*`, `forgot-password` responde igual que siempre y el fallo queda en `storage/logs`.
 

@@ -82,6 +82,42 @@ final class InMemoryDocumentosRepository extends DocumentosRepository
         return true;
     }
 
+    public function agregarAdjunto(ObjectId $id, array $adjunto, int $max, UTCDateTime $fecha, ?string $siEstado = null): bool
+    {
+        if ($this->fallarAlActualizar) {
+            throw new \RuntimeException('Fallo simulado de MongoDB');
+        }
+        $doc = $this->db->documentos[(string) $id] ?? null;
+        if ($doc === null || ($siEstado !== null && $doc['estado'] !== $siEstado) || count($doc['archivos_adjuntos']) >= $max) {
+            return false;
+        }
+        $doc['archivos_adjuntos'][] = $adjunto;
+        $doc['fecha_actualizacion'] = $fecha;
+        $this->db->documentos[(string) $id] = $doc;
+
+        return true;
+    }
+
+    public function quitarAdjunto(ObjectId $id, string $publicId, UTCDateTime $fecha, ?string $siEstado = null): bool
+    {
+        $doc = $this->db->documentos[(string) $id] ?? null;
+        if ($doc === null || ($siEstado !== null && $doc['estado'] !== $siEstado)) {
+            return false;
+        }
+        $restantes = array_values(array_filter(
+            $doc['archivos_adjuntos'],
+            static fn (array $a): bool => $a['public_id'] !== $publicId,
+        ));
+        if (count($restantes) === count($doc['archivos_adjuntos'])) {
+            return false;
+        }
+        $doc['archivos_adjuntos'] = $restantes;
+        $doc['fecha_actualizacion'] = $fecha;
+        $this->db->documentos[(string) $id] = $doc;
+
+        return true;
+    }
+
     public function eliminar(ObjectId $id, ?string $siEstado = null): bool
     {
         $doc = $this->db->documentos[(string) $id] ?? null;

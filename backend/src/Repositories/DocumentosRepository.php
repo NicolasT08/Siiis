@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Siiis\Repositories;
 
 use MongoDB\BSON\ObjectId;
+use MongoDB\BSON\UTCDateTime;
 use MongoDB\Collection;
 use Siiis\Database\Collections;
 use Siiis\Database\Mongo;
@@ -92,6 +93,50 @@ class DocumentosRepository
         }
 
         return $this->collection()->updateOne($filtro, ['$set' => $set])->getMatchedCount() === 1;
+    }
+
+    /**
+     * Agrega un adjunto en una sola operación atómica: solo si aún hay cupo (`$max`) y, con `$siEstado`,
+     * si el documento sigue en ese estado. Así dos subidas simultáneas no superan el límite.
+     *
+     * @param array{url: string, public_id: string, nombre_archivo: string} $adjunto
+     *
+     * @return bool si se agregó
+     */
+    public function agregarAdjunto(
+        ObjectId $id,
+        array $adjunto,
+        int $max,
+        UTCDateTime $fecha,
+        ?string $siEstado = null,
+    ): bool {
+        $filtro = ['_id' => $id, 'archivos_adjuntos.' . ($max - 1) => ['$exists' => false]];
+        if ($siEstado !== null) {
+            $filtro['estado'] = $siEstado;
+        }
+
+        return $this->collection()->updateOne($filtro, [
+            '$push' => ['archivos_adjuntos' => $adjunto],
+            '$set' => ['fecha_actualizacion' => $fecha],
+        ])->getMatchedCount() === 1;
+    }
+
+    /**
+     * Quita el adjunto con ese `public_id` (con `$siEstado`, igual que en `actualizar`).
+     *
+     * @return bool si se quitó
+     */
+    public function quitarAdjunto(ObjectId $id, string $publicId, UTCDateTime $fecha, ?string $siEstado = null): bool
+    {
+        $filtro = ['_id' => $id, 'archivos_adjuntos.public_id' => $publicId];
+        if ($siEstado !== null) {
+            $filtro['estado'] = $siEstado;
+        }
+
+        return $this->collection()->updateOne($filtro, [
+            '$pull' => ['archivos_adjuntos' => ['public_id' => $publicId]],
+            '$set' => ['fecha_actualizacion' => $fecha],
+        ])->getModifiedCount() === 1;
     }
 
     /**

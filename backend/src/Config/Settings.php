@@ -59,6 +59,9 @@ final readonly class Settings
         public int $documentoDescripcionMaxLength,
         public int $documentoContenidoMaxLength,
         public int $documentoIntegrantesMax,
+        public int $documentoAdjuntoMaxBytes,
+        public int $documentoAdjuntosMax,
+        public string $cloudinaryDocumentosFolder,
         public string $storagePath,
     ) {
     }
@@ -146,6 +149,10 @@ final readonly class Settings
             documentoDescripcionMaxLength: self::positiveInt($env, 'DOCUMENTO_DESCRIPCION_MAX_LENGTH', 1000),
             documentoContenidoMaxLength: self::positiveInt($env, 'DOCUMENTO_CONTENIDO_MAX_LENGTH', 50000),
             documentoIntegrantesMax: self::positiveInt($env, 'DOCUMENTO_INTEGRANTES_MAX', 20),
+            // Adjuntos de documentos (DEC-B39, DEC-B40, PROPUESTA): 5 MB y 10 por documento.
+            documentoAdjuntoMaxBytes: self::positiveInt($env, 'DOCUMENTO_ADJUNTO_MAX_BYTES', 5242880),
+            documentoAdjuntosMax: self::positiveInt($env, 'DOCUMENTO_ADJUNTOS_MAX', 10),
+            cloudinaryDocumentosFolder: trim(self::string($env, 'CLOUDINARY_DOCUMENTOS_FOLDER', 'siiis/documentos'), '/'),
             storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
         );
     }

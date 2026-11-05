@@ -9,13 +9,23 @@ use Siiis\Config\Settings;
 use Throwable;
 
 /**
- * Subida y borrado de imágenes en Cloudinary (spec 13.2). MongoDB solo guarda `{url, public_id}`.
+ * Subida y borrado de imágenes y PDF en Cloudinary (spec 13.2). MongoDB solo guarda `{url, public_id}`.
+ * Todo se sube como recurso `image`, también los PDF (DEC-B40): así el borrado es igual para todos los
+ * archivos y un PDF admite miniaturas de su primera página (`.jpg`). Para que un PDF se pueda descargar, la
+ * cuenta debe tener activado "Allow delivery of PDF and ZIP files"; si no, Cloudinary responde
+ * 401 "deny or ACL failure" (subirlo como `raw` no lo evita).
  * El cliente del SDK se crea al primer uso: la app arranca aunque falten las credenciales.
  */
 class CloudinaryService
 {
     /** Segundos; el plan compartido de Hostinger no admite peticiones muy largas. */
     private const TIMEOUT_SECONDS = 30;
+
+    /** Formatos de la foto de perfil (DEC-B29). */
+    public const FORMATOS_IMAGEN = ['jpg', 'png', 'webp'];
+
+    /** Formatos de los adjuntos de documentos (DEC-B40). */
+    public const FORMATOS_ADJUNTO = ['jpg', 'png', 'webp', 'pdf'];
 
     private ?Cloudinary $cloudinary = null;
 
@@ -24,21 +34,22 @@ class CloudinaryService
     }
 
     /**
-     * Sube una imagen ya validada desde el temporal de PHP. Cloudinary genera un public_id único
+     * Sube un archivo ya validado desde el temporal de PHP. Cloudinary genera un public_id único
      * dentro de `$folder`.
+     *
+     * @param list<string> $formatos segunda barrera tras finfo: Cloudinary rechaza los demás
      *
      * @return array{url: string, public_id: string}
      *
      * @throws CloudinaryException
      */
-    public function upload(string $path, string $folder): array
+    public function upload(string $path, string $folder, array $formatos = self::FORMATOS_IMAGEN): array
     {
         try {
             $res = $this->client()->uploadApi()->upload($path, [
                 'folder' => $folder,
                 'resource_type' => 'image',
-                // Segunda barrera tras finfo: Cloudinary rechaza otros formatos.
-                'allowed_formats' => ['jpg', 'png', 'webp'],
+                'allowed_formats' => $formatos,
                 'unique_filename' => true,
                 'use_filename' => false,
                 'overwrite' => false,
@@ -57,7 +68,7 @@ class CloudinaryService
     }
 
     /**
-     * Borra la imagen y la invalida en la CDN. Borrar un public_id que ya no existe no es error.
+     * Borra el archivo y lo invalida en la CDN. Borrar un public_id que ya no existe no es error.
      *
      * @throws CloudinaryException
      */

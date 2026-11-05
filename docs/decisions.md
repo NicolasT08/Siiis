@@ -412,20 +412,31 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B39 — Rutas para los archivos adjuntos
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo) · se implementa en el paso 3
+- Estado: PROPUESTA (pendiente de aprobación del equipo) · implementada en el paso 3
 - Fecha: 2026-11-04
 - Contexto: el spec 11.3 no tiene rutas para subir o quitar adjuntos.
+- Contrato:
+  - `POST`: `multipart/form-data` con el archivo en el campo `archivo` → `201 {"documento"}` con el detalle. `DELETE` → `200 {"documento"}` sin el adjunto (no `204`, para que el frontend no tenga que volver a pedir el documento).
+  - Orden al subir: validar → comprobar permisos → comprobar el cupo → subir a Cloudinary → agregar en MongoDB con una sola operación atómica que vuelve a comprobar el cupo y, para el autor, que el documento siga `en_revision`. Si MongoDB falla o la condición ya no se cumple, se borra lo subido (compensación, spec 13.1).
+  - Orden al quitar: quitar de MongoDB y después borrar de Cloudinary. Si falla Cloudinary, la respuesta sigue siendo `200` y el archivo queda en el log para borrarlo a mano. Lo mismo al borrar un documento con adjuntos (DEC-B35).
+  - `nombre_archivo` es el nombre original del cliente, limpio (sin rutas ni caracteres de control, máximo 150 caracteres) y con la extensión del tipo real.
+  - Errores: `400 VALIDATION_ERROR` (sin archivo o vacío), `403`/`404` (como en `PATCH`), `404` si `{archivo}` no existe en el documento, `409 ATTACHMENT_LIMIT`, `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE`, `502 CLOUDINARY_UNAVAILABLE`.
 - Decisión: sub-rutas como la de la foto de perfil, con un archivo por petición: `POST /{projects|articles}/{id}/files` (`multipart/form-data`) y `DELETE /{projects|articles}/{id}/files/{archivo}`. `{archivo}` es el identificador que devuelve el detalle en `archivos_adjuntos[].archivo` (el último segmento del `public_id`; el `public_id` completo nunca sale). Mismos permisos que editar el documento (DEC-B34).
 - Impacto: `Routes`, `DocumentosController`, `DocumentosService`, `DocumentoPresenter::adjuntos`.
 - Requiere migración: no.
 
 ## DEC-B40 — Tipos y tamaño de los adjuntos
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo) · se implementa en el paso 3
+- Estado: PROPUESTA (pendiente de aprobación del equipo) · implementada en el paso 3
 - Fecha: 2026-11-04
 - Contexto: el spec 13.3 prohíbe fijar en el código límites que el equipo no haya aprobado.
 - Decisión: PDF, JPG, PNG y WebP, detectados por el contenido real (`finfo`), de hasta 5 MB por archivo y con un máximo de 10 adjuntos por documento. Todo en `.env`. Hostinger debe permitir subidas de al menos 5 MB.
-- Impacto: `FileValidator`, `CloudinaryService`, `Settings`, `docs/deployment.md`.
+- Cloudinary: todo se sube como recurso `image`, también los PDF, con `allowed_formats` como segunda barrera tras `finfo`. Carpeta `CLOUDINARY_DOCUMENTOS_FOLDER` (`siiis/documentos`); las pruebas usan `siiis_test/documentos`.
+- **Requisito de la cuenta de Cloudinary:** activar "Allow delivery of PDF and ZIP files" (*Settings → Security*). Sin ese ajuste, los PDF se suben pero al abrirlos Cloudinary responde `401 deny or ACL failure`.
+  - El 2026-11-04 se probó subirlos como recurso `raw` y **no lo evita**: la cuenta bloqueó PDF como `raw` (con y sin extensión, y con descarga forzada) y como `image`. Solo se entregaron la miniatura `.jpg` del PDF y archivos que no son PDF. Por eso se mantiene `image`, que además permite miniaturas de la primera página.
+  - En la cuenta de desarrollo (`backend/.env`) la descarga del PDF seguía bloqueada ese día. `DocumentosAdjuntosIntegrationTest::testElPdfSePuedeDescargar` se omite con el aviso hasta que se active el ajuste. Ver `docs/deployment.md`.
+- Variables: `DOCUMENTO_ADJUNTO_MAX_BYTES`, `DOCUMENTO_ADJUNTOS_MAX`, `CLOUDINARY_DOCUMENTOS_FOLDER`.
+- Impacto: `FileValidator::adjunto`, `CloudinaryService`, `DocumentosService`, `DocumentosRepository::agregarAdjunto`/`quitarAdjunto`, `Settings`, `.env.example`, `docs/deployment.md`.
 - Requiere migración: no.
 
 ## DEC-B41 — Contrato de `/projects` y `/articles`

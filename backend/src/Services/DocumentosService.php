@@ -6,6 +6,7 @@ namespace Siiis\Services;
 
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\UTCDateTime;
+use Siiis\Config\Settings;
 use Siiis\Repositories\DocumentoCriterios;
 use Siiis\Repositories\DocumentosRepository;
 use Siiis\Repositories\UsuariosRepository;
@@ -13,8 +14,10 @@ use Siiis\Security\Roles;
 use Siiis\Support\ApiException;
 use Siiis\Support\Clock;
 use Siiis\Support\DocumentoPresenter;
+use Siiis\Support\Logger;
 use Siiis\Support\ModuloDocumentos;
 use Siiis\Support\ObjectIdValidator;
+use Throwable;
 
 /**
  * Contenido sobre la colección unificada `Documentos` (spec 10.9; DEC-B30 a DEC-B41, PROPUESTA):
@@ -22,6 +25,7 @@ use Siiis\Support\ObjectIdValidator;
  * - Los revisores (`Roles::REVISORES_CONTENIDO`) publican, editan y borran cualquier documento (DEC-B33).
  * - El autor edita y borra lo suyo solo mientras sigue `en_revision` (DEC-B34, DEC-B35).
  * - Cada actor ve lo público más lo suyo; los revisores, todo (DEC-B36).
+ * - Los adjuntos van a Cloudinary con los mismos permisos que editar (DEC-B39, DEC-B40).
  */
 class DocumentosService
 {
@@ -29,6 +33,9 @@ class DocumentosService
         private readonly DocumentosRepository $documentos,
         private readonly UsuariosRepository $usuarios,
         private readonly Clock $clock,
+        private readonly CloudinaryService $cloudinary,
+        private readonly Settings $settings,
+        private readonly Logger $logger,
     ) {
     }
 
@@ -210,6 +217,114 @@ class DocumentosService
         if (!$this->documentos->eliminar($objectId, $esRevisor ? null : ModuloDocumentos::ESTADO_EN_REVISION)) {
             throw $esRevisor ? self::noEncontrado($modulo) : self::yaNoEnRevision('borrar');
         }
+
+        // Después de borrar el documento: si falla Cloudinary, el documento ya no existe y el archivo
+        // huérfano queda en el log para limpiarlo a mano.
+        foreach (self::publicIds($documento) as $publicId) {
+            $this->borrarArchivo($publicId, 'borrado del documento ' . $objectId);
+        }
+    }
+
+    /**
+     * POST /{modulo}/{id}/files (DEC-B39, DEC-B40): mismos permisos que editar. Sube el archivo y lo agrega
+     * con una operación atómica que respeta el límite de adjuntos; si no se pudo agregar o MongoDB falla,
+     * borra lo subido (compensación, spec 13.1).
+     *
+     * @param array{path: string, nombre: string} $archivo validado por FileValidator::adjunto
+     *
+     * @return array<string, mixed> detalle con el adjunto nuevo
+     *
+     * @throws ApiException 403 FORBIDDEN, 404 NOT_FOUND, 409 ATTACHMENT_LIMIT, 502 CLOUDINARY_UNAVAILABLE
+     */
+    public function agregarAdjunto(ModuloDocumentos $modulo, string $id, array $archivo, string $actorId, string $actorRol): array
+    {
+        $documento = $this->visiblePara($modulo, $id, $actorId, $actorRol);
+        $esRevisor = Roles::esRevisorContenido($actorRol);
+        $this->exigirEdicion($documento, $actorId, $esRevisor, 'editar');
+        // Antes de subir: no se gasta una subida si ya no hay cupo.
+        if (count(self::publicIds($documento)) >= $this->settings->documentoAdjuntosMax) {
+            throw $this->limiteDeAdjuntos();
+        }
+
+        try {
+            $subido = $this->cloudinary->upload(
+                $archivo['path'],
+                $this->settings->cloudinaryDocumentosFolder,
+                CloudinaryService::FORMATOS_ADJUNTO,
+            );
+        } catch (CloudinaryException $e) {
+            $this->logger->error('No se pudo subir un adjunto', ['documento_id' => $id, 'error' => $e->getMessage()]);
+
+            throw new ApiException(502, 'CLOUDINARY_UNAVAILABLE', 'No se pudo guardar el archivo. Intenta de nuevo más tarde.');
+        }
+
+        /** @var ObjectId $objectId */
+        $objectId = $documento['_id'];
+        try {
+            $agregado = $this->documentos->agregarAdjunto(
+                $objectId,
+                $subido + ['nombre_archivo' => $archivo['nombre']],
+                $this->settings->documentoAdjuntosMax,
+                new UTCDateTime($this->clock->now()),
+                $esRevisor ? null : ModuloDocumentos::ESTADO_EN_REVISION,
+            );
+        } catch (Throwable $e) {
+            $this->borrarArchivo($subido['public_id'], 'compensación tras fallo en MongoDB');
+
+            throw $e;
+        }
+        if (!$agregado) {
+            // Otra petición cambió el documento entre la lectura y la escritura.
+            $this->borrarArchivo($subido['public_id'], 'compensación: el adjunto no se pudo agregar');
+
+            throw $this->motivoDelConflicto($modulo, $objectId, $esRevisor, 'editar') ?? $this->limiteDeAdjuntos();
+        }
+
+        return $this->obtener($modulo, (string) $objectId, $actorId, $actorRol);
+    }
+
+    /**
+     * DELETE /{modulo}/{id}/files/{archivo} (DEC-B39): mismos permisos que editar. Quita el adjunto del
+     * documento y, después, lo borra de Cloudinary.
+     *
+     * @param string $archivo identificador de `archivos_adjuntos[].archivo` (último segmento del public_id)
+     *
+     * @return array<string, mixed> detalle sin el adjunto
+     *
+     * @throws ApiException 403 FORBIDDEN, 404 NOT_FOUND
+     */
+    public function quitarAdjunto(ModuloDocumentos $modulo, string $id, string $archivo, string $actorId, string $actorRol): array
+    {
+        $documento = $this->visiblePara($modulo, $id, $actorId, $actorRol);
+        $esRevisor = Roles::esRevisorContenido($actorRol);
+        $this->exigirEdicion($documento, $actorId, $esRevisor, 'editar');
+
+        $publicId = null;
+        foreach (self::publicIds($documento) as $candidato) {
+            if (DocumentoPresenter::archivoId($candidato) === $archivo) {
+                $publicId = $candidato;
+
+                break;
+            }
+        }
+        if ($publicId === null) {
+            throw self::archivoNoEncontrado();
+        }
+
+        /** @var ObjectId $objectId */
+        $objectId = $documento['_id'];
+        $quitado = $this->documentos->quitarAdjunto(
+            $objectId,
+            $publicId,
+            new UTCDateTime($this->clock->now()),
+            $esRevisor ? null : ModuloDocumentos::ESTADO_EN_REVISION,
+        );
+        if (!$quitado) {
+            throw $this->motivoDelConflicto($modulo, $objectId, $esRevisor, 'editar') ?? self::archivoNoEncontrado();
+        }
+        $this->borrarArchivo($publicId, 'adjunto quitado del documento ' . $objectId);
+
+        return $this->obtener($modulo, (string) $objectId, $actorId, $actorRol);
     }
 
     /**
@@ -329,6 +444,72 @@ class DocumentosService
         $usuarios = $this->usuarios->findResumenesByIds(DocumentoPresenter::usuarioIds([$documento]));
 
         return DocumentoPresenter::detalle($documento, $usuarios, self::permisos($documento, $actorId, $actorRol));
+    }
+
+    /**
+     * Por qué una escritura condicionada no encontró el documento: ya no existe (404) o, para el autor, salió
+     * de revisión (403). null si nada de eso cambió (el motivo es otro, p. ej. el cupo de adjuntos).
+     */
+    private function motivoDelConflicto(ModuloDocumentos $modulo, ObjectId $id, bool $esRevisor, string $accion): ?ApiException
+    {
+        $actual = $this->documentos->findById($id);
+        if ($actual === null) {
+            return self::noEncontrado($modulo);
+        }
+        if (!$esRevisor && ($actual['estado'] ?? null) !== ModuloDocumentos::ESTADO_EN_REVISION) {
+            return self::yaNoEnRevision($accion);
+        }
+
+        return null;
+    }
+
+    /**
+     * Borrado sin propagar errores: la operación principal ya terminó; un fallo solo deja un archivo
+     * huérfano, que queda en el log para limpiarlo a mano.
+     */
+    private function borrarArchivo(string $publicId, string $motivo): void
+    {
+        try {
+            $this->cloudinary->delete($publicId);
+        } catch (CloudinaryException $e) {
+            $this->logger->error('No se pudo borrar un adjunto de Cloudinary', [
+                'public_id' => $publicId,
+                'motivo' => $motivo,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * `public_id` de los adjuntos del documento, en orden.
+     *
+     * @param array<string, mixed> $documento
+     *
+     * @return list<string>
+     */
+    private static function publicIds(array $documento): array
+    {
+        $ids = [];
+        foreach (is_array($documento['archivos_adjuntos'] ?? null) ? $documento['archivos_adjuntos'] : [] as $adjunto) {
+            if (is_array($adjunto) && is_string($adjunto['public_id'] ?? null) && $adjunto['public_id'] !== '') {
+                $ids[] = $adjunto['public_id'];
+            }
+        }
+
+        return $ids;
+    }
+
+    private function limiteDeAdjuntos(): ApiException
+    {
+        return new ApiException(409, 'ATTACHMENT_LIMIT', sprintf(
+            'El documento ya tiene el máximo de %d archivos adjuntos.',
+            $this->settings->documentoAdjuntosMax,
+        ));
+    }
+
+    private static function archivoNoEncontrado(): ApiException
+    {
+        return new ApiException(404, 'NOT_FOUND', 'El archivo adjunto no existe.');
     }
 
     /**

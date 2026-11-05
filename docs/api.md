@@ -44,6 +44,7 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | El contenido del archivo no es de un formato admitido |
 | `CLOUDINARY_UNAVAILABLE` | 502 | No se pudo guardar el archivo en Cloudinary |
 | `LAST_SUPERADMIN` | 409 | Se intentó quitar el rol o desactivar al último superadministrador activo |
+| `ATTACHMENT_LIMIT` | 409 | El documento ya tiene el máximo de archivos adjuntos (`DOCUMENTO_ADJUNTOS_MAX`, 10) |
 | `NOT_FOUND` | 404 | La ruta o el recurso no existe (p. ej. un usuario en `GET /users/{id}`) |
 | `METHOD_NOT_ALLOWED` | 405 | Método HTTP no soportado en la ruta |
 | `RATE_LIMITED` | 429 | Demasiados intentos; la cabecera `Retry-After` trae los segundos de espera |
@@ -502,7 +503,7 @@ Los listados traen el **resumen**; el detalle (`GET /projects/{id}`, `POST`, `PA
 
 - `autor` es `null` si el usuario ya no existe. Los integrantes que se desactivaron (egresados) **siguen apareciendo** (DEC-B38).
 - `permisos` dice qué puede hacer quien consulta. Úsalo para mostrar u ocultar los botones de editar, borrar y publicar; el backend vuelve a validar de todas formas.
-- `archivos_adjuntos[].archivo` es el identificador para quitar el adjunto (paso 3 de la fase 3).
+- `archivos_adjuntos[].archivo` es el identificador para quitar el adjunto (sección 11).
 
 ### 9a. `GET /projects`
 
@@ -649,9 +650,48 @@ Como 9e: borrado físico, `204`.
 
 ---
 
+## 11. Archivos adjuntos (`/projects/{id}/files` y `/articles/{id}/files`)
+
+Fase 3. Archivos de un proyecto, artículo o noticia, guardados en Cloudinary. Un archivo por petición. Contrato provisional: `PROPUESTA` DEC-B39 y DEC-B40.
+
+**Permisos:** los mismos que editar el documento (9d): el autor mientras está `en_revision`, y los revisores siempre. Quien no puede ver el documento recibe `404`.
+
+### 11a. `POST /{projects|articles}/{id}/files`
+
+Requiere token. `multipart/form-data` con el archivo en el campo `archivo`. No fijes la cabecera `Content-Type` a mano: el navegador la arma con el `boundary`.
+
+```ts
+const form = new FormData();
+form.append('archivo', archivo); // <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp">
+await fetch(`/api/v1/projects/${id}/files`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+```
+
+- Formatos: **PDF, JPEG, PNG o WebP**, hasta `DOCUMENTO_ADJUNTO_MAX_BYTES` (5 MB), y máximo `DOCUMENTO_ADJUNTOS_MAX` (10) por documento. El backend revisa el **contenido** del archivo; cambiar la extensión no sirve.
+- `nombre_archivo` guarda el nombre original, limpio y con la extensión del tipo real (p. ej. `Informe final.pdf`). Úsalo como texto del enlace.
+- La `url` es pública (Cloudinary). Un PDF se abre en el navegador; para una miniatura de su primera página, cambia la extensión `.pdf` de la URL por `.jpg`.
+
+**201** `{"documento": {...}}`: el detalle (sección 9) con el adjunto nuevo al final de `archivos_adjuntos`. Cabecera `Cache-Control: no-store`.
+
+**Errores:**
+- `400 VALIDATION_ERROR` (`fields.archivo`): no llegó el archivo, está vacío o la subida quedó incompleta.
+- `401 UNAUTHORIZED`; `403 FORBIDDEN` y `404 NOT_FOUND`, como en 9d.
+- `409 ATTACHMENT_LIMIT`: el documento ya tiene el máximo de adjuntos.
+- `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE`.
+- `502 CLOUDINARY_UNAVAILABLE`: Cloudinary no respondió; el documento no cambia.
+
+### 11b. `DELETE /{projects|articles}/{id}/files/{archivo}`
+
+Requiere token. `{archivo}` es el valor de `archivos_adjuntos[].archivo` del detalle. Quita el adjunto del documento y lo borra de Cloudinary.
+
+**200** `{"documento": {...}}`: el detalle sin ese adjunto. Cabecera `Cache-Control: no-store`.
+
+**Errores:** `401 UNAUTHORIZED`, `403 FORBIDDEN` (como en 9d), `404 NOT_FOUND` (el documento o el archivo no existen).
+
+Al borrar un documento (9e) se borran también todos sus adjuntos.
+
+---
 ## Fuera de esta fase
 
 - `POST /auth/google` (login con Google, RF-17): no está registrada; responde `404`. Sigue fuera en la fase 2.
 - Hero, bloques S-I-I-I-S, llamada a la acción y footer de la página de inicio: por ahora son contenido estático del frontend (DEC-B12). El botón "Inscríbete" solo navega a la página de inscripción.
-- Archivos adjuntos (`/files`) de proyectos, artículos y noticias: paso 3 de la fase 3.
 - Reseñas, inscripciones y contacto: fases siguientes.

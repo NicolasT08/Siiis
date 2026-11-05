@@ -34,6 +34,32 @@ final class TestImages
         return self::escribir('RIFF' . pack('V', 4 + 8 + strlen($vp8l)) . 'WEBPVP8L' . pack('V', strlen($vp8l)) . $vp8l, 'webp');
     }
 
+    /**
+     * PDF 1.4 mínimo y válido (una página en blanco), con la tabla xref calculada: Cloudinary lo acepta.
+     */
+    public static function pdf(): string
+    {
+        $objetos = [
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << >> >>',
+        ];
+        $pdf = "%PDF-1.4\n";
+        $offsets = [];
+        foreach ($objetos as $i => $objeto) {
+            $offsets[] = strlen($pdf);
+            $pdf .= ($i + 1) . " 0 obj\n" . $objeto . "\nendobj\n";
+        }
+        $xref = strlen($pdf);
+        $pdf .= "xref\n0 " . (count($objetos) + 1) . "\n0000000000 65535 f \n";
+        foreach ($offsets as $offset) {
+            $pdf .= sprintf("%010d 00000 n \n", $offset);
+        }
+        $pdf .= 'trailer << /Size ' . (count($objetos) + 1) . " /Root 1 0 R >>\nstartxref\n" . $xref . "\n%%EOF\n";
+
+        return self::escribir($pdf, 'pdf');
+    }
+
     public static function gif(): string
     {
         return self::escribir("GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xFF\xFF\xFF!\xF9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;", 'gif');
@@ -62,9 +88,13 @@ final class TestImages
         return self::escribir('', 'png');
     }
 
-    public static function subida(string $path, int $error = UPLOAD_ERR_OK, string $tipoDeclarado = 'image/png'): UploadedFile
-    {
-        return new UploadedFile($path, basename($path), $tipoDeclarado, (int) filesize($path), $error);
+    public static function subida(
+        string $path,
+        int $error = UPLOAD_ERR_OK,
+        string $tipoDeclarado = 'image/png',
+        ?string $nombre = null,
+    ): UploadedFile {
+        return new UploadedFile($path, $nombre ?? basename($path), $tipoDeclarado, (int) filesize($path), $error);
     }
 
     public static function limpiar(): void

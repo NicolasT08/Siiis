@@ -63,7 +63,7 @@ final class Routes
         });
     }
     /**
-     * CRUD de un módulo de contenido (spec 11.3; DEC-B30). El argumento `modulo` le dice a
+     * CRUD de un módulo de contenido (spec 11.3; DEC-B30) y sus adjuntos (DEC-B39). El argumento `modulo` le dice a
      * DocumentosController qué categorías sirve la ruta.
      *
      * @param RouteCollectorProxy<\Psr\Container\ContainerInterface|null> $v1
@@ -83,6 +83,13 @@ final class Routes
             ->setArgument('modulo', $modulo->value)
             ->add(AuthMiddleware::class);
         $v1->delete($base . '/{id}', [DocumentosController::class, 'destroy'])
+            ->setArgument('modulo', $modulo->value)
+            ->add(AuthMiddleware::class);
+        // Adjuntos (DEC-B39): un archivo por petición.
+        $v1->post($base . '/{id}/files', [DocumentosController::class, 'storeFile'])
+            ->setArgument('modulo', $modulo->value)
+            ->add(AuthMiddleware::class);
+        $v1->delete($base . '/{id}/files/{archivo}', [DocumentosController::class, 'destroyFile'])
             ->setArgument('modulo', $modulo->value)
             ->add(AuthMiddleware::class);
     }

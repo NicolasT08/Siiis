@@ -12,7 +12,7 @@ use Siiis\Services\CloudinaryService;
  */
 final class FakeCloudinaryService extends CloudinaryService
 {
-    /** @var list<array{path: string, folder: string, public_id: string}> */
+    /** @var list<array{path: string, folder: string, public_id: string, formatos: list<string>}> */
     public array $subidas = [];
 
     /** @var list<string> */
@@ -25,16 +25,17 @@ final class FakeCloudinaryService extends CloudinaryService
     {
     }
 
-    public function upload(string $path, string $folder): array
+    public function upload(string $path, string $folder, array $formatos = self::FORMATOS_IMAGEN): array
     {
         if ($this->fallarSubida) {
             throw new CloudinaryException('Fallo simulado de subida');
         }
 
         $publicId = $folder . '/' . bin2hex(random_bytes(6));
-        $this->subidas[] = ['path' => $path, 'folder' => $folder, 'public_id' => $publicId];
+        $this->subidas[] = ['path' => $path, 'folder' => $folder, 'public_id' => $publicId, 'formatos' => $formatos];
+        $extension = pathinfo($path, PATHINFO_EXTENSION) === 'pdf' ? 'pdf' : 'png';
 
-        return ['url' => 'https://res.cloudinary.com/demo/image/upload/' . $publicId . '.png', 'public_id' => $publicId];
+        return ['url' => 'https://res.cloudinary.com/demo/image/upload/' . $publicId . '.' . $extension, 'public_id' => $publicId];
     }
 
     public function delete(string $publicId): void

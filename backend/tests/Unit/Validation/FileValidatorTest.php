@@ -141,6 +141,112 @@ final class FileValidatorTest extends TestCase
         }
     }
 
+    // ---------------------------------------------------------------- adjuntos (DEC-B40)
+
+    /**
+     * @return iterable<string, array{callable(): string, string, string}>
+     */
+    public static function adjuntosValidos(): iterable
+    {
+        yield 'pdf' => [TestImages::pdf(...), 'application/pdf', 'informe.pdf'];
+        yield 'png' => [TestImages::png(...), 'image/png', 'informe.png'];
+        yield 'jpeg' => [TestImages::jpeg(...), 'image/jpeg', 'informe.jpg'];
+        yield 'webp' => [TestImages::webp(...), 'image/webp', 'informe.webp'];
+    }
+
+    /**
+     * @param callable(): string $crear
+     */
+    #[DataProvider('adjuntosValidos')]
+    public function testAdjuntoAceptaPdfEImagenes(callable $crear, string $mime, string $nombre): void
+    {
+        $path = $crear();
+        $archivo = TestImages::subida($path, UPLOAD_ERR_OK, 'application/octet-stream', 'informe');
+
+        $resultado = (new FileValidator())->adjunto(['archivo' => $archivo], 'archivo', self::MAX);
+
+        self::assertSame($path, $resultado['path']);
+        self::assertSame($mime, $resultado['mime']);
+        self::assertSame($nombre, $resultado['nombre']);
+    }
+
+    /**
+     * @return iterable<string, array{callable(): string}>
+     */
+    public static function adjuntosNoAdmitidos(): iterable
+    {
+        yield 'gif' => [TestImages::gif(...)];
+        yield 'php con extensión pdf' => [static fn (): string => TestImages::disfrazado()];
+        yield 'texto' => [static fn (): string => TestImages::disfrazado('solo texto, no un PDF')];
+    }
+
+    /**
+     * @param callable(): string $crear
+     */
+    #[DataProvider('adjuntosNoAdmitidos')]
+    public function testAdjuntoRechazaOtrosFormatos(callable $crear): void
+    {
+        $archivo = TestImages::subida($crear(), UPLOAD_ERR_OK, 'application/pdf', 'informe.pdf');
+
+        $this->assertApiError(
+            fn () => (new FileValidator())->adjunto(['archivo' => $archivo], 'archivo', self::MAX),
+            415,
+            'UNSUPPORTED_MEDIA_TYPE',
+        );
+    }
+
+    public function testAdjuntoLimiteYCampo(): void
+    {
+        $validator = new FileValidator();
+
+        try {
+            $validator->adjunto(['archivo' => TestImages::subida(TestImages::pngDeTamano(2048))], 'archivo', 1024);
+            self::fail('Se esperaba 413');
+        } catch (ApiException $e) {
+            self::assertSame(413, $e->status);
+            self::assertSame('El archivo supera el tamaño máximo de 1 KB.', $e->getMessage());
+        }
+
+        try {
+            $validator->adjunto(['foto' => TestImages::subida(TestImages::pdf())], 'archivo', self::MAX);
+            self::fail('Se esperaba 400');
+        } catch (ApiException $e) {
+            self::assertSame(['archivo' => 'Adjunta un archivo en el campo "archivo".'], $e->fields);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{string|null, string, string}>
+     */
+    public static function nombres(): iterable
+    {
+        yield 'normal' => ['Informe final.pdf', 'pdf', 'Informe final.pdf'];
+        yield 'extensión en mayúsculas' => ['FOTO.JPEG', 'jpg', 'FOTO.jpg'];
+        yield 'extensión engañosa' => ['virus.exe', 'pdf', 'virus.exe.pdf'];
+        yield 'con ruta' => ['C:\Users\ana\..\informe.pdf', 'pdf', 'informe.pdf'];
+        yield 'ruta unix' => ['../../etc/passwd', 'pdf', 'passwd.pdf'];
+        yield 'caracteres de control' => ["in\x00for\nme.pdf", 'pdf', 'informe.pdf'];
+        yield 'vacío' => ['', 'png', 'archivo.png'];
+        yield 'null' => [null, 'pdf', 'archivo.pdf'];
+        yield 'solo extensión' => ['.pdf', 'pdf', 'archivo.pdf'];
+        yield 'utf-8 inválido' => ["\xFF\xFE.pdf", 'pdf', 'archivo.pdf'];
+        yield 'tildes' => ['Reseña técnica.pdf', 'pdf', 'Reseña técnica.pdf'];
+    }
+
+    #[DataProvider('nombres')]
+    public function testNombreSeguro(?string $original, string $extension, string $esperado): void
+    {
+        self::assertSame($esperado, FileValidator::nombre($original, $extension));
+    }
+
+    public function testNombreLargoSeRecorta(): void
+    {
+        $nombre = FileValidator::nombre(str_repeat('ñ', 400) . '.pdf', 'pdf');
+
+        self::assertSame(FileValidator::NOMBRE_MAX_LENGTH, mb_strlen($nombre));
+        self::assertStringEndsWith('ñ.pdf', $nombre);
+    }
+
     private function assertApiError(callable $fn, int $status, string $code): void
     {
         try {
