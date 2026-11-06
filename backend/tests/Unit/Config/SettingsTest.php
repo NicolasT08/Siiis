@@ -33,6 +33,30 @@ final class SettingsTest extends TestCase
         self::assertSame(1000, $settings->documentoDescripcionMaxLength);
         self::assertSame(50000, $settings->documentoContenidoMaxLength);
         self::assertSame(20, $settings->documentoIntegrantesMax);
+        // Adjuntos y optimización de Cloudinary (DEC-B40, DEC-B42).
+        self::assertSame(5242880, $settings->documentoAdjuntoMaxBytes);
+        self::assertSame(3145728, $settings->documentoPdfMaxBytes);
+        self::assertSame(400, $settings->perfilFotoLadoPx);
+        self::assertSame(1600, $settings->documentoImagenMaxAnchoPx);
+        self::assertSame('auto', $settings->cloudinaryCalidad);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function calidadesValidas(): iterable
+    {
+        foreach (['auto', 'auto:best', 'auto:good', 'auto:eco', 'auto:low', '1', '70', '100'] as $calidad) {
+            yield $calidad => [$calidad];
+        }
+    }
+
+    #[DataProvider('calidadesValidas')]
+    public function testCalidadDeCloudinary(string $calidad): void
+    {
+        $settings = Settings::fromEnv(['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'CLOUDINARY_CALIDAD' => $calidad]);
+
+        self::assertSame($calidad, $settings->cloudinaryCalidad);
     }
 
     public function testCarpetaDeCloudinarySinBarrasExtremas(): void
@@ -77,6 +101,12 @@ final class SettingsTest extends TestCase
             ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'DOCUMENTOS_PER_PAGE_MAX' => '10'],
             'DOCUMENTOS_PER_PAGE_DEFAULT',
         ];
+        foreach (['0', '101', 'auto:fast', 'best', '50,w_9000', ' f_auto'] as $calidad) {
+            yield 'calidad ' . $calidad => [
+                ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'CLOUDINARY_CALIDAD' => $calidad],
+                'CLOUDINARY_CALIDAD',
+            ];
+        }
     }
 
     /**

@@ -6,8 +6,9 @@ Contrato para el frontend: `../docs/api.md`. Decisiones pendientes: `../docs/dec
 **Stack:** PHP 8.2+ · Slim 4 · PHP-DI · MongoDB Atlas (`ext-mongodb` + `mongodb/mongodb`) · `firebase/php-jwt` ·
 PHPMailer · Cloudinary (`cloudinary/cloudinary_php`) · phpdotenv · PHPUnit 11 · PHPStan (nivel 6) · PHP-CS-Fixer (PSR-12).
 
-**Endpoints:** fase 1 (salud, login, sesión, recuperación de contraseña, Home) y fase 2 (registro administrativo,
-integrantes, edición, desactivación/reactivación y foto de perfil). El detalle está en `../docs/api.md`.
+**Endpoints:** fase 1 (salud, login, sesión, recuperación de contraseña, Home), fase 2 (registro administrativo,
+integrantes, edición, desactivación/reactivación y foto de perfil) y fase 3 (proyectos en `/projects`, artículos y
+noticias en `/articles`, con revisión, publicación y archivos adjuntos). El detalle está en `../docs/api.md`.
 
 ## Requisitos
 
@@ -42,7 +43,10 @@ Variables mínimas en `.env`:
 Límites provisionales y configurables (todos tienen valor por defecto): `PERFIL_*` (longitudes del perfil, semestre,
 teléfono y `PERFIL_FOTO_MAX_BYTES`, 2 MB; DEC-B21), `USERS_PER_PAGE_*` (DEC-B26), `DOCUMENTOS_PER_PAGE_*` (DEC-B41) y
 `DOCUMENTO_*` (longitudes de título, descripción y contenido, integrantes por documento; DEC-B37 y DEC-B38; y
-adjuntos: `DOCUMENTO_ADJUNTO_MAX_BYTES`, 5 MB, y `DOCUMENTO_ADJUNTOS_MAX`, 10; DEC-B40).
+adjuntos: `DOCUMENTO_ADJUNTO_MAX_BYTES`, imágenes de 5 MB, `DOCUMENTO_PDF_MAX_BYTES`, PDF de 3 MB, y
+`DOCUMENTO_ADJUNTOS_MAX`, 10; DEC-B40 y DEC-B42). Optimización de Cloudinary al subir (DEC-B42): `PERFIL_FOTO_LADO_PX`
+(400, recorte cuadrado), `DOCUMENTO_IMAGEN_MAX_ANCHO_PX` (1600, sin agrandar) y `CLOUDINARY_CALIDAD` (`auto`); al
+responder, la API entrega las imágenes con `f_auto,q_auto`.
 
 Si falta `MONGO_URI` o `JWT_SECRET`, o el secreto es corto, la API responde `500 CONFIG_ERROR`. El detalle aparece en la respuesta si `APP_DEBUG=true` y siempre en el log de errores de PHP. Sin `CLOUDINARY_*` la API arranca, pero subir una foto responde `502 CLOUDINARY_UNAVAILABLE`; sin `MAIL_*`, `forgot-password` responde igual que siempre y el fallo queda en `storage/logs`.
 
@@ -78,8 +82,12 @@ composer analyse   # phpstan nivel 6
 ```
 
 - **Unit** y **Api** no necesitan base de datos: la app Slim corre en memoria con repositorios, reloj, correo y Cloudinary sustituidos por dobles.
-- **Integration** usa `MONGO_DB_NAME_TEST` en Atlas. Se salta automáticamente si no hay `MONGO_URI` o conexión, y nunca se ejecuta contra la base principal. Cada prueba borra los datos que crea. Cubre repositorios, login y recuperación, la transacción de registro (incluida su reversión), la paginación real de `GET /users` y el ciclo edición → desactivación → reactivación.
-- Las pruebas con **Cloudinary real** se saltan si falta alguna `CLOUDINARY_*`. Suben solo a `siiis_test/perfiles` y vacían esa carpeta al terminar.
+- **Integration** usa `MONGO_DB_NAME_TEST` en Atlas. Se salta automáticamente si no hay `MONGO_URI` o conexión, y nunca se ejecuta contra la base principal. Cada prueba borra los datos que crea. Cubre repositorios, login y recuperación, la transacción de registro (incluida su reversión), la paginación real de `GET /users` y el ciclo edición → desactivación → reactivación. En la fase 3
+  (`DocumentosFlowIntegrationTest`), con la app real: el ciclo crear → publicar → editar → borrar en `/projects` y
+  `/articles`, la paginación completa por actor, que el listado público nunca muestre borradores ni ocultos, y que
+  autor e integrantes de una página salgan de una sola consulta a `Usuarios` (lo comprueba con el monitoreo de
+  comandos del driver).
+- Las pruebas con **Cloudinary real** se saltan si falta alguna `CLOUDINARY_*`. Suben solo a `siiis_test/perfiles` y `siiis_test/documentos`, y vacían esas carpetas al terminar. Comprueban también las transformaciones al subir (DEC-B42) y la descarga de los PDF (la cuenta debe tener activada la entrega de PDF, DEC-B40).
 
 **Antivirus en Windows:** si `forgot-password` deja en el log `certificate verify failed`, un antivirus que inspecciona el correo (p. ej. Avast Web/Mail Shield) está interceptando el TLS del SMTP. Excluye el SMTP de Gmail del escaneo; no desactives la verificación en el código.
 
@@ -91,13 +99,13 @@ backend/
 ├── public/                # index.php (front controller) y .htaccess
 ├── src/
 │   ├── Config/            # Settings, Container (PHP-DI), Routes, Application
-│   ├── Controllers/       # Health, Auth, Home, Users (delgados)
+│   ├── Controllers/       # Health, Auth, Home, Users, Documentos (delgados)
 │   ├── Database/          # Mongo (cliente único), Collections (nombres oficiales)
 │   ├── Middleware/        # Auth, OptionalAuth, Role, ErrorHandler, Cors, JsonBody
-│   ├── Repositories/      # consultas a Credenciales, Usuarios, Sesiones y Multimedia; Cuentas (transacción)
+│   ├── Repositories/      # consultas a Credenciales, Usuarios, Sesiones, Multimedia y Documentos; Cuentas (transacción)
 │   ├── Security/          # PasswordHasher, JwtService, RateLimiter, Roles (jerarquía), SessionAuthenticator
-│   ├── Services/          # Auth, PasswordReset, Mail, UserAccount (alta), Users (consulta/edición/foto), Cloudinary
-│   ├── Support/           # JsonResponse, Serializer, UsuarioPresenter, TokenGenerator, ObjectIdValidator, Logger, Clock
+│   ├── Services/          # Auth, PasswordReset, Mail, UserAccount (alta), Users (consulta/edición/foto), Documentos, Cloudinary
+│   ├── Support/           # JsonResponse, Serializer, presentadores, ModuloDocumentos, CloudinaryUrl, Logger, Clock…
 │   └── Validation/        # validadores de entrada (antiinyección NoSQL) y FileValidator (MIME real)
 ├── scripts/               # CLI: índices, superadmin, seed
 ├── storage/               # logs/, ratelimit/, cache/ (no versionado)

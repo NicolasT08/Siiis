@@ -51,6 +51,8 @@ final class DocumentosAdjuntosApiTest extends DocumentosTestCase
         self::assertSame('siiis/documentos', $subida['folder']);
         // Todo como recurso image, con el PDF en la lista de formatos permitidos (DEC-B40).
         self::assertSame(['jpg', 'png', 'webp', 'pdf'], $subida['formatos']);
+        // El PDF se guarda tal cual y se entrega sin f_auto,q_auto (DEC-B42).
+        self::assertSame([], $subida['transformacion']);
 
         $doc = $this->json($response)['documento'];
         $archivo = substr($subida['public_id'], strlen('siiis/documentos/'));
@@ -70,6 +72,65 @@ final class DocumentosAdjuntosApiTest extends DocumentosTestCase
         // Quitarlo lo borra de Cloudinary.
         self::assertSame(200, $this->send('DELETE', '/api/v1/projects/' . $id . '/files/' . $archivo, null, $token)->getStatusCode());
         self::assertSame([$subida['public_id']], $this->cloudinary->borrados);
+    }
+
+    public function testLaImagenSeReduceAlSubirYSeEntregaOptimizada(): void
+    {
+        [$token, $yo] = $this->sesionComo($this->app, 'estudiante');
+        $id = $this->documento(['autor_id' => $yo]);
+
+        $response = $this->subir('projects', $id, TestImages::subida(TestImages::png(), UPLOAD_ERR_OK, 'image/png', 'foto.png'), $token);
+
+        self::assertSame(201, $response->getStatusCode(), (string) $response->getBody());
+        $subida = $this->cloudinary->subidas[0];
+        self::assertSame(['width' => 1600, 'crop' => 'limit', 'quality' => 'auto'], $subida['transformacion']);
+        self::assertSame(
+            'https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/' . $subida['public_id'] . '.png',
+            $this->json($response)['documento']['archivos_adjuntos'][0]['url'],
+        );
+        // MongoDB guarda la URL original de Cloudinary.
+        self::assertSame(
+            'https://res.cloudinary.com/demo/image/upload/' . $subida['public_id'] . '.png',
+            $this->db->documentos[(string) $id]['archivos_adjuntos'][0]['url'],
+        );
+    }
+
+    public function testTransformacionYLimitesConfigurables(): void
+    {
+        $app = $this->authApp([
+            'DOCUMENTO_IMAGEN_MAX_ANCHO_PX' => '800',
+            'CLOUDINARY_CALIDAD' => '70',
+            'DOCUMENTO_PDF_MAX_BYTES' => '2048',
+        ]);
+        [$token, $yo] = $this->sesionComo($app, 'estudiante');
+        $id = $this->documento(['autor_id' => $yo]);
+        $subir = fn (UploadedFile $archivo): ResponseInterface => $app->handle(
+            $this->request('POST', '/api/v1/projects/' . $id . '/files', null, self::bearer($token))
+                ->withUploadedFiles(['archivo' => $archivo]),
+        );
+
+        self::assertSame(201, $subir(TestImages::subida(TestImages::webp()))->getStatusCode());
+        self::assertSame(['width' => 800, 'crop' => 'limit', 'quality' => '70'], $this->cloudinary->subidas[0]['transformacion']);
+
+        $this->assertError($subir(TestImages::subida(TestImages::pdfDeTamano(2049))), 413, 'FILE_TOO_LARGE');
+        self::assertCount(1, $this->cloudinary->subidas);
+    }
+
+    /**
+     * Por defecto (DEC-B42): PDF hasta 3 MB e imágenes hasta 5 MB.
+     */
+    public function testLimitesPorDefectoDePdfEImagen(): void
+    {
+        [$token, $yo] = $this->sesionComo($this->app, 'estudiante');
+        $id = $this->documento(['autor_id' => $yo]);
+
+        self::assertSame(201, $this->subir('projects', $id, TestImages::subida(TestImages::pdfDeTamano(3145728)), $token)->getStatusCode());
+        $muyGrande = $this->subir('projects', $id, TestImages::subida(TestImages::pdfDeTamano(3145729)), $token);
+        $this->assertError($muyGrande, 413, 'FILE_TOO_LARGE');
+        self::assertSame('El PDF supera el tamaño máximo de 3 MB.', $this->json($muyGrande)['error']['message']);
+        // Una imagen de 4 MB sí entra: se reduce al subir.
+        self::assertSame(201, $this->subir('projects', $id, TestImages::subida(TestImages::pngDeTamano(4194304)), $token)->getStatusCode());
+        self::assertCount(2, $this->cloudinary->subidas);
     }
 
     public function testFuncionaTambienEnArticles(): void

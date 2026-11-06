@@ -70,12 +70,13 @@ final class UsuarioPresenter
     /**
      * @param array<string, mixed> $usuario
      *
-     * @return array{url: string}|null solo la URL; el public_id de Cloudinary nunca sale
+     * @return array{url: string}|null solo la URL, con `f_auto,q_auto` (DEC-B42); el public_id de Cloudinary
+     *                                 nunca sale
      */
     public static function foto(array $usuario): ?array
     {
         $foto = $usuario['foto_perfil'] ?? null;
 
-        return is_array($foto) && is_string($foto['url'] ?? null) ? ['url' => $foto['url']] : null;
+        return is_array($foto) && is_string($foto['url'] ?? null) ? ['url' => CloudinaryUrl::entrega($foto['url'])] : null;
     }
 }

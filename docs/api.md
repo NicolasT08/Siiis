@@ -12,6 +12,7 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 | IDs | Strings hexadecimales de 24 caracteres, en el campo `id` (nunca `_id`) |
 | Fechas | ISO 8601 UTC, p. ej. `2026-09-23T15:00:00Z` |
 | CORS | Solo en desarrollo, para `FRONTEND_ORIGIN` (por defecto `http://localhost:5173`). En producción no hace falta (mismo dominio) |
+| Imágenes | Las URL de imágenes de Cloudinary llegan con `f_auto,q_auto` (p. ej. `https://res.cloudinary.com/<cloud>/image/upload/f_auto,q_auto/v1/siiis/perfiles/abc.png`): Cloudinary elige el formato y la calidad para cada navegador. Úsalas tal cual, sin quitar ni agregar transformaciones. Los PDF y los videos llegan sin cambios (DEC-B42) |
 
 ### Formato de error (todas las rutas)
 
@@ -392,9 +393,10 @@ await fetch(`/api/v1/users/${id}/photo`, { method: 'POST', headers: { Authorizat
 ```
 
 - Formatos: JPEG, PNG o WebP, hasta `PERFIL_FOTO_MAX_BYTES` (2 MB). El backend revisa el **contenido** del archivo; cambiar la extensión no sirve.
+- Al subirla, Cloudinary la **recorta a un cuadrado de 400 × 400** (`PERFIL_FOTO_LADO_PX`), centrado en lo importante de la imagen, con calidad automática; el original no se guarda (DEC-B42). Si quieres que el usuario elija el encuadre, recórtala en el navegador antes de enviarla.
 - La foto anterior se borra de Cloudinary después de guardar la nueva.
 
-**200**: `{"usuario": {...}}` con la vista de administrador (6b); `foto_perfil` es `{"url": "https://res.cloudinary.com/..."}`. Cabecera `Cache-Control: no-store`.
+**200**: `{"usuario": {...}}` con la vista de administrador (6b); `foto_perfil` es `{"url": "https://res.cloudinary.com/<cloud>/image/upload/f_auto,q_auto/..."}`. Cabecera `Cache-Control: no-store`.
 
 **Errores:**
 - `400 VALIDATION_ERROR` (`fields.foto`): no llegó el archivo, está vacío o la subida quedó incompleta.
@@ -417,7 +419,7 @@ Cabecera: `Cache-Control: public, max-age=300`.
     {
       "id": "6ab693b1ccc363bbc95e1342",
       "tipo": "imagen",
-      "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+      "url": "https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/sample.jpg",
       "descripcion": "Imagen de ejemplo 1 del slider principal",
       "orden": 1
     }
@@ -666,9 +668,13 @@ form.append('archivo', archivo); // <input type="file" accept="application/pdf,i
 await fetch(`/api/v1/projects/${id}/files`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
 ```
 
-- Formatos: **PDF, JPEG, PNG o WebP**, hasta `DOCUMENTO_ADJUNTO_MAX_BYTES` (5 MB), y máximo `DOCUMENTO_ADJUNTOS_MAX` (10) por documento. El backend revisa el **contenido** del archivo; cambiar la extensión no sirve.
+- Formatos y tamaño (DEC-B40 y DEC-B42), según el **contenido** real del archivo (cambiar la extensión no sirve):
+  - **PDF**: hasta `DOCUMENTO_PDF_MAX_BYTES` (3 MB). Se guarda tal cual.
+  - **JPEG, PNG o WebP**: hasta `DOCUMENTO_ADJUNTO_MAX_BYTES` (5 MB). Al subirla, Cloudinary la reduce a un ancho máximo de 1600 px (`DOCUMENTO_IMAGEN_MAX_ANCHO_PX`, conserva la proporción; las más pequeñas no se agrandan) con calidad automática.
+  - Máximo `DOCUMENTO_ADJUNTOS_MAX` (10) adjuntos por documento.
+  - El mensaje del `413` dice cuál límite se superó ("El PDF supera el tamaño máximo de 3 MB.").
 - `nombre_archivo` guarda el nombre original, limpio y con la extensión del tipo real (p. ej. `Informe final.pdf`). Úsalo como texto del enlace.
-- La `url` es pública (Cloudinary). Un PDF se abre en el navegador; para una miniatura de su primera página, cambia la extensión `.pdf` de la URL por `.jpg`.
+- La `url` es pública (Cloudinary). Las imágenes llegan con `f_auto,q_auto`. Un PDF se abre en el navegador; para una miniatura de su primera página, cambia la extensión `.pdf` de la URL por `.jpg`.
 
 **201** `{"documento": {...}}`: el detalle (sección 9) con el adjunto nuevo al final de `archivos_adjuntos`. Cabecera `Cache-Control: no-store`.
 
@@ -690,8 +696,18 @@ Requiere token. `{archivo}` es el valor de `archivos_adjuntos[].archivo` del det
 Al borrar un documento (9e) se borran también todos sus adjuntos.
 
 ---
+
+## Pendiente de confirmar con frontend (fase 3)
+
+El contrato de las secciones 9 a 11 está completo y probado de punta a punta contra la base de pruebas. Sigue siendo `PROPUESTA` (DEC-B30 a DEC-B42) hasta que lo apruebe el equipo. Puntos que conviene revisar con frontend:
+
+- `contenido` en Markdown, sin HTML (DEC-B37).
+- Usar `permisos` del detalle para mostrar u ocultar los botones; el listado no lo trae.
+- Foto de perfil recortada a 400 × 400 en el servidor: si se quiere que el usuario elija el encuadre, recortar en el navegador antes de subir (DEC-B42).
+- Límites de los adjuntos: imágenes de 5 MB y PDF de 3 MB; conviene validarlos también en el navegador para avisar antes de subir.
+
 ## Fuera de esta fase
 
-- `POST /auth/google` (login con Google, RF-17): no está registrada; responde `404`. Sigue fuera en la fase 2.
+- `POST /auth/google` (login con Google, RF-17): no está registrada; responde `404`. Sigue fuera en las fases 2 y 3.
 - Hero, bloques S-I-I-I-S, llamada a la acción y footer de la página de inicio: por ahora son contenido estático del frontend (DEC-B12). El botón "Inscríbete" solo navega a la página de inscripción.
 - Reseñas, inscripciones y contacto: fases siguientes.

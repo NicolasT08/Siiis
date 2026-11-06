@@ -17,6 +17,7 @@ use Siiis\Support\DocumentoPresenter;
 use Siiis\Support\Logger;
 use Siiis\Support\ModuloDocumentos;
 use Siiis\Support\ObjectIdValidator;
+use Siiis\Validation\FileValidator;
 use Throwable;
 
 /**
@@ -228,9 +229,10 @@ class DocumentosService
     /**
      * POST /{modulo}/{id}/files (DEC-B39, DEC-B40): mismos permisos que editar. Sube el archivo y lo agrega
      * con una operación atómica que respeta el límite de adjuntos; si no se pudo agregar o MongoDB falla,
-     * borra lo subido (compensación, spec 13.1).
+     * borra lo subido (compensación, spec 13.1). Las imágenes se reducen al subir; los PDF van tal cual
+     * (DEC-B42).
      *
-     * @param array{path: string, nombre: string} $archivo validado por FileValidator::adjunto
+     * @param array{path: string, mime: string, nombre: string} $archivo validado por FileValidator::adjunto
      *
      * @return array<string, mixed> detalle con el adjunto nuevo
      *
@@ -251,6 +253,9 @@ class DocumentosService
                 $archivo['path'],
                 $this->settings->cloudinaryDocumentosFolder,
                 CloudinaryService::FORMATOS_ADJUNTO,
+                $archivo['mime'] === FileValidator::MIME_PDF
+                    ? []
+                    : CloudinaryService::transformacionImagenAdjunta($this->settings),
             );
         } catch (CloudinaryException $e) {
             $this->logger->error('No se pudo subir un adjunto', ['documento_id' => $id, 'error' => $e->getMessage()]);

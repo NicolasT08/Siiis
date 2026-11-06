@@ -203,7 +203,12 @@ class UsersService
         $anterior = is_array($fotoAnterior) ? ($fotoAnterior['public_id'] ?? null) : null;
 
         try {
-            $foto = $this->cloudinary->upload($path, $this->settings->cloudinaryPerfilesFolder);
+            $foto = $this->cloudinary->upload(
+                $path,
+                $this->settings->cloudinaryPerfilesFolder,
+                CloudinaryService::FORMATOS_IMAGEN,
+                CloudinaryService::transformacionFotoPerfil($this->settings),
+            );
         } catch (CloudinaryException $e) {
             $this->logger->error('No se pudo subir la foto de perfil', [
                 'usuario_id' => (string) $objectId,

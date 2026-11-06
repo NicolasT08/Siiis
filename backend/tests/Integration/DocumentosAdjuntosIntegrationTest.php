@@ -83,7 +83,7 @@ final class DocumentosAdjuntosIntegrationTest extends IntegrationTestCase
         $doc = $this->service->agregarAdjunto(
             ModuloDocumentos::PROYECTOS,
             (string) $id,
-            ['path' => TestImages::pdf(), 'nombre' => 'informe.pdf'],
+            ['path' => TestImages::pdf(), 'mime' => 'application/pdf', 'nombre' => 'informe.pdf'],
             (string) $this->autor,
             'estudiante',
         );
@@ -94,9 +94,14 @@ final class DocumentosAdjuntosIntegrationTest extends IntegrationTestCase
         self::assertStringStartsWith('https://res.cloudinary.com/' . $this->settings()->cloudinaryCloudName . '/image/upload/', $adjunto['url']);
         self::assertStringEndsWith('.pdf', $adjunto['url']);
 
+        // El PDF no lleva f_auto,q_auto ni transformación al subir: se guarda tal cual (DEC-B42).
+        self::assertStringNotContainsString('f_auto', $adjunto['url']);
+
         $publicId = $this->repo->findById($id)['archivos_adjuntos'][0]['public_id'];
         self::assertStringStartsWith(self::FOLDER . '/', $publicId);
         self::assertTrue($this->existe($publicId));
+        $asset = self::admin($this->settings())->adminApi()->asset($publicId);
+        self::assertSame('pdf', $asset['format']);
 
         $sin = $this->service->quitarAdjunto(ModuloDocumentos::PROYECTOS, (string) $id, $adjunto['archivo'], (string) $this->autor, 'estudiante');
         self::assertSame([], $sin['archivos_adjuntos']);
@@ -114,7 +119,7 @@ final class DocumentosAdjuntosIntegrationTest extends IntegrationTestCase
         $doc = $this->service->agregarAdjunto(
             ModuloDocumentos::PROYECTOS,
             (string) $id,
-            ['path' => TestImages::pdf(), 'nombre' => 'informe.pdf'],
+            ['path' => TestImages::pdf(), 'mime' => 'application/pdf', 'nombre' => 'informe.pdf'],
             (string) $this->autor,
             'estudiante',
         );
@@ -136,6 +141,39 @@ final class DocumentosAdjuntosIntegrationTest extends IntegrationTestCase
         self::assertStringStartsWith('%PDF', $cuerpo);
     }
 
+    /**
+     * DEC-B42: Cloudinary guarda las imágenes adjuntas con ancho máximo 1600 px, sin agrandar las pequeñas, y
+     * la API las entrega con f_auto,q_auto.
+     */
+    public function testLasImagenesSeReducenSinAgrandar(): void
+    {
+        $id = $this->crearDocumento();
+        $agregar = fn (string $path): array => $this->service->agregarAdjunto(
+            ModuloDocumentos::PROYECTOS,
+            (string) $id,
+            ['path' => $path, 'mime' => 'image/png', 'nombre' => 'imagen.png'],
+            (string) $this->autor,
+            'estudiante',
+        );
+
+        $agregar(TestImages::pngDeDimensiones(2000, 40));
+        $doc = $agregar(TestImages::pngDeDimensiones(300, 20));
+
+        try {
+            $guardados = $this->repo->findById($id)['archivos_adjuntos'];
+            self::assertSame([1600, 32], $this->dimensiones($guardados[0]['public_id']), 'Debió reducirse a 1600 px de ancho.');
+            self::assertSame([300, 20], $this->dimensiones($guardados[1]['public_id']), 'No debió agrandarse.');
+
+            $url = $doc['archivos_adjuntos'][1]['url'];
+            self::assertStringContainsString('/image/upload/f_auto,q_auto/', $url);
+            [$status, $cuerpo] = self::descargar($url);
+            self::assertSame(200, $status);
+            self::assertNotSame('', $cuerpo);
+        } finally {
+            $this->service->eliminar(ModuloDocumentos::PROYECTOS, (string) $id, (string) $this->autor, 'estudiante');
+        }
+    }
+
     public function testLimiteAtomicoYBorradoDelDocumento(): void
     {
         $id = $this->crearDocumento();
@@ -152,7 +190,7 @@ final class DocumentosAdjuntosIntegrationTest extends IntegrationTestCase
         $this->service->agregarAdjunto(
             ModuloDocumentos::PROYECTOS,
             (string) $id,
-            ['path' => TestImages::png(), 'nombre' => 'foto.png'],
+            ['path' => TestImages::png(), 'mime' => 'image/png', 'nombre' => 'foto.png'],
             (string) $this->autor,
             'estudiante',
         );
@@ -229,6 +267,16 @@ final class DocumentosAdjuntosIntegrationTest extends IntegrationTestCase
         } catch (NotFound) {
             return false;
         }
+    }
+
+    /**
+     * @return array{int, int} [ancho, alto] del archivo guardado en Cloudinary
+     */
+    private function dimensiones(string $publicId): array
+    {
+        $asset = self::admin($this->settings())->adminApi()->asset($publicId);
+
+        return [(int) $asset['width'], (int) $asset['height']];
     }
 
     private static function admin(Settings $s): Cloudinary

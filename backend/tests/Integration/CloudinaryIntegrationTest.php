@@ -14,6 +14,7 @@ use Siiis\Repositories\SesionesRepository;
 use Siiis\Repositories\UsuariosRepository;
 use Siiis\Services\CloudinaryService;
 use Siiis\Services\UsersService;
+use Siiis\Support\CloudinaryUrl;
 use Siiis\Support\Logger;
 use Siiis\Support\SystemClock;
 use Siiis\Tests\Support\TestImages;
@@ -104,12 +105,16 @@ final class CloudinaryIntegrationTest extends IntegrationTestCase
         ]);
         $this->usuariosCreados[] = $id;
 
-        $primera = $service->cambiarFoto((string) $id, (string) $id, 'estudiante', TestImages::png());
+        // 800x600: al subir se recorta a 400x400 (DEC-B42) y Cloudinary guarda solo el resultado.
+        $primera = $service->cambiarFoto((string) $id, (string) $id, 'estudiante', TestImages::pngDeDimensiones(800, 600));
         $guardada = $usuarios->findPerfilById($id)['foto_perfil'] ?? null;
         self::assertIsArray($guardada);
         self::assertStringStartsWith(self::FOLDER . '/', $guardada['public_id']);
-        self::assertSame(['url' => $guardada['url']], $primera['foto_perfil']);
-        self::assertTrue($this->existe($guardada['public_id']));
+        self::assertSame(['url' => CloudinaryUrl::entrega($guardada['url'])], $primera['foto_perfil']);
+        self::assertStringContainsString('/image/upload/f_auto,q_auto/', $primera['foto_perfil']['url']);
+        self::assertSame([400, 400], $this->dimensiones($guardada['public_id']));
+        // La URL que entrega la API (f_auto,q_auto) se puede descargar.
+        self::assertNotSame('', (string) @file_get_contents($primera['foto_perfil']['url']), 'La URL optimizada no se pudo descargar.');
 
         $service->cambiarFoto((string) $id, (string) $id, 'estudiante', TestImages::png());
         $nueva = $usuarios->findPerfilById($id)['foto_perfil'] ?? null;
@@ -130,6 +135,16 @@ final class CloudinaryIntegrationTest extends IntegrationTestCase
         } catch (NotFound) {
             return false;
         }
+    }
+
+    /**
+     * @return array{int, int} [ancho, alto] del archivo guardado en Cloudinary
+     */
+    private function dimensiones(string $publicId): array
+    {
+        $asset = self::admin($this->settings())->adminApi()->asset($publicId);
+
+        return [(int) $asset['width'], (int) $asset['height']];
     }
 
     private static function admin(Settings $s): Cloudinary

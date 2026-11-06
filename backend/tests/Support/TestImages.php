@@ -83,6 +83,35 @@ final class TestImages
         return self::escribir($png . str_repeat("\x00", max(0, $bytes - strlen($png))), 'png');
     }
 
+    /**
+     * PNG válido de `$ancho` x `$alto` (escala de grises, todo negro), armado a mano con zlib: sirve para
+     * comprobar en Cloudinary que las transformaciones al subir cambian las dimensiones.
+     */
+    public static function pngDeDimensiones(int $ancho, int $alto): string
+    {
+        $chunk = static function (string $tipo, string $datos): string {
+            return pack('N', strlen($datos)) . $tipo . $datos . pack('N', crc32($tipo . $datos));
+        };
+        // Cada fila: byte de filtro 0 + un byte por píxel (8 bits, color tipo 0).
+        $filas = str_repeat("\x00" . str_repeat("\x00", $ancho), $alto);
+        $png = "\x89PNG\r\n\x1A\n"
+            . $chunk('IHDR', pack('NNCCCCC', $ancho, $alto, 8, 0, 0, 0, 0))
+            . $chunk('IDAT', (string) gzcompress($filas, 9))
+            . $chunk('IEND', '');
+
+        return self::escribir($png, 'png');
+    }
+
+    /**
+     * PDF válido relleno con un comentario hasta `$bytes` bytes.
+     */
+    public static function pdfDeTamano(int $bytes): string
+    {
+        $pdf = (string) file_get_contents(self::pdf());
+
+        return self::escribir($pdf . '%' . str_repeat('x', max(0, $bytes - strlen($pdf) - 2)) . "\n", 'pdf');
+    }
+
     public static function vacio(): string
     {
         return self::escribir('', 'png');

@@ -21,8 +21,10 @@ final class FileValidator
         'image/webp' => 'webp',
     ];
 
+    public const MIME_PDF = 'application/pdf';
+
     /** Adjuntos de documentos (DEC-B40) → extensión. */
-    public const ADJUNTOS = self::IMAGENES + ['application/pdf' => 'pdf'];
+    public const ADJUNTOS = self::IMAGENES + [self::MIME_PDF => 'pdf'];
 
     /** Largo máximo del nombre original que se guarda en `nombre_archivo`. */
     public const NOMBRE_MAX_LENGTH = 150;
@@ -51,7 +53,9 @@ final class FileValidator
 
     /**
      * Adjunto de un documento: PDF, JPEG, PNG o WebP. Devuelve además un `nombre` seguro para mostrar,
-     * a partir del nombre original del cliente, con la extensión del tipo real.
+     * a partir del nombre original del cliente, con la extensión del tipo real. Las imágenes y los PDF tienen
+     * límites distintos (DEC-B42): primero se acepta hasta el mayor de los dos y, conocido el tipo real, se
+     * aplica el suyo.
      *
      * @param array<string, mixed> $archivos
      *
@@ -59,17 +63,22 @@ final class FileValidator
      *
      * @throws ApiException 400 VALIDATION_ERROR, 413 FILE_TOO_LARGE, 415 UNSUPPORTED_MEDIA_TYPE
      */
-    public function adjunto(array $archivos, string $campo, int $maxBytes): array
+    public function adjunto(array $archivos, string $campo, int $maxBytesImagen, int $maxBytesPdf): array
     {
         $archivo = self::archivo($archivos, $campo, sprintf('Adjunta un archivo en el campo "%s".', $campo));
         $validado = self::validar(
             $archivo,
             $campo,
-            $maxBytes,
+            max($maxBytesImagen, $maxBytesPdf),
             self::ADJUNTOS,
             'El archivo',
             'Formato no admitido. Usa un PDF o una imagen JPEG, PNG o WebP.',
         );
+        $esPdf = $validado['mime'] === self::MIME_PDF;
+        $maxBytes = $esPdf ? $maxBytesPdf : $maxBytesImagen;
+        if ($validado['size'] > $maxBytes) {
+            throw self::demasiadoGrande($esPdf ? 'El PDF' : 'La imagen', $maxBytes);
+        }
 
         return $validado + ['nombre' => self::nombre($archivo->getClientFilename(), self::ADJUNTOS[$validado['mime']])];
     }

@@ -93,7 +93,8 @@ final class DocumentoPresenter
 
     /**
      * Cada adjunto sale con `archivo` (identificador para borrarlo), `url` y `nombre_archivo`. `archivo` es
-     * el último segmento del `public_id`; el `public_id` completo nunca sale.
+     * el último segmento del `public_id`; el `public_id` completo nunca sale. Las imágenes salen con
+     * `f_auto,q_auto` y los PDF tal cual (DEC-B42).
      *
      * @param array<string, mixed> $documento
      *
@@ -108,7 +109,7 @@ final class DocumentoPresenter
             }
             $adjuntos[] = [
                 'archivo' => self::archivoId($adjunto['public_id']),
-                'url' => $adjunto['url'],
+                'url' => CloudinaryUrl::entrega($adjunto['url']),
                 'nombre_archivo' => is_string($adjunto['nombre_archivo'] ?? null) ? $adjunto['nombre_archivo'] : null,
             ];
         }

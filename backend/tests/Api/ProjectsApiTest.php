@@ -37,7 +37,8 @@ final class ProjectsApiTest extends DocumentosTestCase
         self::assertArrayNotHasKey('archivos_adjuntos', $body['data'][0]);
         self::assertSame('proyecto', $body['data'][0]['categoria']);
         self::assertSame((string) $autor, $body['data'][0]['autor']['id']);
-        self::assertSame(['url' => 'https://res.cloudinary.com/demo/image/upload/ana.jpg'], $body['data'][0]['autor']['foto_perfil']);
+        // Con f_auto,q_auto (DEC-B42).
+        self::assertSame(['url' => 'https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/ana.jpg'], $body['data'][0]['autor']['foto_perfil']);
     }
 
     public function testResumenConAutorEIntegrantesSinDatosPrivados(): void

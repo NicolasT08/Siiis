@@ -430,12 +430,13 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 - Estado: PROPUESTA (pendiente de aprobación del equipo) · implementada en el paso 3
 - Fecha: 2026-11-04
 - Contexto: el spec 13.3 prohíbe fijar en el código límites que el equipo no haya aprobado.
-- Decisión: PDF, JPG, PNG y WebP, detectados por el contenido real (`finfo`), de hasta 5 MB por archivo y con un máximo de 10 adjuntos por documento. Todo en `.env`. Hostinger debe permitir subidas de al menos 5 MB.
+- Decisión: PDF, JPG, PNG y WebP, detectados por el contenido real (`finfo`), de hasta 5 MB por archivo y con un máximo de 10 adjuntos por documento. Todo en `.env`. Hostinger debe permitir subidas de al menos 5 MB. **Desde DEC-B42** (2026-11-05) los PDF tienen su propio límite, 3 MB (`DOCUMENTO_PDF_MAX_BYTES`); las imágenes siguen en 5 MB.
 - Cloudinary: todo se sube como recurso `image`, también los PDF, con `allowed_formats` como segunda barrera tras `finfo`. Carpeta `CLOUDINARY_DOCUMENTOS_FOLDER` (`siiis/documentos`); las pruebas usan `siiis_test/documentos`.
 - **Requisito de la cuenta de Cloudinary:** activar "Allow delivery of PDF and ZIP files" (*Settings → Security*). Sin ese ajuste, los PDF se suben pero al abrirlos Cloudinary responde `401 deny or ACL failure`.
   - El 2026-11-04 se probó subirlos como recurso `raw` y **no lo evita**: la cuenta bloqueó PDF como `raw` (con y sin extensión, y con descarga forzada) y como `image`. Solo se entregaron la miniatura `.jpg` del PDF y archivos que no son PDF. Por eso se mantiene `image`, que además permite miniaturas de la primera página.
   - En la cuenta de desarrollo (`backend/.env`) la descarga del PDF seguía bloqueada ese día. `DocumentosAdjuntosIntegrationTest::testElPdfSePuedeDescargar` se omite con el aviso hasta que se active el ajuste. Ver `docs/deployment.md`.
-- Variables: `DOCUMENTO_ADJUNTO_MAX_BYTES`, `DOCUMENTO_ADJUNTOS_MAX`, `CLOUDINARY_DOCUMENTOS_FOLDER`.
+  - **2026-11-05:** activado en la cuenta de desarrollo; `DocumentosAdjuntosIntegrationTest` pasa completa, sin omitir. Falta activarlo en la cuenta del semillero.
+- Variables: `DOCUMENTO_ADJUNTO_MAX_BYTES`, `DOCUMENTO_PDF_MAX_BYTES` (DEC-B42), `DOCUMENTO_ADJUNTOS_MAX`, `CLOUDINARY_DOCUMENTOS_FOLDER`.
 - Impacto: `FileValidator::adjunto`, `CloudinaryService`, `DocumentosService`, `DocumentosRepository::agregarAdjunto`/`quitarAdjunto`, `Settings`, `.env.example`, `docs/deployment.md`.
 - Requiere migración: no.
 
@@ -450,4 +451,26 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
   - Sin índices nuevos: se usa el oficial `categoria + estado` (spec 8.4). Si la colección crece, proponer al equipo de BD `{categoria, fecha_creacion}` y uno sobre `integrantes`.
 - Variables: `DOCUMENTOS_PER_PAGE_DEFAULT`, `DOCUMENTOS_PER_PAGE_MAX`.
 - Impacto: `DocumentosController`, `DocumentosService`, `DocumentosQueryValidator`, `QueryReader`, `DocumentosRepository`, `DocumentoPresenter`, `Routes`, `docs/api.md`.
+- Requiere migración: no.
+
+## DEC-B42 — Optimización de espacio en Cloudinary
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-05
+- Contexto: el plan gratuito de Cloudinary tiene un cupo de almacenamiento y de transferencia. Hasta ahora las fotos de perfil y las imágenes adjuntas se guardaban tal como las subía el usuario (una foto de celular puede pesar varios MB y tener más de 4000 px), y la API entregaba siempre el archivo original.
+- Decisión:
+  - **Al subir** (transformación *incoming*: Cloudinary guarda solo el resultado, no el original):
+    - Foto de perfil: recorte cuadrado de `PERFIL_FOTO_LADO_PX` × `PERFIL_FOTO_LADO_PX` (400 × 400; `c_fill` con `g_auto`, que centra el recorte en lo importante de la imagen) y calidad `CLOUDINARY_CALIDAD` (`auto`). Una imagen más pequeña se amplía hasta 400 × 400, para que todas las fotos tengan el mismo tamaño.
+    - Imagen adjunta: ancho máximo `DOCUMENTO_IMAGEN_MAX_ANCHO_PX` (1600 px) conservando la proporción y sin agrandar las más pequeñas (`c_limit`), con calidad `CLOUDINARY_CALIDAD`.
+    - PDF: sin transformación, se guarda tal cual. Su límite baja de 5 MB a 3 MB (`DOCUMENTO_PDF_MAX_BYTES`); las imágenes adjuntas siguen en 5 MB (`DOCUMENTO_ADJUNTO_MAX_BYTES`), porque se reducen al subir y una foto de celular suele pasar de 3 MB. El límite se aplica según el tipo real del archivo (`finfo`), no según lo que declara el cliente.
+  - **Al responder**: las URL de imágenes de Cloudinary (`/image/upload/`) salen con `f_auto,q_auto` (formato y calidad automáticos: el navegador recibe WebP o AVIF si los admite). Aplica a `foto_perfil.url`, a `archivos_adjuntos[].url` de imágenes y a las imágenes de `GET /home/slider`. Los PDF, los videos, los recursos `raw`, las URL de otros dominios y las que ya traen una transformación salen igual.
+  - MongoDB sigue guardando el `secure_url` que devuelve Cloudinary, sin `f_auto,q_auto`: la transformación de entrega se agrega en `CloudinaryUrl::entrega` al responder, así que también aplica a los registros que ya existían y se puede cambiar sin migrar datos.
+  - `CLOUDINARY_CALIDAD` admite `auto`, `auto:best`, `auto:good`, `auto:eco`, `auto:low` o un número de 1 a 100; otro valor hace fallar el arranque (`CONFIG_ERROR`). La entrega usa siempre `q_auto`.
+- Notas:
+  - Las fotos y adjuntos subidos antes de este cambio quedan con su tamaño original en Cloudinary (solo ganan `f_auto,q_auto` al entregarse). Si hace falta liberar espacio, se pueden volver a subir.
+  - `f_auto,q_auto` genera derivados en la CDN de Cloudinary, que cuentan como transformaciones del plan (pocas, porque cada derivado se genera una vez y se cachea).
+  - Verificado el 2026-11-05 con Cloudinary real (`siiis_test`): una foto de 800 × 600 queda en 400 × 400; una imagen adjunta de 2000 × 40 queda en 1600 × 32 y una de 300 × 20 no cambia; el PDF se guarda en formato `pdf` sin transformar y se descarga; las URL con `f_auto,q_auto` se descargan.
+- Alternativas: guardar la URL ya transformada en MongoDB (no beneficia a los registros existentes y obliga a migrar si cambia); transformar solo al entregar (ahorra transferencia pero no almacenamiento); un único límite de 3 MB para todos los adjuntos (rechazaría muchas fotos de celular que igual se reducen al subir).
+- Variables: `PERFIL_FOTO_LADO_PX`, `DOCUMENTO_IMAGEN_MAX_ANCHO_PX`, `CLOUDINARY_CALIDAD`, `DOCUMENTO_PDF_MAX_BYTES`.
+- Impacto: `CloudinaryService` (`transformacionFotoPerfil`, `transformacionImagenAdjunta`, parámetro de transformación en `upload`), `Support/CloudinaryUrl`, `UsuarioPresenter::foto`, `DocumentoPresenter::adjuntos`, `HomeController`, `FileValidator::adjunto` (límite por tipo), `UsersService::cambiarFoto`, `DocumentosService::agregarAdjunto`, `Settings`, `.env.example`, `docs/api.md`, `docs/deployment.md`.
 - Requiere migración: no.

@@ -163,7 +163,7 @@ final class FileValidatorTest extends TestCase
         $path = $crear();
         $archivo = TestImages::subida($path, UPLOAD_ERR_OK, 'application/octet-stream', 'informe');
 
-        $resultado = (new FileValidator())->adjunto(['archivo' => $archivo], 'archivo', self::MAX);
+        $resultado = (new FileValidator())->adjunto(['archivo' => $archivo], 'archivo', self::MAX, self::MAX);
 
         self::assertSame($path, $resultado['path']);
         self::assertSame($mime, $resultado['mime']);
@@ -189,7 +189,7 @@ final class FileValidatorTest extends TestCase
         $archivo = TestImages::subida($crear(), UPLOAD_ERR_OK, 'application/pdf', 'informe.pdf');
 
         $this->assertApiError(
-            fn () => (new FileValidator())->adjunto(['archivo' => $archivo], 'archivo', self::MAX),
+            fn () => (new FileValidator())->adjunto(['archivo' => $archivo], 'archivo', self::MAX, self::MAX),
             415,
             'UNSUPPORTED_MEDIA_TYPE',
         );
@@ -200,19 +200,58 @@ final class FileValidatorTest extends TestCase
         $validator = new FileValidator();
 
         try {
-            $validator->adjunto(['archivo' => TestImages::subida(TestImages::pngDeTamano(2048))], 'archivo', 1024);
+            $validator->adjunto(['archivo' => TestImages::subida(TestImages::pngDeTamano(2049))], 'archivo', 2048, 1024);
             self::fail('Se esperaba 413');
         } catch (ApiException $e) {
             self::assertSame(413, $e->status);
-            self::assertSame('El archivo supera el tamaño máximo de 1 KB.', $e->getMessage());
+            self::assertSame('El archivo supera el tamaño máximo de 2 KB.', $e->getMessage());
         }
 
         try {
-            $validator->adjunto(['foto' => TestImages::subida(TestImages::pdf())], 'archivo', self::MAX);
+            $validator->adjunto(['foto' => TestImages::subida(TestImages::pdf())], 'archivo', self::MAX, self::MAX);
             self::fail('Se esperaba 400');
         } catch (ApiException $e) {
             self::assertSame(['archivo' => 'Adjunta un archivo en el campo "archivo".'], $e->fields);
         }
+    }
+
+    /**
+     * DEC-B42: cada tipo con su límite, aplicado según el contenido real y no según lo que declara el cliente.
+     */
+    public function testAdjuntoLimitesDistintosParaImagenYPdf(): void
+    {
+        $validator = new FileValidator();
+
+        // Imagen de 2 KB: entra con límite de imagen 2 KB aunque el de PDF sea 1 KB.
+        $imagen = $validator->adjunto(['archivo' => TestImages::subida(TestImages::pngDeTamano(2048))], 'archivo', 2048, 1024);
+        self::assertSame('image/png', $imagen['mime']);
+
+        // PDF de 1 KB + 1 byte: supera su propio límite aunque el de imagen sea mayor.
+        try {
+            $validator->adjunto(
+                ['archivo' => TestImages::subida(TestImages::pdfDeTamano(1025), UPLOAD_ERR_OK, 'image/png', 'x.png')],
+                'archivo',
+                2048,
+                1024,
+            );
+            self::fail('Se esperaba 413');
+        } catch (ApiException $e) {
+            self::assertSame(413, $e->status);
+            self::assertSame('FILE_TOO_LARGE', $e->errorCode);
+            self::assertSame('El PDF supera el tamaño máximo de 1 KB.', $e->getMessage());
+        }
+
+        // Al revés: imagen por encima de su límite, por debajo del de PDF.
+        try {
+            $validator->adjunto(['archivo' => TestImages::subida(TestImages::pngDeTamano(1025))], 'archivo', 1024, 2048);
+            self::fail('Se esperaba 413');
+        } catch (ApiException $e) {
+            self::assertSame('La imagen supera el tamaño máximo de 1 KB.', $e->getMessage());
+        }
+
+        $pdf = $validator->adjunto(['archivo' => TestImages::subida(TestImages::pdfDeTamano(2048))], 'archivo', 1024, 2048);
+        self::assertSame('application/pdf', $pdf['mime']);
+        self::assertSame(2048, $pdf['size']);
     }
 
     /**

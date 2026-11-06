@@ -71,6 +71,21 @@ final class HomeApiTest extends ApiTestCase
         $data = $this->json($response)['data'];
         self::assertSame([1, 2], array_column($data, 'orden'));
         self::assertSame(['video', 'video'], array_column($data, 'tipo'));
+        // Los videos no llevan f_auto,q_auto (DEC-B42).
+        self::assertSame('https://res.cloudinary.com/demo/video/upload/video_presentacion-1', $data[0]['url']);
+    }
+
+    public function testLasImagenesSeEntreganConFormatoYCalidadAutomaticos(): void
+    {
+        $docs = $this->docs();
+        $docs[2]['url'] = 'https://res.cloudinary.com/demo/image/upload/v1/sample.jpg';
+        $response = $this->app([MultimediaRepository::class => $this->repo($docs)])
+            ->handle($this->request('GET', '/api/v1/home/slider'));
+
+        self::assertSame(
+            'https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/v1/sample.jpg',
+            $this->json($response)['data'][0]['url'],
+        );
     }
 
     public function testAplicaElTopeConfigurable(): void

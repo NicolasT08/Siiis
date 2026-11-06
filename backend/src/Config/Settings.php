@@ -15,6 +15,9 @@ final readonly class Settings
 
     public const MIN_JWT_SECRET_LENGTH = 32;
 
+    /** Valores de `quality` de Cloudinary que se admiten al subir (DEC-B42). */
+    private const PATRON_CALIDAD = '/^(auto(:(best|good|eco|low))?|[1-9][0-9]?|100)$/';
+
     public function __construct(
         public string $appEnv,
         public bool $appDebug,
@@ -62,6 +65,10 @@ final readonly class Settings
         public int $documentoAdjuntoMaxBytes,
         public int $documentoAdjuntosMax,
         public string $cloudinaryDocumentosFolder,
+        public int $documentoPdfMaxBytes,
+        public int $perfilFotoLadoPx,
+        public int $documentoImagenMaxAnchoPx,
+        public string $cloudinaryCalidad,
         public string $storagePath,
     ) {
     }
@@ -99,6 +106,13 @@ final readonly class Settings
         $documentosPerPageDefault = self::positiveInt($env, 'DOCUMENTOS_PER_PAGE_DEFAULT', 12);
         if ($documentosPerPageDefault > $documentosPerPageMax) {
             throw new ConfigException('DOCUMENTOS_PER_PAGE_DEFAULT no puede ser mayor que DOCUMENTOS_PER_PAGE_MAX.');
+        }
+
+        $cloudinaryCalidad = self::string($env, 'CLOUDINARY_CALIDAD', 'auto');
+        if (preg_match(self::PATRON_CALIDAD, $cloudinaryCalidad) !== 1) {
+            throw new ConfigException(
+                'CLOUDINARY_CALIDAD debe ser auto, auto:best, auto:good, auto:eco, auto:low o un número de 1 a 100.',
+            );
         }
 
         return new self(
@@ -149,10 +163,16 @@ final readonly class Settings
             documentoDescripcionMaxLength: self::positiveInt($env, 'DOCUMENTO_DESCRIPCION_MAX_LENGTH', 1000),
             documentoContenidoMaxLength: self::positiveInt($env, 'DOCUMENTO_CONTENIDO_MAX_LENGTH', 50000),
             documentoIntegrantesMax: self::positiveInt($env, 'DOCUMENTO_INTEGRANTES_MAX', 20),
-            // Adjuntos de documentos (DEC-B39, DEC-B40, PROPUESTA): 5 MB y 10 por documento.
+            // Adjuntos de documentos (DEC-B39, DEC-B40 y DEC-B42, PROPUESTA): imágenes de hasta 5 MB, PDF de
+            // hasta 3 MB y 10 por documento.
             documentoAdjuntoMaxBytes: self::positiveInt($env, 'DOCUMENTO_ADJUNTO_MAX_BYTES', 5242880),
             documentoAdjuntosMax: self::positiveInt($env, 'DOCUMENTO_ADJUNTOS_MAX', 10),
             cloudinaryDocumentosFolder: trim(self::string($env, 'CLOUDINARY_DOCUMENTOS_FOLDER', 'siiis/documentos'), '/'),
+            documentoPdfMaxBytes: self::positiveInt($env, 'DOCUMENTO_PDF_MAX_BYTES', 3145728),
+            // Optimización de espacio en Cloudinary al subir (DEC-B42, PROPUESTA).
+            perfilFotoLadoPx: self::positiveInt($env, 'PERFIL_FOTO_LADO_PX', 400),
+            documentoImagenMaxAnchoPx: self::positiveInt($env, 'DOCUMENTO_IMAGEN_MAX_ANCHO_PX', 1600),
+            cloudinaryCalidad: $cloudinaryCalidad,
             storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
         );
     }

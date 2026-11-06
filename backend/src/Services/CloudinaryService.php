@@ -14,6 +14,8 @@ use Throwable;
  * archivos y un PDF admite miniaturas de su primera página (`.jpg`). Para que un PDF se pueda descargar, la
  * cuenta debe tener activado "Allow delivery of PDF and ZIP files"; si no, Cloudinary responde
  * 401 "deny or ACL failure" (subirlo como `raw` no lo evita).
+ * Para ahorrar espacio (DEC-B42), las imágenes se transforman al subir (Cloudinary guarda solo el
+ * resultado) y la API las entrega con `f_auto,q_auto` (`Siiis\Support\CloudinaryUrl`).
  * El cliente del SDK se crea al primer uso: la app arranca aunque falten las credenciales.
  */
 class CloudinaryService
@@ -34,26 +36,67 @@ class CloudinaryService
     }
 
     /**
+     * Transformación al subir la foto de perfil (DEC-B42): recorte cuadrado de `PERFIL_FOTO_LADO_PX`
+     * centrado en lo importante de la imagen (`g_auto`) y calidad `CLOUDINARY_CALIDAD`. Cloudinary guarda
+     * solo el resultado, no el original.
+     *
+     * @return array<string, int|string>
+     */
+    public static function transformacionFotoPerfil(Settings $settings): array
+    {
+        return [
+            'width' => $settings->perfilFotoLadoPx,
+            'height' => $settings->perfilFotoLadoPx,
+            'crop' => 'fill',
+            'gravity' => 'auto',
+            'quality' => $settings->cloudinaryCalidad,
+        ];
+    }
+
+    /**
+     * Transformación al subir una imagen adjunta (DEC-B42): ancho máximo `DOCUMENTO_IMAGEN_MAX_ANCHO_PX` sin
+     * agrandar las más pequeñas (`c_limit`, conserva la proporción) y calidad `CLOUDINARY_CALIDAD`. Los PDF se
+     * suben sin transformación.
+     *
+     * @return array<string, int|string>
+     */
+    public static function transformacionImagenAdjunta(Settings $settings): array
+    {
+        return [
+            'width' => $settings->documentoImagenMaxAnchoPx,
+            'crop' => 'limit',
+            'quality' => $settings->cloudinaryCalidad,
+        ];
+    }
+
+    /**
      * Sube un archivo ya validado desde el temporal de PHP. Cloudinary genera un public_id único
      * dentro de `$folder`.
      *
-     * @param list<string> $formatos segunda barrera tras finfo: Cloudinary rechaza los demás
+     * @param list<string>              $formatos       segunda barrera tras finfo: Cloudinary rechaza los demás
+     * @param array<string, int|string> $transformacion transformación al subir (incoming); vacía, el archivo
+     *                                                  se guarda tal cual
      *
      * @return array{url: string, public_id: string}
      *
      * @throws CloudinaryException
      */
-    public function upload(string $path, string $folder, array $formatos = self::FORMATOS_IMAGEN): array
+    public function upload(string $path, string $folder, array $formatos = self::FORMATOS_IMAGEN, array $transformacion = []): array
     {
+        $opciones = [
+            'folder' => $folder,
+            'resource_type' => 'image',
+            'allowed_formats' => $formatos,
+            'unique_filename' => true,
+            'use_filename' => false,
+            'overwrite' => false,
+        ];
+        if ($transformacion !== []) {
+            $opciones['transformation'] = $transformacion;
+        }
+
         try {
-            $res = $this->client()->uploadApi()->upload($path, [
-                'folder' => $folder,
-                'resource_type' => 'image',
-                'allowed_formats' => $formatos,
-                'unique_filename' => true,
-                'use_filename' => false,
-                'overwrite' => false,
-            ]);
+            $res = $this->client()->uploadApi()->upload($path, $opciones);
         } catch (CloudinaryException $e) {
             throw $e;
         } catch (Throwable $e) {

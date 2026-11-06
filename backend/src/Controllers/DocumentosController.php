@@ -142,6 +142,7 @@ final class DocumentosController
             $request->getUploadedFiles(),
             'archivo',
             $this->settings->documentoAdjuntoMaxBytes,
+            $this->settings->documentoPdfMaxBytes,
         );
         $documento = $this->documentos->agregarAdjunto(
             ModuloDocumentos::from($args['modulo']),

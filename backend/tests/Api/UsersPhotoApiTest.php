@@ -51,16 +51,40 @@ final class UsersPhotoApiTest extends AuthTestCase
         $subida = $this->cloudinary->subidas[0];
         self::assertSame('siiis/perfiles', $subida['folder']);
 
+        // DEC-B42: recorte cuadrado de 400 px y calidad automática al subir.
+        self::assertSame(['jpg', 'png', 'webp'], $subida['formatos']);
+        self::assertSame(
+            ['width' => 400, 'height' => 400, 'crop' => 'fill', 'gravity' => 'auto', 'quality' => 'auto'],
+            $subida['transformacion'],
+        );
+
         $usuario = $this->json($response)['usuario'];
-        $url = 'https://res.cloudinary.com/demo/image/upload/' . $subida['public_id'] . '.png';
+        // En MongoDB queda el secure_url de Cloudinary; la API lo entrega con f_auto,q_auto.
+        $guardada = 'https://res.cloudinary.com/demo/image/upload/' . $subida['public_id'] . '.png';
+        $url = 'https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/' . $subida['public_id'] . '.png';
         self::assertSame(['url' => $url], $usuario['foto_perfil']);
         self::assertStringNotContainsString('public_id', (string) $response->getBody());
-        self::assertSame(['url' => $url, 'public_id' => $subida['public_id']], $this->db->usuarios[(string) $id]['foto_perfil']);
+        self::assertSame(['url' => $guardada, 'public_id' => $subida['public_id']], $this->db->usuarios[(string) $id]['foto_perfil']);
         self::assertSame(['ana'], $this->cloudinary->borrados);
 
         // La vista pública también la muestra (solo la URL).
         $publico = $this->json($this->app->handle($this->request('GET', '/api/v1/users/' . $id)))['usuario'];
         self::assertSame(['url' => $url], $publico['foto_perfil']);
+    }
+
+    public function testTransformacionConfigurable(): void
+    {
+        $app = $this->authApp(['PERFIL_FOTO_LADO_PX' => '256', 'CLOUDINARY_CALIDAD' => 'auto:eco']);
+        [$token, $id] = $this->sesionComo($app, 'estudiante');
+
+        $request = $this->request('POST', '/api/v1/users/' . $id . '/photo', null, self::bearer($token))
+            ->withUploadedFiles(['foto' => TestImages::subida(TestImages::png())]);
+
+        self::assertSame(200, $app->handle($request)->getStatusCode());
+        self::assertSame(
+            ['width' => 256, 'height' => 256, 'crop' => 'fill', 'gravity' => 'auto', 'quality' => 'auto:eco'],
+            $this->cloudinary->subidas[0]['transformacion'],
+        );
     }
 
     public function testSinFotoPreviaNoBorraNada(): void

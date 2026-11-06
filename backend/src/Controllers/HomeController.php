@@ -7,6 +7,7 @@ namespace Siiis\Controllers;
 use Psr\Http\Message\ResponseInterface;
 use Siiis\Config\Settings;
 use Siiis\Repositories\MultimediaRepository;
+use Siiis\Support\CloudinaryUrl;
 use Siiis\Support\JsonResponse;
 use Siiis\Support\Serializer;
 
@@ -46,7 +47,8 @@ final class HomeController
             static fn (array $doc): mixed => Serializer::serialize([
                 '_id' => $doc['_id'] ?? null,
                 'tipo' => $doc['tipo'] ?? null,
-                'url' => $doc['url'] ?? null,
+                // Imágenes de Cloudinary con f_auto,q_auto (DEC-B42); los videos y otras URL, tal cual.
+                'url' => is_string($doc['url'] ?? null) ? CloudinaryUrl::entrega($doc['url']) : null,
                 'descripcion' => $doc['descripcion'] ?? null,
                 'orden' => $doc['orden'] ?? null,
             ]),
