@@ -30,6 +30,9 @@ final class Roles
     /** Roles que aprueban, publican, editan y borran cualquier contenido de `Documentos` (DEC-B33). */
     public const REVISORES_CONTENIDO = [self::SUPERADMINISTRADOR, self::ADMINISTRADOR, self::DOCENTE_DIRECTOR];
 
+    /** Roles que moderan las reseñas: los mismos revisores del contenido (DEC-B44). */
+    public const MODERADORES_RESENAS = self::REVISORES_CONTENIDO;
+
     /** Roles que un administrador (no superadministrador) puede gestionar y asignar. */
     private const GESTIONABLES_POR_ADMINISTRADOR = [
         self::DOCENTE_DIRECTOR,
@@ -49,6 +52,11 @@ final class Roles
     public static function esAdministrativo(string $rol): bool
     {
         return in_array($rol, self::ADMINISTRATIVOS, true);
+    }
+
+    public static function esModeradorResenas(?string $rol): bool
+    {
+        return $rol !== null && in_array($rol, self::MODERADORES_RESENAS, true);
     }
 
     public static function esRevisorContenido(?string $rol): bool

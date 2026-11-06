@@ -44,6 +44,11 @@ final class ApiException extends RuntimeException
         return new self(403, 'FORBIDDEN', $message);
     }
 
+    public static function notFound(string $message = 'El recurso solicitado no existe.'): self
+    {
+        return new self(404, 'NOT_FOUND', $message);
+    }
+
     public static function rateLimited(int $retryAfterSeconds): self
     {
         return new self(

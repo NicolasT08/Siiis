@@ -8,6 +8,8 @@ use Psr\Http\Message\ResponseInterface;
 use Siiis\Repositories\CredencialesRepository;
 use Siiis\Repositories\CuentasRepository;
 use Siiis\Repositories\DocumentosRepository;
+use Siiis\Repositories\MensajesContactoRepository;
+use Siiis\Repositories\ResenasRepository;
 use Siiis\Repositories\SesionesRepository;
 use Siiis\Repositories\UsuariosRepository;
 use Siiis\Support\Clock;
@@ -16,6 +18,8 @@ use Siiis\Tests\Support\InMemoryCredencialesRepository;
 use Siiis\Tests\Support\InMemoryCuentasRepository;
 use Siiis\Tests\Support\InMemoryDatabase;
 use Siiis\Tests\Support\InMemoryDocumentosRepository;
+use Siiis\Tests\Support\InMemoryMensajesContactoRepository;
+use Siiis\Tests\Support\InMemoryResenasRepository;
 use Siiis\Tests\Support\InMemorySesionesRepository;
 use Siiis\Tests\Support\InMemoryUsuariosRepository;
 use Slim\App;
@@ -32,6 +36,7 @@ abstract class AuthTestCase extends ApiTestCase
     protected InMemoryCredencialesRepository $credenciales;
     protected InMemoryUsuariosRepository $usuarios;
     protected InMemoryDocumentosRepository $documentos;
+    protected InMemoryMensajesContactoRepository $mensajes;
     protected FixedClock $clock;
     protected string $storage;
 
@@ -44,6 +49,7 @@ abstract class AuthTestCase extends ApiTestCase
         $this->credenciales = new InMemoryCredencialesRepository($this->db);
         $this->usuarios = new InMemoryUsuariosRepository($this->db);
         $this->documentos = new InMemoryDocumentosRepository($this->db);
+        $this->mensajes = new InMemoryMensajesContactoRepository($this->db);
         $this->clock = new FixedClock();
         $this->storage = sys_get_temp_dir() . '/siiis-api-' . bin2hex(random_bytes(4));
     }
@@ -72,12 +78,16 @@ abstract class AuthTestCase extends ApiTestCase
             'JWT_SECRET' => \Siiis\Tests\Support\TestSettings::JWT_SECRET,
             'RATE_LIMIT_LOGIN_MAX' => '100',
             'RATE_LIMIT_FORGOT_MAX' => '100',
+            'RATE_LIMIT_REVIEWS_MAX' => '100',
+            'RATE_LIMIT_CONTACT_MAX' => '100',
         ], $this->storage);
 
         return \Siiis\Config\Application::create($settings, $this->extraOverrides + [
             CredencialesRepository::class => $this->credenciales,
             UsuariosRepository::class => $this->usuarios,
             DocumentosRepository::class => $this->documentos,
+            ResenasRepository::class => new InMemoryResenasRepository($this->db),
+            MensajesContactoRepository::class => $this->mensajes,
             SesionesRepository::class => new InMemorySesionesRepository($this->db),
             CuentasRepository::class => new InMemoryCuentasRepository($this->db),
             Clock::class => $this->clock,

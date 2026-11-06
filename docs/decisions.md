@@ -474,3 +474,195 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 - Variables: `PERFIL_FOTO_LADO_PX`, `DOCUMENTO_IMAGEN_MAX_ANCHO_PX`, `CLOUDINARY_CALIDAD`, `DOCUMENTO_PDF_MAX_BYTES`.
 - Impacto: `CloudinaryService` (`transformacionFotoPerfil`, `transformacionImagenAdjunta`, parámetro de transformación en `upload`), `Support/CloudinaryUrl`, `UsuarioPresenter::foto`, `DocumentoPresenter::adjuntos`, `HomeController`, `FileValidator::adjunto` (límite por tipo), `UsersService::cambiarFoto`, `DocumentosService::agregarAdjunto`, `Settings`, `.env.example`, `docs/api.md`, `docs/deployment.md`.
 - Requiere migración: no.
+
+---
+
+# Fase 4 — Reseñas, inscripciones y contacto
+
+El spec (8.2, 10.10 a 10.12, 11.3, 13 y 14) define las colecciones `Reseñas`, `Inscripciones` y
+`Mensajes_Contacto`, las rutas y que haya validación y rate limiting, pero casi ninguna regla de negocio
+(DECISION-005 sigue abierta). DEC-B43 a DEC-B52 responden las 18 dudas del plan de la fase 4 (aprobado el
+2026-11-06 con cuatro cambios del responsable de backend) y quedan como **PROPUESTA pendiente de aprobación
+del equipo**. No hay colecciones, campos ni índices nuevos.
+
+## DEC-B43 — Reseñas: qué son, quién escribe y cómo empiezan
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-06
+- Contexto: RF-10 dice "cualquier usuario puede escribir reseñas" y el modelo permite `usuario_id` nulo
+  (visitantes), pero no dice sobre qué es la reseña ni si se publica de inmediato.
+- Decisión:
+  - Una reseña es una **opinión sobre el semillero en general** (así lo describe el diccionario de datos de
+    BD). No se relaciona con `Documentos`.
+  - `POST /reviews` es público. Con sesión válida, `usuario_id` es el del JWT y `nombre_visible` sale del
+    perfil (`nombre` + `apellido`): el cuerpo no puede cambiarlos. Sin sesión, `usuario_id = null` y
+    `nombre_visible` es obligatorio. Si la petición trae `Authorization` pero el token no es válido, responde
+    `401` (para que el frontend pida iniciar sesión otra vez y no la publique como anónima sin avisar).
+  - Estado inicial: las de integrantes con sesión salen `visible`; las de visitantes quedan `oculta` hasta que
+    un moderador las apruebe (DEC-B44). El sitio es institucional y el formulario es anónimo.
+  - `comentario` obligatorio, máximo `RESENA_COMENTARIO_MAX_LENGTH` (1000); `nombre_visible` máximo
+    `RESENA_NOMBRE_MAX_LENGTH` (80); `calificacion` opcional, entero de 1 a 5 (un texto como `"5"` se
+    rechaza, igual que `semestre`).
+  - Rate limiting por IP para todos, con o sin sesión (DEC-B48).
+- Variables: `RESENA_NOMBRE_MAX_LENGTH`, `RESENA_COMENTARIO_MAX_LENGTH`.
+- Impacto: `ReviewsController`, `ResenasService`, `ResenaValidator`, `ResenasRepository`, `Routes`.
+- Requiere migración: no.
+
+## DEC-B44 — Moderación de reseñas
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-06
+- Contexto: el spec solo tiene `GET` y `POST /reviews`, pero el campo `estado` (`visible`/`oculta`) existe
+  "para moderación".
+- Decisión: se agregan dos rutas para los **moderadores**, que son los mismos revisores del contenido
+  (`superadministrador`, `administrador`, `docente_director`; `Roles::MODERADORES_RESENAS`):
+  - `PATCH /reviews/{id}` con `{"estado": "visible" | "oculta"}` → `200 {"resena"}`.
+  - `DELETE /reviews/{id}` → `204`, borrado físico (para spam u ofensas; ocultar es la opción normal).
+  - El resto recibe `403` (sin sesión, `401`); un id inexistente o inválido, `404`.
+  - Nadie más edita una reseña, ni siquiera su autor.
+- Impacto: `ReviewsController`, `ResenasService`, `Roles`, `RoleMiddleware`, `Routes`.
+- Requiere migración: no.
+
+## DEC-B45 — Contrato de `GET /reviews`
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-06
+- Decisión:
+  - Público con sesión opcional. Parámetros: `page` (1 a 10000), `per_page` (1 a `RESENAS_PER_PAGE_MAX`, por
+    defecto `RESENAS_PER_PAGE_DEFAULT`; 50 y 10) y `estado` (solo moderadores; para los demás se ignora y se
+    fija `visible`). Errores de la query como en `GET /users`.
+  - Orden: más recientes primero (`fecha` y `_id` descendentes).
+  - Respuesta `{"data", "meta", "resumen"}`; `resumen` = `{"promedio", "calificaciones"}` calculado solo con
+    las reseñas **visibles** que tienen calificación (`promedio` con un decimal, `null` si no hay ninguna).
+  - Cada reseña: `id`, `usuario_id` (o `null`), `nombre_visible`, `comentario`, `calificacion`, `estado` y
+    `fecha`.
+  - Caché igual que el contenido (DEC-B41): sin sesión `public, max-age=60`; con sesión `no-store`; siempre
+    `Vary: Authorization`.
+  - Sin índices nuevos (colección pequeña). Si crece, proponer al equipo de BD `{estado, fecha}`.
+- Variables: `RESENAS_PER_PAGE_DEFAULT`, `RESENAS_PER_PAGE_MAX`.
+- Impacto: `ReviewsController`, `ListadoQueryValidator` (compartido con el buzón y las inscripciones), `ResenasRepository`, `ResenaPresenter`, `Support/Paginacion`.
+- Requiere migración: no.
+
+## DEC-B46 — Contacto: un correo con plantilla fija y buzón para administradores
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-06
+- Contexto: RF-03 habla de "correos preescritos"; el modelo guarda `estado` (`leido`/`no_leido`), pero el
+  spec no tiene rutas para leer los mensajes.
+- Decisión:
+  - `POST /contact` (público) recibe `nombre`, `correo`, `asunto` y `mensaje`; guarda el mensaje en
+    `Mensajes_Contacto` como `no_leido` y envía **un** correo con plantilla fija al buzón del semillero
+    (`CONTACTO_CORREO_DESTINO`; si está vacío, `MAIL_FROM_ADDRESS` y luego `MAIL_USERNAME`), con "Responder a"
+    hacia el remitente. **No hay respuesta automática al remitente**: permitiría usar el formulario para enviar
+    correos del semillero a direcciones ajenas.
+  - Saltos de línea y espacios repetidos de `nombre` y `asunto` se reducen a un espacio; el HTML del correo se
+    escapa. Límites: `nombre` 80, `asunto` 150 y `mensaje` 3000 caracteres.
+  - Respuesta `201 {"mensaje": "..."}` (texto para mostrar), sin devolver el registro.
+  - Buzón para `superadministrador` y `administrador`: `GET /contact/messages` (paginado, más recientes
+    primero, filtro `estado`; incluye el mensaje completo porque es lo que se lee en el panel y está limitado a
+    3000 caracteres) y `PATCH /contact/messages/{id}` con `{"estado": "leido" | "no_leido"}`.
+  - `POST /contact` vive en `HomeController`, como dice el spec (10.12); el buzón, en
+    `MensajesContactoController`.
+- Variables: `CONTACTO_CORREO_DESTINO`, `CONTACTO_NOMBRE_MAX_LENGTH`, `CONTACTO_ASUNTO_MAX_LENGTH`,
+  `CONTACTO_MENSAJE_MAX_LENGTH`, `MENSAJES_PER_PAGE_DEFAULT`, `MENSAJES_PER_PAGE_MAX`.
+- Impacto: `HomeController`, `MensajesContactoController`, `ContactoService`, `ContactoValidator`,
+  `MensajesContactoRepository`, `MailService` (parámetro "Responder a"), `Routes`.
+- Requiere migración: no.
+
+## DEC-B47 — Si el correo falla, la operación igual responde `201`
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-06
+- Decisión: en contacto e inscripciones el registro en MongoDB es la fuente de verdad (el modelo lo pide "para
+  trazabilidad"). Si el SMTP falla después de guardar, la API responde `201` igualmente y el error queda en el
+  log con el id del registro. El envío es síncrono (DEC-B15): la respuesta tarda unos segundos más.
+- Impacto: `ContactoService`, `InscripcionesService`.
+- Requiere migración: no.
+
+## DEC-B48 — Rate limiting de las rutas públicas
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-06
+- Contexto: dentro de la universidad muchos estudiantes comparten la misma IP pública; un límite muy bajo
+  bloquearía a gente real.
+- Decisión: mismo `RateLimiter` de archivos del login (spec 7.2), por IP, con ventanas de 1 hora:
+  20 inscripciones, 20 mensajes de contacto y 10 reseñas. El intento cuenta antes de validar (un envío inválido
+  también consume cupo, como en el login). Al pasarse: `429 RATE_LIMITED` con `Retry-After`.
+- Variables: `RATE_LIMIT_INSCRIPTIONS_MAX`, `RATE_LIMIT_INSCRIPTIONS_WINDOW_SECONDS`, `RATE_LIMIT_CONTACT_MAX`,
+  `RATE_LIMIT_CONTACT_WINDOW_SECONDS`, `RATE_LIMIT_REVIEWS_MAX`, `RATE_LIMIT_REVIEWS_WINDOW_SECONDS`.
+- Impacto: `RateLimiter::limitar` (reutilizado por `AuthController`), controladores de la fase 4.
+- Requiere migración: no.
+
+## DEC-B49 — Documentos de la inscripción (DECISION-005)
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo; DECISION-005 sigue abierta en el spec)
+- Fecha: 2026-11-06
+- Contexto: el spec no dice qué documentos se piden ni sus formatos o tamaños.
+- Decisión: de 1 a `INSCRIPCION_DOCUMENTOS_MAX` (3) archivos en el campo `documentos[]` de un solo
+  `multipart/form-data`, con las mismas reglas de los adjuntos (DEC-B40, DEC-B42): PDF de hasta 3 MB guardado
+  tal cual, y JPG, PNG o WebP de hasta 5 MB reducidas a 1600 px de ancho con calidad automática. El tipo se
+  detecta por el contenido. Si una subida falla, se borran las anteriores; si falla el guardado en MongoDB, se
+  borran todas.
+- Notas: con 3 archivos la petición puede llegar a unos 15 MB: Hostinger debe permitir `post_max_size` y
+  `upload_max_filesize` suficientes (ver `docs/deployment.md`). Si el semillero define qué documentos pide
+  (carta, certificado de notas…), se puede ajustar.
+- Variables: `INSCRIPCION_DOCUMENTOS_MAX`, `CLOUDINARY_INSCRIPCIONES_FOLDER`.
+- Impacto: `InscriptionsController`, `InscripcionesService`, `FileValidator`, `CloudinaryService`.
+- Requiere migración: no.
+
+## DEC-B50 — Documentos de la inscripción privados con enlaces firmados
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo; se verifica con Cloudinary real en el paso 2)
+- Fecha: 2026-11-06
+- Contexto: son datos personales del aspirante (Ley 1581 de 2012, habeas data). Una URL pública de Cloudinary
+  la puede abrir cualquiera que la consiga.
+- Decisión: se suben como recursos privados (`type: authenticated`). MongoDB guarda `{url, public_id,
+  nombre_archivo}` como siempre, pero la URL guardada no abre sin firma. `GET /inscriptions/{id}` entrega a los
+  administradores enlaces firmados que vencen en `INSCRIPCION_ENLACE_TTL_SECONDS` (3600). Nunca sale el
+  `public_id`.
+- Variables: `INSCRIPCION_ENLACE_TTL_SECONDS`.
+- Impacto: `CloudinaryService` (subida privada y URL firmada), `InscripcionPresenter`.
+- Requiere migración: no.
+
+## DEC-B51 — Datos de la inscripción
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-06
+- Decisión:
+  - Obligatorios: `nombre_completo` (máximo 120), `correo`, `programa_academico` (como en el perfil),
+    `semestre` (entero de 1 a `PERFIL_SEMESTRE_MAX`) y `carta_motivacion` (de 100 a 3000 caracteres).
+    `telefono` opcional, con las reglas del perfil.
+  - El correo debe ser del dominio `INSCRIPCION_DOMINIOS_CORREO` (por defecto `uptc.edu.co`; varios separados
+    por comas; vacío = cualquier dominio). Se guarda en minúsculas.
+  - Autorización de tratamiento de datos: la petición debe traer `acepta_tratamiento_datos=true`; **no se
+    guarda** porque el modelo no tiene ese campo. Si el equipo quiere guardarla, debe pedírsela al equipo de BD.
+  - Duplicados: si el correo ya tiene una solicitud `pendiente`, `409 INSCRIPTION_PENDING`; si la anterior fue
+    rechazada o aceptada, se permite una nueva. Sin índice único (no está en 8.4): dos envíos simultáneos con el
+    mismo correo podrían crear dos solicitudes; el administrador rechaza una.
+- Variables: `INSCRIPCION_DOMINIOS_CORREO`, `INSCRIPCION_NOMBRE_MAX_LENGTH`,
+  `INSCRIPCION_CARTA_MIN_LENGTH`, `INSCRIPCION_CARTA_MAX_LENGTH`.
+- Impacto: `InscripcionValidator`, `InscripcionesService`, `InscripcionesRepository`.
+- Requiere migración: no.
+
+## DEC-B52 — Revisión de inscripciones y correos
+
+- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Fecha: 2026-11-06
+- Contexto: el spec se contradice: 8.2 dice que aceptar es un flujo manual y 10.13.4 habla de una transacción
+  al aceptar una inscripción.
+- Decisión:
+  - Revisan `superadministrador` y `administrador` (quienes crean las cuentas, DEC-B16): `GET /inscriptions`
+    (paginado, filtro `estado_solicitud`, sin carta ni documentos), `GET /inscriptions/{id}` (completo) y
+    `PATCH /inscriptions/{id}` con `{"estado_solicitud": "aceptada" | "rechazada"}`.
+  - Solo se pasa de `pendiente` a `aceptada` o `rechazada`, sin vuelta atrás (`409 INSCRIPTION_CLOSED`). El
+    cambio es atómico (condición `estado_solicitud = pendiente`).
+  - Aceptar **no crea la cuenta**: el administrador la crea después con `POST /auth/register` (flujo manual de
+    8.2). No hay transacción.
+  - Correos: al aspirante cuando se recibe la solicitud, al semillero (`INSCRIPCION_CORREO_AVISO`; si está
+    vacío, el mismo destino del contacto) cuando llega una nueva, y al aspirante cuando se acepta o rechaza.
+    Si fallan, aplica DEC-B47.
+  - No hay `DELETE` (el spec no lo tiene). Cuánto tiempo se guardan las solicitudes rechazadas queda para el
+    equipo.
+- Variables: `INSCRIPCION_CORREO_AVISO`, `INSCRIPCIONES_PER_PAGE_DEFAULT`, `INSCRIPCIONES_PER_PAGE_MAX`.
+- Impacto: `InscriptionsController`, `InscripcionesService`, `InscripcionesRepository`, `Routes`.
+- Requiere migración: no.

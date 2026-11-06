@@ -8,6 +8,8 @@ use Siiis\Controllers\AuthController;
 use Siiis\Controllers\DocumentosController;
 use Siiis\Controllers\HealthController;
 use Siiis\Controllers\HomeController;
+use Siiis\Controllers\MensajesContactoController;
+use Siiis\Controllers\ReviewsController;
 use Siiis\Controllers\UsersController;
 use Siiis\Middleware\AuthMiddleware;
 use Siiis\Middleware\OptionalAuthMiddleware;
@@ -60,8 +62,30 @@ final class Routes
                 $home->get('/slider', [HomeController::class, 'slider']);
                 $home->get('/videos', [HomeController::class, 'videos']);
             });
+
+            // Reseñas (DEC-B43 a DEC-B45): públicas con sesión opcional; moderación con RoleMiddleware (DEC-B44).
+            $v1->group('/reviews', function (RouteCollectorProxy $reviews): void {
+                $reviews->get('', [ReviewsController::class, 'index']);
+                $reviews->post('', [ReviewsController::class, 'store']);
+            })->add(OptionalAuthMiddleware::class);
+            $v1->patch('/reviews/{id}', [ReviewsController::class, 'update'])
+                ->add(RoleMiddleware::moderadoresResenas())
+                ->add(AuthMiddleware::class);
+            $v1->delete('/reviews/{id}', [ReviewsController::class, 'destroy'])
+                ->add(RoleMiddleware::moderadoresResenas())
+                ->add(AuthMiddleware::class);
+
+            // Contacto (DEC-B46): envío público (HomeController, spec 10.12) y buzón para administradores.
+            $v1->post('/contact', [HomeController::class, 'contact']);
+            $v1->get('/contact/messages', [MensajesContactoController::class, 'index'])
+                ->add(RoleMiddleware::administrativos())
+                ->add(AuthMiddleware::class);
+            $v1->patch('/contact/messages/{id}', [MensajesContactoController::class, 'update'])
+                ->add(RoleMiddleware::administrativos())
+                ->add(AuthMiddleware::class);
         });
     }
+
     /**
      * CRUD de un módulo de contenido (spec 11.3; DEC-B30) y sus adjuntos (DEC-B39). El argumento `modulo` le dice a
      * DocumentosController qué categorías sirve la ruta.

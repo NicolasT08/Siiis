@@ -6,6 +6,7 @@ namespace Siiis\Tests\Unit\Security;
 
 use PHPUnit\Framework\TestCase;
 use Siiis\Security\RateLimiter;
+use Siiis\Support\ApiException;
 use Siiis\Tests\Support\FixedClock;
 
 final class RateLimiterTest extends TestCase
@@ -33,6 +34,21 @@ final class RateLimiterTest extends TestCase
             self::assertSame(0, $limiter->hit('login', '1.2.3.4', 3, 60));
         }
         self::assertSame(60, $limiter->hit('login', '1.2.3.4', 3, 60));
+    }
+
+    public function testLimitarLanzaRateLimitedConRetryAfter(): void
+    {
+        $limiter = new RateLimiter($this->dir, new FixedClock());
+        $limiter->limitar('reviews', '1.2.3.4', 1, 3600);
+
+        try {
+            $limiter->limitar('reviews', '1.2.3.4', 1, 3600);
+            self::fail('Debía lanzar 429');
+        } catch (ApiException $e) {
+            self::assertSame(429, $e->status);
+            self::assertSame('RATE_LIMITED', $e->errorCode);
+            self::assertSame(['Retry-After' => '3600'], $e->headers);
+        }
     }
 
     public function testSeparaPorAccionYPorClave(): void

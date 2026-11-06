@@ -12,7 +12,6 @@ use Siiis\Security\RateLimiter;
 use Siiis\Services\AuthService;
 use Siiis\Services\PasswordResetService;
 use Siiis\Services\UserAccountService;
-use Siiis\Support\ApiException;
 use Siiis\Support\ClientIp;
 use Siiis\Support\JsonResponse;
 use Siiis\Validation\ForgotPasswordValidator;
@@ -56,7 +55,8 @@ final class AuthController
     public function login(ServerRequestInterface $request): ResponseInterface
     {
         $ip = ClientIp::from($request);
-        $this->limit('login', $ip, $this->settings->rateLimitLoginMax, $this->settings->rateLimitLoginWindowSeconds);
+        $s = $this->settings;
+        $this->rateLimiter->limitar('login', $ip, $s->rateLimitLoginMax, $s->rateLimitLoginWindowSeconds);
 
         $input = $this->loginValidator->validate($request->getParsedBody());
 
@@ -91,7 +91,8 @@ final class AuthController
     public function forgotPassword(ServerRequestInterface $request): ResponseInterface
     {
         $ip = ClientIp::from($request);
-        $this->limit('forgot', $ip, $this->settings->rateLimitForgotMax, $this->settings->rateLimitForgotWindowSeconds);
+        $s = $this->settings;
+        $this->rateLimiter->limitar('forgot', $ip, $s->rateLimitForgotMax, $s->rateLimitForgotWindowSeconds);
 
         $input = $this->forgotValidator->validate($request->getParsedBody());
         $this->passwordReset->solicitar($input['correo']);
@@ -112,13 +113,5 @@ final class AuthController
         return JsonResponse::ok([
             'mensaje' => 'Tu contraseña fue actualizada. Inicia sesión con la nueva contraseña.',
         ]);
-    }
-
-    private function limit(string $action, string $ip, int $max, int $window): void
-    {
-        $retryAfter = $this->rateLimiter->hit($action, $ip, $max, $window);
-        if ($retryAfter > 0) {
-            throw ApiException::rateLimited($retryAfter);
-        }
     }
 }

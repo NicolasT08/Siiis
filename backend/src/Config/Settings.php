@@ -69,6 +69,20 @@ final readonly class Settings
         public int $perfilFotoLadoPx,
         public int $documentoImagenMaxAnchoPx,
         public string $cloudinaryCalidad,
+        public int $rateLimitReviewsMax,
+        public int $rateLimitReviewsWindowSeconds,
+        public int $rateLimitContactMax,
+        public int $rateLimitContactWindowSeconds,
+        public int $resenasPerPageDefault,
+        public int $resenasPerPageMax,
+        public int $resenaNombreMaxLength,
+        public int $resenaComentarioMaxLength,
+        public string $contactoCorreoDestino,
+        public int $contactoNombreMaxLength,
+        public int $contactoAsuntoMaxLength,
+        public int $contactoMensajeMaxLength,
+        public int $mensajesPerPageDefault,
+        public int $mensajesPerPageMax,
         public string $storagePath,
     ) {
     }
@@ -107,6 +121,9 @@ final readonly class Settings
         if ($documentosPerPageDefault > $documentosPerPageMax) {
             throw new ConfigException('DOCUMENTOS_PER_PAGE_DEFAULT no puede ser mayor que DOCUMENTOS_PER_PAGE_MAX.');
         }
+
+        [$resenasPerPageDefault, $resenasPerPageMax] = self::paginacion($env, 'RESENAS', 10, 50);
+        [$mensajesPerPageDefault, $mensajesPerPageMax] = self::paginacion($env, 'MENSAJES', 20, 50);
 
         $cloudinaryCalidad = self::string($env, 'CLOUDINARY_CALIDAD', 'auto');
         if (preg_match(self::PATRON_CALIDAD, $cloudinaryCalidad) !== 1) {
@@ -173,6 +190,21 @@ final readonly class Settings
             perfilFotoLadoPx: self::positiveInt($env, 'PERFIL_FOTO_LADO_PX', 400),
             documentoImagenMaxAnchoPx: self::positiveInt($env, 'DOCUMENTO_IMAGEN_MAX_ANCHO_PX', 1600),
             cloudinaryCalidad: $cloudinaryCalidad,
+            // Fase 4: reseñas y contacto (DEC-B43 a DEC-B48, PROPUESTA). Rate limiting por IP y por hora.
+            rateLimitReviewsMax: self::positiveInt($env, 'RATE_LIMIT_REVIEWS_MAX', 10),
+            rateLimitReviewsWindowSeconds: self::positiveInt($env, 'RATE_LIMIT_REVIEWS_WINDOW_SECONDS', 3600),
+            rateLimitContactMax: self::positiveInt($env, 'RATE_LIMIT_CONTACT_MAX', 20),
+            rateLimitContactWindowSeconds: self::positiveInt($env, 'RATE_LIMIT_CONTACT_WINDOW_SECONDS', 3600),
+            resenasPerPageDefault: $resenasPerPageDefault,
+            resenasPerPageMax: $resenasPerPageMax,
+            resenaNombreMaxLength: self::positiveInt($env, 'RESENA_NOMBRE_MAX_LENGTH', 80),
+            resenaComentarioMaxLength: self::positiveInt($env, 'RESENA_COMENTARIO_MAX_LENGTH', 1000),
+            contactoCorreoDestino: self::string($env, 'CONTACTO_CORREO_DESTINO'),
+            contactoNombreMaxLength: self::positiveInt($env, 'CONTACTO_NOMBRE_MAX_LENGTH', 80),
+            contactoAsuntoMaxLength: self::positiveInt($env, 'CONTACTO_ASUNTO_MAX_LENGTH', 150),
+            contactoMensajeMaxLength: self::positiveInt($env, 'CONTACTO_MENSAJE_MAX_LENGTH', 3000),
+            mensajesPerPageDefault: $mensajesPerPageDefault,
+            mensajesPerPageMax: $mensajesPerPageMax,
             storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
         );
     }
@@ -207,6 +239,27 @@ final readonly class Settings
         }
 
         return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * `{PREFIJO}_PER_PAGE_DEFAULT` y `{PREFIJO}_PER_PAGE_MAX`; el valor por defecto no puede pasar del máximo.
+     *
+     * @param array<string, mixed> $env
+     *
+     * @return array{int, int}
+     */
+    private static function paginacion(array $env, string $prefijo, int $default, int $max): array
+    {
+        $max = self::positiveInt($env, $prefijo . '_PER_PAGE_MAX', $max);
+        $default = self::positiveInt($env, $prefijo . '_PER_PAGE_DEFAULT', $default);
+        if ($default > $max) {
+            throw new ConfigException(sprintf(
+                '%1$s_PER_PAGE_DEFAULT no puede ser mayor que %1$s_PER_PAGE_MAX.',
+                $prefijo,
+            ));
+        }
+
+        return [$default, $max];
     }
 
     /**

@@ -40,6 +40,46 @@ final class InputReader
     }
 
     /**
+     * Texto obligatorio de hasta `$max` caracteres. Con `$unaLinea`, los saltos de línea y espacios repetidos
+     * se reducen a un espacio (nombres y asuntos que terminan en cabeceras de correo, DEC-B46).
+     *
+     * @param array<string, string> $errors
+     */
+    public static function texto(mixed $body, string $field, int $max, array &$errors, bool $unaLinea = false): string
+    {
+        $valor = self::string($body, $field, $errors);
+        if (isset($errors[$field])) {
+            return '';
+        }
+        if ($unaLinea) {
+            $valor = (string) preg_replace('/\s+/u', ' ', $valor);
+        }
+        if (mb_strlen($valor) > $max) {
+            $errors[$field] = sprintf('Máximo %d caracteres.', $max);
+        }
+
+        return $valor;
+    }
+
+    /**
+     * Valor obligatorio de una lista blanca.
+     *
+     * @param list<string>          $permitidos
+     * @param array<string, string> $errors
+     */
+    public static function opcion(mixed $body, string $field, array $permitidos, array &$errors): string
+    {
+        $valor = is_array($body) ? ($body[$field] ?? null) : null;
+        if (!is_string($valor) || !in_array($valor, $permitidos, true)) {
+            $errors[$field] = sprintf('Valor no válido. Valores permitidos: %s.', implode(', ', $permitidos));
+
+            return '';
+        }
+
+        return $valor;
+    }
+
+    /**
      * Correo normalizado (sin espacios, minúsculas) y con formato válido.
      *
      * @param array<string, string> $errors

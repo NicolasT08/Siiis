@@ -39,6 +39,21 @@ final class SettingsTest extends TestCase
         self::assertSame(400, $settings->perfilFotoLadoPx);
         self::assertSame(1600, $settings->documentoImagenMaxAnchoPx);
         self::assertSame('auto', $settings->cloudinaryCalidad);
+        // Fase 4: reseñas y contacto (DEC-B43 a DEC-B48).
+        self::assertSame(10, $settings->rateLimitReviewsMax);
+        self::assertSame(3600, $settings->rateLimitReviewsWindowSeconds);
+        self::assertSame(20, $settings->rateLimitContactMax);
+        self::assertSame(3600, $settings->rateLimitContactWindowSeconds);
+        self::assertSame(10, $settings->resenasPerPageDefault);
+        self::assertSame(50, $settings->resenasPerPageMax);
+        self::assertSame(80, $settings->resenaNombreMaxLength);
+        self::assertSame(1000, $settings->resenaComentarioMaxLength);
+        self::assertSame('', $settings->contactoCorreoDestino);
+        self::assertSame(80, $settings->contactoNombreMaxLength);
+        self::assertSame(150, $settings->contactoAsuntoMaxLength);
+        self::assertSame(3000, $settings->contactoMensajeMaxLength);
+        self::assertSame(20, $settings->mensajesPerPageDefault);
+        self::assertSame(50, $settings->mensajesPerPageMax);
     }
 
     /**
@@ -100,6 +115,18 @@ final class SettingsTest extends TestCase
         yield 'per_page de documentos mayor que el máximo' => [
             ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'DOCUMENTOS_PER_PAGE_MAX' => '10'],
             'DOCUMENTOS_PER_PAGE_DEFAULT',
+        ];
+        yield 'per_page de reseñas mayor que el máximo' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'RESENAS_PER_PAGE_DEFAULT' => '51'],
+            'RESENAS_PER_PAGE_DEFAULT no puede ser mayor que RESENAS_PER_PAGE_MAX',
+        ];
+        yield 'per_page de mensajes mayor que el máximo' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'MENSAJES_PER_PAGE_MAX' => '5'],
+            'MENSAJES_PER_PAGE_DEFAULT no puede ser mayor que MENSAJES_PER_PAGE_MAX',
+        ];
+        yield 'rate limit de reseñas no numérico' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'RATE_LIMIT_REVIEWS_MAX' => 'diez'],
+            'RATE_LIMIT_REVIEWS_MAX',
         ];
         foreach (['0', '101', 'auto:fast', 'best', '50,w_9000', ' f_auto'] as $calidad) {
             yield 'calidad ' . $calidad => [

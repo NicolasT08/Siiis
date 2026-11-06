@@ -28,6 +28,17 @@ final class RolesTest extends TestCase
         }
     }
 
+    public function testModeradoresDeResenasSonLosRevisoresDelContenido(): void
+    {
+        self::assertSame(Roles::REVISORES_CONTENIDO, Roles::MODERADORES_RESENAS);
+        foreach (['superadministrador', 'administrador', 'docente_director'] as $rol) {
+            self::assertTrue(Roles::esModeradorResenas($rol), $rol);
+        }
+        foreach (['estudiante_lider', 'estudiante', 'desconocido', null] as $rol) {
+            self::assertFalse(Roles::esModeradorResenas($rol), (string) $rol);
+        }
+    }
+
     public function testSoloSuperadministradorYAdministradorSonAdministrativos(): void
     {
         self::assertTrue(Roles::esAdministrativo('superadministrador'));

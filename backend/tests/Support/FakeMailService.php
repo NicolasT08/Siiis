@@ -12,19 +12,19 @@ use Siiis\Services\MailService;
  */
 final class FakeMailService extends MailService
 {
-    /** @var list<array{to: string, subject: string, html: string, text: string}> */
+    /** @var list<array{to: string, subject: string, html: string, text: string, reply_to: array{string, string}|null}> */
     public array $enviados = [];
 
     public function __construct(private readonly bool $fallar = false)
     {
     }
 
-    public function send(string $to, string $subject, string $html, string $text = ''): void
+    public function send(string $to, string $subject, string $html, string $text = '', ?array $replyTo = null): void
     {
         if ($this->fallar) {
             throw new MailException('SMTP caído (simulado)');
         }
-        $this->enviados[] = ['to' => $to, 'subject' => $subject, 'html' => $html, 'text' => $text];
+        $this->enviados[] = ['to' => $to, 'subject' => $subject, 'html' => $html, 'text' => $text, 'reply_to' => $replyTo];
     }
 
     public function ultimoToken(): string

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Siiis\Security;
 
+use Siiis\Support\ApiException;
 use Siiis\Support\Clock;
 use Siiis\Support\Logger;
 
@@ -68,6 +69,20 @@ class RateLimiter
         } finally {
             flock($handle, LOCK_UN);
             fclose($handle);
+        }
+    }
+
+    /**
+     * Como `hit`, pero lanza `429 RATE_LIMITED` (con `Retry-After`) si se superó el límite. Lo usan las rutas
+     * públicas: login, recuperación de contraseña, reseñas, contacto e inscripciones (DEC-B48).
+     *
+     * @throws ApiException 429 RATE_LIMITED
+     */
+    public function limitar(string $action, string $key, int $max, int $windowSeconds): void
+    {
+        $retryAfter = $this->hit($action, $key, $max, $windowSeconds);
+        if ($retryAfter > 0) {
+            throw ApiException::rateLimited($retryAfter);
         }
     }
 

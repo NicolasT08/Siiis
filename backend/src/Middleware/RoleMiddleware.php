@@ -30,6 +30,11 @@ final class RoleMiddleware implements MiddlewareInterface
         return new self(Roles::ADMINISTRATIVOS);
     }
 
+    public static function moderadoresResenas(): self
+    {
+        return new self(Roles::MODERADORES_RESENAS);
+    }
+
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $rol = $request->getAttribute(AuthMiddleware::ATTR_ROL);

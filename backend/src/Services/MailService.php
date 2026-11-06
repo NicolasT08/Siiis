@@ -20,9 +20,13 @@ class MailService
     }
 
     /**
+     * `$replyTo` (correo y nombre) es la dirección de "Responder a", p. ej. el remitente del formulario de contacto.
+     *
+     * @param array{string, string}|null $replyTo
+     *
      * @throws MailException si falta configuración o el SMTP falla
      */
-    public function send(string $to, string $subject, string $html, string $text = ''): void
+    public function send(string $to, string $subject, string $html, string $text = '', ?array $replyTo = null): void
     {
         $s = $this->settings;
         if ($s->mailUsername === '' || $s->mailPassword === '') {
@@ -43,6 +47,9 @@ class MailService
 
             $mail->setFrom($s->mailFromAddress !== '' ? $s->mailFromAddress : $s->mailUsername, $s->mailFromName);
             $mail->addAddress($to);
+            if ($replyTo !== null) {
+                $mail->addReplyTo($replyTo[0], $replyTo[1]);
+            }
             $mail->isHTML(true);
             $mail->Subject = $subject;
             $mail->Body = $html;

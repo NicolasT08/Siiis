@@ -5,14 +5,19 @@ declare(strict_types=1);
 namespace Siiis\Controllers;
 
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use Siiis\Config\Settings;
 use Siiis\Repositories\MultimediaRepository;
+use Siiis\Security\RateLimiter;
+use Siiis\Services\ContactoService;
+use Siiis\Support\ClientIp;
 use Siiis\Support\CloudinaryUrl;
 use Siiis\Support\JsonResponse;
 use Siiis\Support\Serializer;
+use Siiis\Validation\ContactoValidator;
 
 /**
- * Recursos públicos de la página de inicio (spec 10.12): slider (RF-07) y videos (RF-11).
+ * Recursos públicos de la página de inicio (spec 10.12): slider (RF-07), videos (RF-11) y contacto (RF-03).
  * Los bloques S-I-I-I-S, hero, CTA y footer no tienen backend en la fase 1 (DEC-B12).
  */
 final class HomeController
@@ -22,7 +27,30 @@ final class HomeController
     public function __construct(
         private readonly MultimediaRepository $multimedia,
         private readonly Settings $settings,
+        private readonly ContactoService $contacto,
+        private readonly ContactoValidator $contactoValidator,
+        private readonly RateLimiter $rateLimiter,
     ) {
+    }
+
+    /**
+     * POST /api/v1/contact — público, con rate limiting por IP (DEC-B46 a DEC-B48).
+     */
+    public function contact(ServerRequestInterface $request): ResponseInterface
+    {
+        $s = $this->settings;
+        $this->rateLimiter->limitar(
+            'contact',
+            ClientIp::from($request),
+            $s->rateLimitContactMax,
+            $s->rateLimitContactWindowSeconds,
+        );
+
+        $this->contacto->enviar($this->contactoValidator->validate($request->getParsedBody()));
+
+        return JsonResponse::ok([
+            'mensaje' => 'Recibimos tu mensaje. El equipo del semillero te responderá al correo que indicaste.',
+        ], 201)->withHeader('Cache-Control', 'no-store');
     }
 
     /**
