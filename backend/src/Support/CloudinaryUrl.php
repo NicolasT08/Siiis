@@ -24,6 +24,25 @@ final class CloudinaryUrl
     }
 
     /**
+     * Quita el segmento de firma `/s--XXXXXXXX--/` de una URL de Cloudinary. La `secure_url` de un recurso
+     * privado (`authenticated`) ya trae una firma que nunca vence; sin ella la URL responde 401 (DEC-B50).
+     */
+    public static function sinFirma(string $url): string
+    {
+        return (string) preg_replace('#/s--[A-Za-z0-9_-]+--/#', '/', $url, 1);
+    }
+
+    /**
+     * Extensión del archivo al final de la ruta (`pdf`, `png`…), en minúsculas; '' si no tiene.
+     */
+    public static function formato(string $url): string
+    {
+        $ruta = (string) parse_url($url, PHP_URL_PATH);
+
+        return preg_match('#\.([A-Za-z0-9]{2,5})$#', $ruta, $m) === 1 ? strtolower($m[1]) : '';
+    }
+
+    /**
      * Agrega `f_auto,q_auto` a una imagen de Cloudinary (`/image/upload/`). No toca los PDF (se entregan tal
      * cual, DEC-B40), los videos, los recursos `raw`, las URL de otros dominios ni las que ya traen una
      * transformación.

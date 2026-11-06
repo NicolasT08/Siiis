@@ -66,6 +66,59 @@ final class FileValidator
     public function adjunto(array $archivos, string $campo, int $maxBytesImagen, int $maxBytesPdf): array
     {
         $archivo = self::archivo($archivos, $campo, sprintf('Adjunta un archivo en el campo "%s".', $campo));
+
+        return self::validarAdjunto($archivo, $campo, $maxBytesImagen, $maxBytesPdf);
+    }
+
+    /**
+     * De 1 a `$max` adjuntos en un mismo campo (`documentos[]`, o `documentos` con un solo archivo), con las
+     * reglas de `adjunto` para cada uno (DEC-B49). Si uno falla, falla toda la petición.
+     *
+     * @param array<string, mixed> $archivos
+     *
+     * @return list<array{path: string, mime: string, size: int, nombre: string}>
+     *
+     * @throws ApiException 400 VALIDATION_ERROR, 413 FILE_TOO_LARGE, 415 UNSUPPORTED_MEDIA_TYPE
+     */
+    public function adjuntos(array $archivos, string $campo, int $max, int $maxBytesImagen, int $maxBytesPdf): array
+    {
+        $valor = $archivos[$campo] ?? null;
+        $lista = $valor instanceof UploadedFileInterface ? [$valor] : (is_array($valor) ? $valor : []);
+        $lista = array_values(array_filter(
+            $lista,
+            static fn (mixed $a): bool => !$a instanceof UploadedFileInterface || $a->getError() !== UPLOAD_ERR_NO_FILE,
+        ));
+
+        if ($lista === []) {
+            throw ApiException::validation([$campo => sprintf('Adjunta al menos un archivo en el campo "%s".', $campo)]);
+        }
+        if (count($lista) > $max) {
+            throw ApiException::validation([$campo => sprintf('Puedes adjuntar como máximo %d archivos.', $max)]);
+        }
+
+        $validados = [];
+        foreach ($lista as $archivo) {
+            // Un sub-arreglo (documentos[a][]) o un campo de texto no es un archivo.
+            if (!$archivo instanceof UploadedFileInterface) {
+                throw ApiException::validation([$campo => 'Cada elemento debe ser un archivo.']);
+            }
+            $validados[] = self::validarAdjunto($archivo, $campo, $maxBytesImagen, $maxBytesPdf);
+        }
+
+        return $validados;
+    }
+
+    /**
+     * @return array{path: string, mime: string, size: int, nombre: string}
+     *
+     * @throws ApiException 400 VALIDATION_ERROR, 413 FILE_TOO_LARGE, 415 UNSUPPORTED_MEDIA_TYPE
+     */
+    private static function validarAdjunto(
+        UploadedFileInterface $archivo,
+        string $campo,
+        int $maxBytesImagen,
+        int $maxBytesPdf,
+    ): array {
         $validado = self::validar(
             $archivo,
             $campo,

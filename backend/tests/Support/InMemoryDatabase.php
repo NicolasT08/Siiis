@@ -33,6 +33,9 @@ final class InMemoryDatabase
     /** @var array<string, array<string, mixed>> */
     public array $mensajes = [];
 
+    /** @var array<string, array<string, mixed>> */
+    public array $inscripciones = [];
+
     /**
      * Crea un par Credenciales + Usuarios y devuelve [credencialId, usuarioId].
      *

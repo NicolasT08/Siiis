@@ -8,6 +8,7 @@ use Psr\Http\Message\ResponseInterface;
 use Siiis\Repositories\CredencialesRepository;
 use Siiis\Repositories\CuentasRepository;
 use Siiis\Repositories\DocumentosRepository;
+use Siiis\Repositories\InscripcionesRepository;
 use Siiis\Repositories\MensajesContactoRepository;
 use Siiis\Repositories\ResenasRepository;
 use Siiis\Repositories\SesionesRepository;
@@ -18,6 +19,7 @@ use Siiis\Tests\Support\InMemoryCredencialesRepository;
 use Siiis\Tests\Support\InMemoryCuentasRepository;
 use Siiis\Tests\Support\InMemoryDatabase;
 use Siiis\Tests\Support\InMemoryDocumentosRepository;
+use Siiis\Tests\Support\InMemoryInscripcionesRepository;
 use Siiis\Tests\Support\InMemoryMensajesContactoRepository;
 use Siiis\Tests\Support\InMemoryResenasRepository;
 use Siiis\Tests\Support\InMemorySesionesRepository;
@@ -37,6 +39,7 @@ abstract class AuthTestCase extends ApiTestCase
     protected InMemoryUsuariosRepository $usuarios;
     protected InMemoryDocumentosRepository $documentos;
     protected InMemoryMensajesContactoRepository $mensajes;
+    protected InMemoryInscripcionesRepository $inscripciones;
     protected FixedClock $clock;
     protected string $storage;
 
@@ -50,6 +53,7 @@ abstract class AuthTestCase extends ApiTestCase
         $this->usuarios = new InMemoryUsuariosRepository($this->db);
         $this->documentos = new InMemoryDocumentosRepository($this->db);
         $this->mensajes = new InMemoryMensajesContactoRepository($this->db);
+        $this->inscripciones = new InMemoryInscripcionesRepository($this->db);
         $this->clock = new FixedClock();
         $this->storage = sys_get_temp_dir() . '/siiis-api-' . bin2hex(random_bytes(4));
     }
@@ -80,6 +84,7 @@ abstract class AuthTestCase extends ApiTestCase
             'RATE_LIMIT_FORGOT_MAX' => '100',
             'RATE_LIMIT_REVIEWS_MAX' => '100',
             'RATE_LIMIT_CONTACT_MAX' => '100',
+            'RATE_LIMIT_INSCRIPTIONS_MAX' => '100',
         ], $this->storage);
 
         return \Siiis\Config\Application::create($settings, $this->extraOverrides + [
@@ -88,6 +93,7 @@ abstract class AuthTestCase extends ApiTestCase
             DocumentosRepository::class => $this->documentos,
             ResenasRepository::class => new InMemoryResenasRepository($this->db),
             MensajesContactoRepository::class => $this->mensajes,
+            InscripcionesRepository::class => $this->inscripciones,
             SesionesRepository::class => new InMemorySesionesRepository($this->db),
             CuentasRepository::class => new InMemoryCuentasRepository($this->db),
             Clock::class => $this->clock,

@@ -53,4 +53,36 @@ final class CloudinaryUrlTest extends TestCase
     {
         self::assertSame($esperada, CloudinaryUrl::entrega($url));
     }
+
+    public function testEntregaNoTocaLosRecursosPrivados(): void
+    {
+        $url = 'https://res.cloudinary.com/demo/image/authenticated/v1/siiis/inscripciones/a.png';
+
+        self::assertSame($url, CloudinaryUrl::entrega($url));
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function urlsFirmadas(): iterable
+    {
+        $base = 'https://res.cloudinary.com/demo/image/authenticated/';
+        yield 'con firma' => [$base . 's--Q0umMEBC--/v1793969882/siiis/inscripciones/a.pdf', $base . 'v1793969882/siiis/inscripciones/a.pdf'];
+        yield 'firma con guion y guion bajo' => [$base . 's--a_B-9xYz--/v1/a.png', $base . 'v1/a.png'];
+        yield 'sin firma' => [$base . 'v1/a.png', $base . 'v1/a.png'];
+        yield 'pública' => [self::BASE . 'v1/a.png', self::BASE . 'v1/a.png'];
+    }
+
+    #[DataProvider('urlsFirmadas')]
+    public function testSinFirma(string $url, string $esperada): void
+    {
+        self::assertSame($esperada, CloudinaryUrl::sinFirma($url));
+    }
+
+    public function testFormato(): void
+    {
+        self::assertSame('pdf', CloudinaryUrl::formato('https://res.cloudinary.com/demo/image/authenticated/v1/a/b.PDF'));
+        self::assertSame('jpg', CloudinaryUrl::formato('https://res.cloudinary.com/demo/image/upload/v1/a.jpg?_a=1'));
+        self::assertSame('', CloudinaryUrl::formato('https://res.cloudinary.com/demo/image/upload/v1/sin-extension'));
+    }
 }

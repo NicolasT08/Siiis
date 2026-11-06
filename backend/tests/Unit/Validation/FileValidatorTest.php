@@ -254,6 +254,65 @@ final class FileValidatorTest extends TestCase
         self::assertSame(2048, $pdf['size']);
     }
 
+    public function testAdjuntosVariosEnUnMismoCampo(): void
+    {
+        $validados = (new FileValidator())->adjuntos(['documentos' => [
+            TestImages::subida(TestImages::pdf(), UPLOAD_ERR_OK, 'application/pdf', 'carta.pdf'),
+            TestImages::subida(TestImages::png(), UPLOAD_ERR_OK, 'image/png', 'notas.png'),
+        ]], 'documentos', 3, self::MAX, self::MAX);
+
+        self::assertSame(['application/pdf', 'image/png'], array_column($validados, 'mime'));
+        self::assertSame(['carta.pdf', 'notas.png'], array_column($validados, 'nombre'));
+    }
+
+    public function testAdjuntosAceptaUnArchivoSinCorchetesEIgnoraLosVacios(): void
+    {
+        $validator = new FileValidator();
+
+        self::assertCount(1, $validator->adjuntos(['documentos' => TestImages::subida(TestImages::pdf())], 'documentos', 3, self::MAX, self::MAX));
+        self::assertCount(1, $validator->adjuntos(['documentos' => [
+            TestImages::subida(TestImages::pdf()),
+            TestImages::subida(TestImages::png(), UPLOAD_ERR_NO_FILE),
+        ]], 'documentos', 1, self::MAX, self::MAX));
+    }
+
+    /**
+     * @return iterable<string, array{callable(): array<string, mixed>, int, string}>
+     */
+    public static function adjuntosInvalidos(): iterable
+    {
+        yield 'sin campo' => [static fn (): array => [], 400, 'VALIDATION_ERROR'];
+        yield 'lista vacía' => [static fn (): array => ['documentos' => []], 400, 'VALIDATION_ERROR'];
+        yield 'solo vacíos' => [static fn (): array => ['documentos' => [TestImages::subida(TestImages::png(), UPLOAD_ERR_NO_FILE)]], 400, 'VALIDATION_ERROR'];
+        yield 'demasiados' => [static fn (): array => ['documentos' => [
+            TestImages::subida(TestImages::pdf()),
+            TestImages::subida(TestImages::pdf()),
+            TestImages::subida(TestImages::pdf()),
+        ]], 400, 'VALIDATION_ERROR'];
+        yield 'sub-arreglo' => [static fn (): array => ['documentos' => [[TestImages::subida(TestImages::pdf())]]], 400, 'VALIDATION_ERROR'];
+        yield 'texto' => [static fn (): array => ['documentos' => 'hola'], 400, 'VALIDATION_ERROR'];
+        yield 'uno disfrazado' => [static fn (): array => ['documentos' => [
+            TestImages::subida(TestImages::pdf()),
+            TestImages::subida(TestImages::disfrazado()),
+        ]], 415, 'UNSUPPORTED_MEDIA_TYPE'];
+        yield 'uno grande' => [static fn (): array => ['documentos' => [
+            TestImages::subida(TestImages::pdfDeTamano(self::MAX + 1)),
+        ]], 413, 'FILE_TOO_LARGE'];
+    }
+
+    /**
+     * @param callable(): array<string, mixed> $archivos
+     */
+    #[DataProvider('adjuntosInvalidos')]
+    public function testAdjuntosInvalidos(callable $archivos, int $status, string $code): void
+    {
+        $this->assertApiError(
+            static fn () => (new FileValidator())->adjuntos($archivos(), 'documentos', 2, self::MAX, self::MAX),
+            $status,
+            $code,
+        );
+    }
+
     /**
      * @return iterable<string, array{string|null, string, string}>
      */

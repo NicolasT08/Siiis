@@ -83,6 +83,19 @@ final readonly class Settings
         public int $contactoMensajeMaxLength,
         public int $mensajesPerPageDefault,
         public int $mensajesPerPageMax,
+        public int $rateLimitInscriptionsMax,
+        public int $rateLimitInscriptionsWindowSeconds,
+        public int $inscripcionesPerPageDefault,
+        public int $inscripcionesPerPageMax,
+        public int $inscripcionDocumentosMax,
+        public string $cloudinaryInscripcionesFolder,
+        public int $inscripcionEnlaceTtlSeconds,
+        /** @var list<string> dominios admitidos en el correo del aspirante; vacío = cualquiera (DEC-B51) */
+        public array $inscripcionDominiosCorreo,
+        public int $inscripcionNombreMaxLength,
+        public int $inscripcionCartaMinLength,
+        public int $inscripcionCartaMaxLength,
+        public string $inscripcionCorreoAviso,
         public string $storagePath,
     ) {
     }
@@ -124,6 +137,13 @@ final readonly class Settings
 
         [$resenasPerPageDefault, $resenasPerPageMax] = self::paginacion($env, 'RESENAS', 10, 50);
         [$mensajesPerPageDefault, $mensajesPerPageMax] = self::paginacion($env, 'MENSAJES', 20, 50);
+        [$inscripcionesPerPageDefault, $inscripcionesPerPageMax] = self::paginacion($env, 'INSCRIPCIONES', 20, 50);
+
+        $cartaMin = self::positiveInt($env, 'INSCRIPCION_CARTA_MIN_LENGTH', 100);
+        $cartaMax = self::positiveInt($env, 'INSCRIPCION_CARTA_MAX_LENGTH', 3000);
+        if ($cartaMin > $cartaMax) {
+            throw new ConfigException('INSCRIPCION_CARTA_MIN_LENGTH no puede ser mayor que INSCRIPCION_CARTA_MAX_LENGTH.');
+        }
 
         $cloudinaryCalidad = self::string($env, 'CLOUDINARY_CALIDAD', 'auto');
         if (preg_match(self::PATRON_CALIDAD, $cloudinaryCalidad) !== 1) {
@@ -205,6 +225,22 @@ final readonly class Settings
             contactoMensajeMaxLength: self::positiveInt($env, 'CONTACTO_MENSAJE_MAX_LENGTH', 3000),
             mensajesPerPageDefault: $mensajesPerPageDefault,
             mensajesPerPageMax: $mensajesPerPageMax,
+            // Inscripciones (DEC-B48 a DEC-B52, PROPUESTA).
+            rateLimitInscriptionsMax: self::positiveInt($env, 'RATE_LIMIT_INSCRIPTIONS_MAX', 20),
+            rateLimitInscriptionsWindowSeconds: self::positiveInt($env, 'RATE_LIMIT_INSCRIPTIONS_WINDOW_SECONDS', 3600),
+            inscripcionesPerPageDefault: $inscripcionesPerPageDefault,
+            inscripcionesPerPageMax: $inscripcionesPerPageMax,
+            inscripcionDocumentosMax: self::positiveInt($env, 'INSCRIPCION_DOCUMENTOS_MAX', 3),
+            cloudinaryInscripcionesFolder: trim(
+                self::string($env, 'CLOUDINARY_INSCRIPCIONES_FOLDER', 'siiis/inscripciones'),
+                '/',
+            ),
+            inscripcionEnlaceTtlSeconds: self::positiveInt($env, 'INSCRIPCION_ENLACE_TTL_SECONDS', 3600),
+            inscripcionDominiosCorreo: self::dominios($env, 'INSCRIPCION_DOMINIOS_CORREO', ['uptc.edu.co']),
+            inscripcionNombreMaxLength: self::positiveInt($env, 'INSCRIPCION_NOMBRE_MAX_LENGTH', 120),
+            inscripcionCartaMinLength: $cartaMin,
+            inscripcionCartaMaxLength: $cartaMax,
+            inscripcionCorreoAviso: self::string($env, 'INSCRIPCION_CORREO_AVISO'),
             storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
         );
     }
@@ -239,6 +275,36 @@ final readonly class Settings
         }
 
         return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * Lista de dominios separados por comas, en minúsculas y sin "@". Si la variable no existe se usa
+     * `$default`; si existe pero está vacía, la lista queda vacía (cualquier dominio).
+     *
+     * @param array<string, mixed> $env
+     * @param list<string>         $default
+     *
+     * @return list<string>
+     */
+    private static function dominios(array $env, string $key, array $default): array
+    {
+        if (!array_key_exists($key, $env) || !is_scalar($env[$key])) {
+            return $default;
+        }
+
+        $dominios = [];
+        foreach (explode(',', (string) $env[$key]) as $dominio) {
+            $dominio = ltrim(mb_strtolower(trim($dominio)), '@');
+            if ($dominio === '') {
+                continue;
+            }
+            if (preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/', $dominio) !== 1) {
+                throw new ConfigException(sprintf('%s tiene un dominio no válido: "%s".', $key, $dominio));
+            }
+            $dominios[] = $dominio;
+        }
+
+        return array_values(array_unique($dominios));
     }
 
     /**

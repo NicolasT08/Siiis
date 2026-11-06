@@ -6,6 +6,7 @@ namespace Siiis\Services;
 
 use Cloudinary\Cloudinary;
 use Siiis\Config\Settings;
+use Siiis\Support\CloudinaryUrl;
 use Throwable;
 
 /**
@@ -16,6 +17,8 @@ use Throwable;
  * 401 "deny or ACL failure" (subirlo como `raw` no lo evita).
  * Para ahorrar espacio (DEC-B42), las imágenes se transforman al subir (Cloudinary guarda solo el
  * resultado) y la API las entrega con `f_auto,q_auto` (`Siiis\Support\CloudinaryUrl`).
+ * Los documentos de inscripción se suben privados (`authenticated`) y se ven con enlaces firmados que vencen
+ * (DEC-B50).
  * El cliente del SDK se crea al primer uso: la app arranca aunque falten las credenciales.
  */
 class CloudinaryService
@@ -28,6 +31,12 @@ class CloudinaryService
 
     /** Formatos de los adjuntos de documentos (DEC-B40). */
     public const FORMATOS_ADJUNTO = ['jpg', 'png', 'webp', 'pdf'];
+
+    /** Tipo de entrega público (cualquiera con la URL lo abre). */
+    private const TIPO_PUBLICO = 'upload';
+
+    /** Tipo de entrega privado: solo con firma (documentos de inscripción, DEC-B50). */
+    private const TIPO_PRIVADO = 'authenticated';
 
     private ?Cloudinary $cloudinary = null;
 
@@ -83,9 +92,63 @@ class CloudinaryService
      */
     public function upload(string $path, string $folder, array $formatos = self::FORMATOS_IMAGEN, array $transformacion = []): array
     {
+        return $this->subir($path, $folder, $formatos, $transformacion, self::TIPO_PUBLICO);
+    }
+
+    /**
+     * Como `upload`, pero como recurso privado (`authenticated`, DEC-B50). La URL devuelta es la `secure_url`
+     * **sin** su segmento de firma: por sí sola no abre el archivo (401). Para verlo hay que pedir un enlace
+     * con `enlacePrivado`.
+     *
+     * @param list<string>              $formatos
+     * @param array<string, int|string> $transformacion
+     *
+     * @return array{url: string, public_id: string}
+     *
+     * @throws CloudinaryException
+     */
+    public function uploadPrivado(string $path, string $folder, array $formatos, array $transformacion = []): array
+    {
+        $subida = $this->subir($path, $folder, $formatos, $transformacion, self::TIPO_PRIVADO);
+
+        return ['url' => CloudinaryUrl::sinFirma($subida['url']), 'public_id' => $subida['public_id']];
+    }
+
+    /**
+     * Enlace de descarga firmado de un recurso privado que vence en `$expira` (timestamp Unix). Se genera sin
+     * llamar a Cloudinary: solo firma la petición con el API secret.
+     *
+     * @throws CloudinaryException si falta configuración
+     */
+    public function enlacePrivado(string $publicId, string $formato, int $expira): string
+    {
+        try {
+            return $this->client()->uploadApi()->privateDownloadUrl($publicId, $formato, [
+                'type' => self::TIPO_PRIVADO,
+                'resource_type' => 'image',
+                'expires_at' => $expira,
+            ]);
+        } catch (CloudinaryException $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            throw new CloudinaryException('No se pudo firmar el enlace de Cloudinary: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * @param list<string>              $formatos
+     * @param array<string, int|string> $transformacion
+     *
+     * @return array{url: string, public_id: string}
+     *
+     * @throws CloudinaryException
+     */
+    private function subir(string $path, string $folder, array $formatos, array $transformacion, string $tipo): array
+    {
         $opciones = [
             'folder' => $folder,
             'resource_type' => 'image',
+            'type' => $tipo,
             'allowed_formats' => $formatos,
             'unique_filename' => true,
             'use_filename' => false,
@@ -111,15 +174,17 @@ class CloudinaryService
     }
 
     /**
-     * Borra el archivo y lo invalida en la CDN. Borrar un public_id que ya no existe no es error.
+     * Borra el archivo y lo invalida en la CDN. Borrar un public_id que ya no existe no es error. Un recurso
+     * privado se borra con `$privado = true` (Cloudinary distingue el tipo de entrega).
      *
      * @throws CloudinaryException
      */
-    public function delete(string $publicId): void
+    public function delete(string $publicId, bool $privado = false): void
     {
         try {
             $res = $this->client()->uploadApi()->destroy($publicId, [
                 'resource_type' => 'image',
+                'type' => $privado ? self::TIPO_PRIVADO : self::TIPO_PUBLICO,
                 'invalidate' => true,
             ]);
         } catch (CloudinaryException $e) {

@@ -612,16 +612,34 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
 
 ## DEC-B50 — Documentos de la inscripción privados con enlaces firmados
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo; se verifica con Cloudinary real en el paso 2)
-- Fecha: 2026-11-06
+- Estado: PROPUESTA (pendiente de aprobación del equipo; verificada con Cloudinary real el 2026-11-06)
+- Fecha: 2026-11-06 · corregida el 2026-11-06 tras la prueba con Cloudinary real
 - Contexto: son datos personales del aspirante (Ley 1581 de 2012, habeas data). Una URL pública de Cloudinary
   la puede abrir cualquiera que la consiga.
-- Decisión: se suben como recursos privados (`type: authenticated`). MongoDB guarda `{url, public_id,
-  nombre_archivo}` como siempre, pero la URL guardada no abre sin firma. `GET /inscriptions/{id}` entrega a los
-  administradores enlaces firmados que vencen en `INSCRIPCION_ENLACE_TTL_SECONDS` (3600). Nunca sale el
-  `public_id`.
+- Hallazgo (prueba real en la cuenta gratuita, `siiis_test/inscripciones`): al subir un recurso
+  `authenticated`, la `secure_url` que devuelve Cloudinary **ya trae una firma** (`/s--XXXXXXXX--/`) que no
+  vence: esa URL abre el archivo para siempre (`200`). La misma URL sin el segmento `s--…--` responde `401`, y la
+  ruta pública `/upload/` equivalente, `404`. Los enlaces de descarga firmados con vencimiento
+  (`privateDownloadUrl` con `expires_at`) sí funcionan en el plan gratuito: válidos → `200` (PDF completo; imagen
+  ya reducida a 1600 px); vencidos o con la firma alterada → `401`; tras borrar el archivo → `404`. La entrega de
+  PDF también funciona para recursos privados.
+- Decisión (aprobada por el responsable de backend el 2026-11-06):
+  - Los documentos se suben como recursos privados (`type: authenticated`), con las mismas transformaciones de
+    DEC-B42.
+  - MongoDB guarda `{url, public_id, nombre_archivo}` sin cambiar campos, pero `url` es la `secure_url`
+    **sin el segmento de firma**: por sí sola no abre nada (`401`). Así una copia de la base, un respaldo o un log
+    no exponen los documentos.
+  - `GET /inscriptions/{id}` entrega a los administradores, en `documentos_adjuntos[].url`, un enlace de descarga
+    firmado generado al responder a partir del `public_id`, que vence en `INSCRIPCION_ENLACE_TTL_SECONDS` (3600),
+    y `expira` con la fecha de vencimiento. Nunca sale el `public_id` ni la URL guardada.
+  - El borrado de un documento privado indica `type: authenticated`.
+- Notas: el enlace firmado apunta a `api.cloudinary.com/.../image/download` e incluye el `api_key` (que es
+  público en Cloudinary) y la firma, nunca el API secret. Verificado también por HTTP real el 2026-11-06
+  (`php -S` + `curl`): detalle con enlaces → PDF y PNG descargables (`200`); firma alterada → `401`; URL
+  guardada → `401`.
+- Alternativa descartada: guardar la `secure_url` tal cual (firma que nunca vence).
 - Variables: `INSCRIPCION_ENLACE_TTL_SECONDS`.
-- Impacto: `CloudinaryService` (subida privada y URL firmada), `InscripcionPresenter`.
+- Impacto: `CloudinaryService` (`uploadPrivado`, `enlacePrivado`, `delete` con tipo, `Support/CloudinaryUrl::sinFirma`), `InscripcionPresenter`.
 - Requiere migración: no.
 
 ## DEC-B51 — Datos de la inscripción
@@ -639,6 +657,12 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
   - Duplicados: si el correo ya tiene una solicitud `pendiente`, `409 INSCRIPTION_PENDING`; si la anterior fue
     rechazada o aceptada, se permite una nueva. Sin índice único (no está en 8.4): dos envíos simultáneos con el
     mismo correo podrían crear dos solicitudes; el administrador rechaza una.
+- Formulario (`multipart/form-data`): todo llega como texto, así que `semestre` se acepta como dígitos y
+  `acepta_tratamiento_datos` como `true`/`1`. Un campo enviado como arreglo (`nombre_completo[$ne]=x`) es un
+  error del campo. Un texto que no sea UTF-8 válido responde `400` en su campo: lo encontró la prueba por HTTP
+  real (un `curl` desde la consola de Windows envía Latin-1) y antes producía un `500` del driver de MongoDB.
+  Con JSON no ocurre porque `json_decode` ya exige UTF-8; la comprobación quedó en `InputReader` y
+  `PerfilValidator`, así que cubre todos los formularios.
 - Variables: `INSCRIPCION_DOMINIOS_CORREO`, `INSCRIPCION_NOMBRE_MAX_LENGTH`,
   `INSCRIPCION_CARTA_MIN_LENGTH`, `INSCRIPCION_CARTA_MAX_LENGTH`.
 - Impacto: `InscripcionValidator`, `InscripcionesService`, `InscripcionesRepository`.

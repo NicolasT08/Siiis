@@ -10,6 +10,17 @@ namespace Siiis\Validation;
  */
 final class InputReader
 {
+    public const MENSAJE_UTF8 = 'El texto tiene caracteres no válidos. Envíalo con codificación UTF-8.';
+
+    /**
+     * Un cuerpo JSON siempre es UTF-8 válido (json_decode lo exige), pero los campos de un formulario
+     * `multipart/form-data` llegan sin revisar: un texto en Latin-1 haría fallar a MongoDB con un 500.
+     */
+    public static function utf8(string $valor): bool
+    {
+        return mb_check_encoding($valor, 'UTF-8');
+    }
+
     /**
      * @param array<string, string> $errors se completa con el error del campo, si lo hay
      */
@@ -29,6 +40,11 @@ final class InputReader
         }
 
         $value = (string) $value;
+        if (!self::utf8($value)) {
+            $errors[$field] = self::MENSAJE_UTF8;
+
+            return '';
+        }
         if ($trim) {
             $value = trim($value);
         }

@@ -8,6 +8,7 @@ use Siiis\Controllers\AuthController;
 use Siiis\Controllers\DocumentosController;
 use Siiis\Controllers\HealthController;
 use Siiis\Controllers\HomeController;
+use Siiis\Controllers\InscriptionsController;
 use Siiis\Controllers\MensajesContactoController;
 use Siiis\Controllers\ReviewsController;
 use Siiis\Controllers\UsersController;
@@ -74,6 +75,14 @@ final class Routes
             $v1->delete('/reviews/{id}', [ReviewsController::class, 'destroy'])
                 ->add(RoleMiddleware::moderadoresResenas())
                 ->add(AuthMiddleware::class);
+
+            // Inscripciones (DEC-B49 a DEC-B52): envío público; consulta y resolución para administrativos.
+            $v1->post('/inscriptions', [InscriptionsController::class, 'store']);
+            $v1->group('/inscriptions', function (RouteCollectorProxy $inscriptions): void {
+                $inscriptions->get('', [InscriptionsController::class, 'index']);
+                $inscriptions->get('/{id}', [InscriptionsController::class, 'show']);
+                $inscriptions->patch('/{id}', [InscriptionsController::class, 'update']);
+            })->add(RoleMiddleware::administrativos())->add(AuthMiddleware::class);
 
             // Contacto (DEC-B46): envío público (HomeController, spec 10.12) y buzón para administradores.
             $v1->post('/contact', [HomeController::class, 'contact']);

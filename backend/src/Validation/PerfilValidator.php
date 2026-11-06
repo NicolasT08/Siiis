@@ -84,6 +84,11 @@ final class PerfilValidator
 
             return null;
         }
+        if (!InputReader::utf8($valor)) {
+            $errors[$campo] = InputReader::MENSAJE_UTF8;
+
+            return null;
+        }
 
         $valor = trim($valor);
         if ($valor === '') {

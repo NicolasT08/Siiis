@@ -54,6 +54,19 @@ final class SettingsTest extends TestCase
         self::assertSame(3000, $settings->contactoMensajeMaxLength);
         self::assertSame(20, $settings->mensajesPerPageDefault);
         self::assertSame(50, $settings->mensajesPerPageMax);
+        // Inscripciones (DEC-B48 a DEC-B52).
+        self::assertSame(20, $settings->rateLimitInscriptionsMax);
+        self::assertSame(3600, $settings->rateLimitInscriptionsWindowSeconds);
+        self::assertSame(20, $settings->inscripcionesPerPageDefault);
+        self::assertSame(50, $settings->inscripcionesPerPageMax);
+        self::assertSame(3, $settings->inscripcionDocumentosMax);
+        self::assertSame('siiis/inscripciones', $settings->cloudinaryInscripcionesFolder);
+        self::assertSame(3600, $settings->inscripcionEnlaceTtlSeconds);
+        self::assertSame(['uptc.edu.co'], $settings->inscripcionDominiosCorreo);
+        self::assertSame(120, $settings->inscripcionNombreMaxLength);
+        self::assertSame(100, $settings->inscripcionCartaMinLength);
+        self::assertSame(3000, $settings->inscripcionCartaMaxLength);
+        self::assertSame('', $settings->inscripcionCorreoAviso);
     }
 
     /**
@@ -83,6 +96,29 @@ final class SettingsTest extends TestCase
         ]);
 
         self::assertSame('siiis_test/perfiles', $settings->cloudinaryPerfilesFolder);
+    }
+
+    /**
+     * @return iterable<string, array{array<string, string>, list<string>}>
+     */
+    public static function dominiosDeCorreo(): iterable
+    {
+        yield 'sin variable' => [[], ['uptc.edu.co']];
+        yield 'vacía = cualquiera' => [['INSCRIPCION_DOMINIOS_CORREO' => ''], []];
+        yield 'solo espacios' => [['INSCRIPCION_DOMINIOS_CORREO' => '  '], []];
+        yield 'varios, normalizados' => [['INSCRIPCION_DOMINIOS_CORREO' => ' @UPTC.edu.co, gmail.com,,uptc.edu.co '], ['uptc.edu.co', 'gmail.com']];
+    }
+
+    /**
+     * @param array<string, string> $env
+     * @param list<string>          $esperados
+     */
+    #[DataProvider('dominiosDeCorreo')]
+    public function testDominiosDeCorreoDeInscripcion(array $env, array $esperados): void
+    {
+        $settings = Settings::fromEnv($env + ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET]);
+
+        self::assertSame($esperados, $settings->inscripcionDominiosCorreo);
     }
 
     public function testRecortaJwtTtlAOchoHoras(): void
@@ -127,6 +163,18 @@ final class SettingsTest extends TestCase
         yield 'rate limit de reseñas no numérico' => [
             ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'RATE_LIMIT_REVIEWS_MAX' => 'diez'],
             'RATE_LIMIT_REVIEWS_MAX',
+        ];
+        yield 'carta mínima mayor que la máxima' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'INSCRIPCION_CARTA_MIN_LENGTH' => '4000'],
+            'INSCRIPCION_CARTA_MIN_LENGTH',
+        ];
+        yield 'dominio de correo inválido' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'INSCRIPCION_DOMINIOS_CORREO' => 'uptc.edu.co, no valido'],
+            'INSCRIPCION_DOMINIOS_CORREO',
+        ];
+        yield 'dominio sin punto' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'INSCRIPCION_DOMINIOS_CORREO' => 'localhost'],
+            'INSCRIPCION_DOMINIOS_CORREO',
         ];
         foreach (['0', '101', 'auto:fast', 'best', '50,w_9000', ' f_auto'] as $calidad) {
             yield 'calidad ' . $calidad => [
