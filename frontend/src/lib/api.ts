@@ -24,6 +24,26 @@ export type MultimediaItem = {
   orden: number | null;
 };
 
+/**
+ * Proyecto del semillero. PENDIENTE DE BACKEND: el contrato (docs/api.md) deja "documentos" para
+ * fases siguientes; esta forma es la que espera el frontend en `GET /proyectos`. Ajustar aquí si
+ * el backend define otros nombres de campos.
+ */
+export type Proyecto = {
+  id: string;
+  titulo: string;
+  resumen: string;
+  categoria: string;
+  /** Valores conocidos: aprobado, pendiente, en_desarrollo, rechazado. Otros se muestran tal cual. */
+  estado: string;
+  autor: { nombre: string; foto_url: string | null };
+  /** Fecha ISO 8601. */
+  fecha_publicacion: string;
+  imagen: { url: string } | null;
+  /** Lo marca un administrador; el frontend no elige destacados por su cuenta. */
+  destacado?: boolean;
+};
+
 /** Error con el formato {"error": {"code", "message", "fields"?}} del backend. */
 export class ApiError extends Error {
   readonly code: string;
@@ -97,6 +117,9 @@ export const api = {
     request<{ mensaje: string }>('/auth/forgot-password', { method: 'POST', body: { correo } }),
 
   slider: (signal?: AbortSignal) => request<{ data: MultimediaItem[] }>('/home/slider', { signal }),
+
+  proyectos: (signal?: AbortSignal) =>
+    request<{ data: Proyecto[] }>('/proyectos', { signal, token: tokenStorage.get() }),
 };
 
 /** Texto para mostrar en un formulario: el `message` y, si hay, los mensajes por campo. */

@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from '../layout/AppLayout';
 import HomePage from '../../features/home/HomePage';
 import ProjectsPage from '../../features/projects/ProjectsPage';
+import ProjectDetailPage from '../../features/projects/ProjectDetailPage';
 import ArticlesPage from '../../features/article/ArticlesPage';
 import UsersPage from '../../features/users/UsersPage';
 import AboutPage from '../../features/about/AboutPage';
@@ -17,6 +18,7 @@ export default function AppRoutes() {
         <Route index element={<HomePage />} />
         <Route path="/" element={<HomePage />} />
         <Route path="/proyectos" element={<ProjectsPage />} />
+        <Route path="/proyectos/:id" element={<ProjectDetailPage />} />
         <Route path="/articulos" element={<ArticlesPage />} />
         <Route path="/usuarios" element={<UsersPage />} />
         <Route path="/acerca-de" element={<AboutPage />} />
