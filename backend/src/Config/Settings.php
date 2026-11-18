@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Siiis\Config;
 
+use Siiis\Support\ClientIp;
+
 /**
  * Configuración de la aplicación a partir de variables de entorno (spec 10.2 y 15).
  * Falla al arrancar si falta un valor obligatorio.
@@ -96,6 +98,8 @@ final readonly class Settings
         public int $inscripcionCartaMinLength,
         public int $inscripcionCartaMaxLength,
         public string $inscripcionCorreoAviso,
+        /** @var list<string> IP o rangos CIDR de proxies de confianza; vacío = solo REMOTE_ADDR (fase 5) */
+        public array $trustedProxies,
         public string $storagePath,
     ) {
     }
@@ -241,6 +245,7 @@ final readonly class Settings
             inscripcionCartaMinLength: $cartaMin,
             inscripcionCartaMaxLength: $cartaMax,
             inscripcionCorreoAviso: self::string($env, 'INSCRIPCION_CORREO_AVISO'),
+            trustedProxies: self::proxies($env, 'TRUSTED_PROXIES'),
             storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
         );
     }
@@ -248,6 +253,21 @@ final readonly class Settings
     public function isDevelopment(): bool
     {
         return $this->appEnv === 'development';
+    }
+
+    /**
+     * La ventana de rate limiting más larga: un contador sin cambios desde hace más que esto ya venció y se
+     * puede borrar (`cron/limpiar_ratelimit.php`).
+     */
+    public function ventanaRateLimitMaxima(): int
+    {
+        return max(
+            $this->rateLimitLoginWindowSeconds,
+            $this->rateLimitForgotWindowSeconds,
+            $this->rateLimitReviewsWindowSeconds,
+            $this->rateLimitContactWindowSeconds,
+            $this->rateLimitInscriptionsWindowSeconds,
+        );
     }
 
     /**
@@ -305,6 +325,30 @@ final readonly class Settings
         }
 
         return array_values(array_unique($dominios));
+    }
+
+    /**
+     * Lista de IP o rangos CIDR (IPv4 o IPv6) separados por comas. Vacía si la variable no existe o está vacía.
+     *
+     * @param array<string, mixed> $env
+     *
+     * @return list<string>
+     */
+    private static function proxies(array $env, string $key): array
+    {
+        $proxies = [];
+        foreach (explode(',', self::string($env, $key)) as $proxy) {
+            $proxy = trim($proxy);
+            if ($proxy === '') {
+                continue;
+            }
+            if (!ClientIp::esRangoValido($proxy)) {
+                throw new ConfigException(sprintf('%s tiene una IP o rango no válido: "%s".', $key, $proxy));
+            }
+            $proxies[] = $proxy;
+        }
+
+        return array_values(array_unique($proxies));
     }
 
     /**

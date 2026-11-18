@@ -121,6 +121,38 @@ final class SettingsTest extends TestCase
         self::assertSame($esperados, $settings->inscripcionDominiosCorreo);
     }
 
+    public function testProxiesDeConfianza(): void
+    {
+        $base = ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET];
+
+        self::assertSame([], Settings::fromEnv($base)->trustedProxies);
+        self::assertSame([], Settings::fromEnv($base + ['TRUSTED_PROXIES' => ' '])->trustedProxies);
+        self::assertSame(
+            ['10.0.0.0/8', '2001:db8::/32', '203.0.113.7'],
+            Settings::fromEnv($base + ['TRUSTED_PROXIES' => ' 10.0.0.0/8 ,2001:db8::/32,,203.0.113.7,10.0.0.0/8'])
+                ->trustedProxies,
+        );
+    }
+
+    public function testRechazaProxiesNoValidos(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('TRUSTED_PROXIES');
+
+        Settings::fromEnv(['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'TRUSTED_PROXIES' => '10.0.0.0/40']);
+    }
+
+    public function testVentanaDeRateLimitMaxima(): void
+    {
+        $base = ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET];
+
+        self::assertSame(3600, Settings::fromEnv($base)->ventanaRateLimitMaxima());
+        self::assertSame(
+            7200,
+            Settings::fromEnv($base + ['RATE_LIMIT_LOGIN_WINDOW_SECONDS' => '7200'])->ventanaRateLimitMaxima(),
+        );
+    }
+
     public function testRecortaJwtTtlAOchoHoras(): void
     {
         $settings = Settings::fromEnv([

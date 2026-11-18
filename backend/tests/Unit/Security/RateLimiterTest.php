@@ -74,6 +74,32 @@ final class RateLimiterTest extends TestCase
         self::assertSame(0, $limiter->hit('login', 'ip', 1, 60));
     }
 
+    public function testPurgeBorraSoloLosContadoresVencidos(): void
+    {
+        $limiter = new RateLimiter($this->dir, new FixedClock());
+        $limiter->hit('login', 'vieja', 5, 60);
+        $limiter->hit('login', 'nueva', 5, 60);
+        $files = glob($this->dir . '/*.json') ?: [];
+        self::assertCount(2, $files);
+
+        // El reloj de pruebas está fijo en 2026-09-25 12:00; las fechas de los archivos se ajustan a mano.
+        $ahora = (new FixedClock())->now()->getTimestamp();
+        $vieja = sprintf('%s/%s.json', $this->dir, hash('sha256', 'login|vieja'));
+        $nueva = sprintf('%s/%s.json', $this->dir, hash('sha256', 'login|nueva'));
+        touch($vieja, $ahora - 3601);
+        touch($nueva, $ahora - 3599);
+
+        self::assertSame(1, $limiter->purge(3600));
+        self::assertFileDoesNotExist($vieja);
+        self::assertFileExists($nueva);
+        self::assertSame(0, $limiter->purge(3600));
+    }
+
+    public function testPurgeSinDirectorioNoFalla(): void
+    {
+        self::assertSame(0, (new RateLimiter($this->dir . '/no-existe', new FixedClock()))->purge(60));
+    }
+
     public function testNoGuardaLaIpEnClaro(): void
     {
         $limiter = new RateLimiter($this->dir, new FixedClock());

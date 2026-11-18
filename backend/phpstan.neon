@@ -4,6 +4,7 @@ parameters:
         - src
         - public
         - scripts
+        - cron
         - tests
         - bootstrap.php
     tmpDir: storage/cache/phpstan

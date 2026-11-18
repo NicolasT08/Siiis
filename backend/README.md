@@ -62,6 +62,7 @@ Todos se niegan a ejecutarse desde la web. Con `--test` usan `MONGO_DB_NAME_TEST
 php scripts/crear_indices.php         # índices oficiales + TTL de Sesiones (idempotente)
 php scripts/crear_superadmin.php      # pide correo, nombre, apellido y contraseña (sin eco)
 php scripts/seed_multimedia.php       # ítems de ejemplo del slider y los videos (no duplica)
+php cron/limpiar_ratelimit.php        # borra contadores de rate limiting vencidos (cron diario)
 ```
 
 `seed_multimedia.php` usa `scripts/data/multimedia_seed.json` si existe (no versionado, para tus URLs reales de Cloudinary). Si no, usa `scripts/data/multimedia_seed.example.json`, con imágenes del cloud público `demo`. También acepta `--file=ruta.json`.
@@ -106,13 +107,14 @@ backend/
 │   ├── Config/            # Settings, Container (PHP-DI), Routes, Application
 │   ├── Controllers/       # Health, Auth, Home (+ contacto), Users, Documentos, Reviews, Inscriptions, MensajesContacto (delgados)
 │   ├── Database/          # Mongo (cliente único), Collections (nombres oficiales)
-│   ├── Middleware/        # Auth, OptionalAuth, Role, ErrorHandler, Cors, JsonBody
+│   ├── Middleware/        # Auth, OptionalAuth, Role, ErrorHandler, Cors, JsonBody, ClientIp
 │   ├── Repositories/      # consultas a las 8 colecciones oficiales; Cuentas (transacción)
 │   ├── Security/          # PasswordHasher, JwtService, RateLimiter, Roles (jerarquía), SessionAuthenticator
 │   ├── Services/          # Auth, PasswordReset, Mail, UserAccount, Users, Documentos, Resenas, Contacto, Inscripciones, Cloudinary
 │   ├── Support/           # JsonResponse, Serializer, presentadores, ModuloDocumentos, CloudinaryUrl, Logger, Clock…
 │   └── Validation/        # validadores de entrada (antiinyección NoSQL) y FileValidator (MIME real)
 ├── scripts/               # CLI: índices, superadmin, seed
+├── cron/                  # mantenimiento: limpiar_ratelimit.php (cron de hPanel)
 ├── storage/               # logs/, ratelimit/, cache/ (no versionado)
 └── tests/                 # Unit/, Api/, Integration/, Support/ (dobles)
 ```

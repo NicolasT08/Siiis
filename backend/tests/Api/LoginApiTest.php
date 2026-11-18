@@ -216,6 +216,42 @@ final class LoginApiTest extends AuthTestCase
         self::assertSame('900', $response->getHeaderLine('Retry-After'));
     }
 
+    public function testDetrasDeUnProxyDeConfianzaLimitaYRegistraLaIpDelVisitante(): void
+    {
+        $this->db->crearCuenta(self::CORREO, self::PASSWORD);
+        $app = $this->authApp(['RATE_LIMIT_LOGIN_MAX' => '1', 'TRUSTED_PROXIES' => '10.0.0.0/8']);
+        $desde = fn (string $visitante): \Psr\Http\Message\ResponseInterface => $app->handle($this->request(
+            'POST',
+            '/api/v1/auth/login',
+            ['correo' => self::CORREO, 'password' => self::PASSWORD],
+            ['X-Forwarded-For' => $visitante],
+            '10.0.0.1',
+        ));
+
+        self::assertSame(200, $desde('198.51.100.1')->getStatusCode());
+        self::assertSame('198.51.100.1', array_values($this->db->sesiones)[0]['ip_acceso']);
+        // Otro visitante por el mismo proxy tiene su propio límite; el primero ya lo agotó.
+        self::assertSame(200, $desde('198.51.100.2')->getStatusCode());
+        $this->assertError($desde('198.51.100.1'), 429, 'RATE_LIMITED');
+    }
+
+    public function testSinProxiesConfiguradosIgnoraXForwardedFor(): void
+    {
+        $this->db->crearCuenta(self::CORREO, self::PASSWORD);
+        $app = $this->authApp(['RATE_LIMIT_LOGIN_MAX' => '1']);
+        $falsificada = fn (string $ip): \Psr\Http\Message\ResponseInterface => $app->handle($this->request(
+            'POST',
+            '/api/v1/auth/login',
+            ['correo' => self::CORREO, 'password' => self::PASSWORD],
+            ['X-Forwarded-For' => $ip],
+        ));
+
+        self::assertSame(200, $falsificada('198.51.100.1')->getStatusCode());
+        self::assertSame('203.0.113.10', array_values($this->db->sesiones)[0]['ip_acceso']);
+        // Cambiar la cabecera no reinicia el límite.
+        $this->assertError($falsificada('198.51.100.2'), 429, 'RATE_LIMITED');
+    }
+
     public function testRememberMeSeIgnora(): void
     {
         $this->db->crearCuenta(self::CORREO, self::PASSWORD);

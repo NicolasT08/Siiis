@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Siiis\Config;
 
 use Psr\Container\ContainerInterface;
+use Siiis\Middleware\ClientIpMiddleware;
 use Siiis\Middleware\CorsMiddleware;
 use Siiis\Middleware\ErrorHandler;
 use Siiis\Middleware\JsonBodyMiddleware;
@@ -31,6 +32,7 @@ final class Application
 
         // Slim ejecuta primero el último middleware añadido.
         $app->add(JsonBodyMiddleware::class);
+        $app->add(ClientIpMiddleware::class);
         $app->addRoutingMiddleware();
         $errorMiddleware = $app->addErrorMiddleware($settings->appDebug, false, false);
         $errorMiddleware->setDefaultErrorHandler($container->get(ErrorHandler::class));
