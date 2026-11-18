@@ -44,6 +44,24 @@ export type Proyecto = {
   destacado?: boolean;
 };
 
+/**
+ * Integrante del semillero para la página pública de Usuarios. PENDIENTE DE BACKEND: no existe
+ * aún `GET /usuarios`; estos campos salen de la colección Usuarios (ver scripts/crear_superadmin).
+ * No incluye el correo: vive en Credenciales y no conviene publicarlo sin permiso.
+ */
+export type Miembro = {
+  id: string;
+  nombre: string;
+  apellido: string;
+  rol: string;
+  programa_academico: string | null;
+  semestre: number | null;
+  biografia: string | null;
+  foto_perfil: { url: string } | null;
+  /** true = activo en el semillero. */
+  estado: boolean;
+};
+
 /** Error con el formato {"error": {"code", "message", "fields"?}} del backend. */
 export class ApiError extends Error {
   readonly code: string;
@@ -120,6 +138,9 @@ export const api = {
 
   proyectos: (signal?: AbortSignal) =>
     request<{ data: Proyecto[] }>('/proyectos', { signal, token: tokenStorage.get() }),
+
+  usuarios: (signal?: AbortSignal) =>
+    request<{ data: Miembro[] }>('/usuarios', { signal, token: tokenStorage.get() }),
 };
 
 /** Texto para mostrar en un formulario: el `message` y, si hay, los mensajes por campo. */

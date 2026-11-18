@@ -5,6 +5,7 @@ import ProjectsPage from '../../features/projects/ProjectsPage';
 import ProjectDetailPage from '../../features/projects/ProjectDetailPage';
 import ArticlesPage from '../../features/article/ArticlesPage';
 import UsersPage from '../../features/users/UsersPage';
+import MemberDetailPage from '../../features/users/MemberDetailPage';
 import AboutPage from '../../features/about/AboutPage';
 import ContactPage from '../../features/contact/ContactPage';
 import BlogPage from '../../features/blog/BlogPage';
@@ -21,6 +22,7 @@ export default function AppRoutes() {
         <Route path="/proyectos/:id" element={<ProjectDetailPage />} />
         <Route path="/articulos" element={<ArticlesPage />} />
         <Route path="/usuarios" element={<UsersPage />} />
+        <Route path="/usuarios/:id" element={<MemberDetailPage />} />
         <Route path="/acerca-de" element={<AboutPage />} />
         <Route path="/contacto" element={<ContactPage />} />
         <Route path="/blog" element={<BlogPage />} />
