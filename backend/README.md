@@ -8,7 +8,9 @@ PHPMailer · Cloudinary (`cloudinary/cloudinary_php`) · phpdotenv · PHPUnit 11
 
 **Endpoints:** fase 1 (salud, login, sesión, recuperación de contraseña, Home), fase 2 (registro administrativo,
 integrantes, edición, desactivación/reactivación y foto de perfil) y fase 3 (proyectos en `/projects`, artículos y
-noticias en `/articles`, con revisión, publicación y archivos adjuntos). El detalle está en `../docs/api.md`.
+noticias en `/articles`, con revisión, publicación y archivos adjuntos) y fase 4 (reseñas en `/reviews` con
+moderación, inscripciones en `/inscriptions` con documentos privados y contacto en `/contact` con buzón para
+administradores). El detalle está en `../docs/api.md`.
 
 ## Requisitos
 
@@ -86,8 +88,11 @@ composer analyse   # phpstan nivel 6
   (`DocumentosFlowIntegrationTest`), con la app real: el ciclo crear → publicar → editar → borrar en `/projects` y
   `/articles`, la paginación completa por actor, que el listado público nunca muestre borradores ni ocultos, y que
   autor e integrantes de una página salgan de una sola consulta a `Usuarios` (lo comprueba con el monitoreo de
-  comandos del driver).
-- Las pruebas con **Cloudinary real** se saltan si falta alguna `CLOUDINARY_*`. Suben solo a `siiis_test/perfiles` y `siiis_test/documentos`, y vacían esas carpetas al terminar. Comprueban también las transformaciones al subir (DEC-B42) y la descarga de los PDF (la cuenta debe tener activada la entrega de PDF, DEC-B40).
+  comandos del driver). En la fase 4 (`InteraccionFlowIntegrationTest`), con la app real: reseñas de visitante e
+  integrante con moderación y el listado público recorrido entero sin ocultas; contacto guardado y buzón; e
+  inscripción por formulario con documentos privados en Cloudinary real, enlaces firmados que abren, URL guardada
+  que no abre, duplicado `409` y aceptación sin crear la cuenta.
+- Las pruebas con **Cloudinary real** se saltan si falta alguna `CLOUDINARY_*`. Suben solo a `siiis_test/perfiles`, `siiis_test/documentos` y `siiis_test/inscripciones` (privados), y vacían esas carpetas al terminar. Comprueban también las transformaciones al subir (DEC-B42) y la descarga de los PDF (la cuenta debe tener activada la entrega de PDF, DEC-B40).
 
 **Antivirus en Windows:** si `forgot-password` deja en el log `certificate verify failed`, un antivirus que inspecciona el correo (p. ej. Avast Web/Mail Shield) está interceptando el TLS del SMTP. Excluye el SMTP de Gmail del escaneo; no desactives la verificación en el código.
 
@@ -99,12 +104,12 @@ backend/
 ├── public/                # index.php (front controller) y .htaccess
 ├── src/
 │   ├── Config/            # Settings, Container (PHP-DI), Routes, Application
-│   ├── Controllers/       # Health, Auth, Home, Users, Documentos (delgados)
+│   ├── Controllers/       # Health, Auth, Home (+ contacto), Users, Documentos, Reviews, Inscriptions, MensajesContacto (delgados)
 │   ├── Database/          # Mongo (cliente único), Collections (nombres oficiales)
 │   ├── Middleware/        # Auth, OptionalAuth, Role, ErrorHandler, Cors, JsonBody
-│   ├── Repositories/      # consultas a Credenciales, Usuarios, Sesiones, Multimedia y Documentos; Cuentas (transacción)
+│   ├── Repositories/      # consultas a las 8 colecciones oficiales; Cuentas (transacción)
 │   ├── Security/          # PasswordHasher, JwtService, RateLimiter, Roles (jerarquía), SessionAuthenticator
-│   ├── Services/          # Auth, PasswordReset, Mail, UserAccount (alta), Users (consulta/edición/foto), Documentos, Cloudinary
+│   ├── Services/          # Auth, PasswordReset, Mail, UserAccount, Users, Documentos, Resenas, Contacto, Inscripciones, Cloudinary
 │   ├── Support/           # JsonResponse, Serializer, presentadores, ModuloDocumentos, CloudinaryUrl, Logger, Clock…
 │   └── Validation/        # validadores de entrada (antiinyección NoSQL) y FileValidator (MIME real)
 ├── scripts/               # CLI: índices, superadmin, seed
