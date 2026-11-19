@@ -58,6 +58,15 @@ final class InMemorySesionesRepository extends SesionesRepository
         }
     }
 
+    public function desactivarOtras(ObjectId $usuarioId, string $tokenHashActual): void
+    {
+        foreach ($this->db->sesiones as $id => $doc) {
+            if ((string) $doc['usuario_id'] === (string) $usuarioId && $doc['token'] !== $tokenHashActual) {
+                $this->db->sesiones[$id]['activa'] = false;
+            }
+        }
+    }
+
     public function desactivarTodas(ObjectId $usuarioId): void
     {
         foreach ($this->db->sesiones as $id => $doc) {

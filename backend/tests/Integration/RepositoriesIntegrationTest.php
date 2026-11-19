@@ -78,6 +78,8 @@ final class RepositoriesIntegrationTest extends IntegrationTestCase
         self::assertSame('IT', $usuario['nombre']);
         self::assertArrayNotHasKey('biografia', $usuario);
         self::assertSame((string) $usuarioId, (string) $usuarios->findById($usuarioId)['_id']);
+        self::assertSame($correo, $credenciales->findById($credId)['correo'] ?? null);
+        self::assertNull($credenciales->findById(new ObjectId()));
     }
 
     public function testUsuariosPaginarOrdenEnEspanolYProyeccion(): void
@@ -181,6 +183,36 @@ final class RepositoriesIntegrationTest extends IntegrationTestCase
             self::assertNull($repo->findActiva($hashB, $ahora));
         } finally {
             $this->mongo()->collection(Collections::SESIONES)->deleteMany(['usuario_id' => $usuarioId]);
+        }
+    }
+
+    public function testDesactivarOtrasSesionesMantieneLaActual(): void
+    {
+        $repo = new SesionesRepository($this->mongo());
+        $usuarioId = new ObjectId();
+        $otroUsuario = new ObjectId();
+        $ahora = new DateTimeImmutable();
+        $expira = $ahora->modify('+1 hour');
+        [$actual, $otraA, $otraB, $ajena] = array_map(
+            static fn (): string => hash('sha256', bin2hex(random_bytes(8))),
+            range(1, 4),
+        );
+
+        $repo->crear($usuarioId, $actual, $ahora, $expira, '127.0.0.1');
+        $repo->crear($usuarioId, $otraA, $ahora, $expira, '127.0.0.1');
+        $repo->crear($usuarioId, $otraB, $ahora, $expira, '127.0.0.1');
+        $repo->crear($otroUsuario, $ajena, $ahora, $expira, '127.0.0.1');
+        try {
+            $repo->desactivarOtras($usuarioId, $actual);
+
+            self::assertNotNull($repo->findActiva($actual, $ahora));
+            self::assertNull($repo->findActiva($otraA, $ahora));
+            self::assertNull($repo->findActiva($otraB, $ahora));
+            self::assertNotNull($repo->findActiva($ajena, $ahora), 'no toca sesiones de otros usuarios');
+        } finally {
+            $this->mongo()->collection(Collections::SESIONES)->deleteMany([
+                'usuario_id' => ['$in' => [$usuarioId, $otroUsuario]],
+            ]);
         }
     }
 

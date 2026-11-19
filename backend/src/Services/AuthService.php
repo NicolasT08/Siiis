@@ -67,15 +67,7 @@ class AuthService
             throw self::invalidCredentials();
         }
 
-        match ($credencial['estado_cuenta'] ?? null) {
-            'activa' => null,
-            'pendiente_verificacion' => throw new ApiException(
-                403,
-                'ACCOUNT_PENDING',
-                'La cuenta está pendiente de verificación.',
-            ),
-            default => throw new ApiException(403, 'ACCOUNT_BLOCKED', 'La cuenta está bloqueada.'),
-        };
+        self::exigirCuentaActiva($credencial);
 
         $usuario = $this->usuarios->findByCredencialId($credencialId);
         $usuarioId = $usuario['_id'] ?? null;
@@ -129,6 +121,57 @@ class AuthService
     public function logout(string $sessionTokenHash): void
     {
         $this->sesiones->desactivar($sessionTokenHash);
+    }
+
+    /**
+     * Cambio de contraseña con sesión iniciada (PROPUESTA DEC-B23). Una contraseña actual incorrecta responde
+     * `400` en `fields.password_actual` y no suma a `intentos_fallidos` (el usuario ya probó quién es con la
+     * sesión). Invalida un enlace de recuperación pendiente y cierra las demás sesiones; la actual sigue activa.
+     *
+     * @throws ApiException 401 UNAUTHORIZED, 403 ACCOUNT_PENDING/ACCOUNT_BLOCKED, 400 VALIDATION_ERROR
+     */
+    public function cambiarPassword(string $usuarioId, string $sessionTokenHash, string $actual, string $nueva): void
+    {
+        $id = ObjectIdValidator::toObjectId($usuarioId);
+        $usuario = $id === null ? null : $this->usuarios->findById($id);
+        $credencialId = $usuario['credencial_id'] ?? null;
+        if ($id === null || $usuario === null || ($usuario['estado'] ?? null) !== true) {
+            throw ApiException::unauthorized();
+        }
+
+        $credencial = $credencialId instanceof ObjectId ? $this->credenciales->findById($credencialId) : null;
+        $hash = $credencial['password'] ?? null;
+        if ($credencial === null || !is_string($hash) || !$credencialId instanceof ObjectId) {
+            $this->logger->error('Usuario sin credencial válida al cambiar la contraseña', ['usuario_id' => $usuarioId]);
+
+            throw ApiException::unauthorized();
+        }
+        self::exigirCuentaActiva($credencial);
+
+        if (!$this->hasher->verify($actual, $hash)) {
+            throw ApiException::validation(['password_actual' => 'La contraseña actual no es correcta.']);
+        }
+
+        $this->credenciales->cambiarPassword($credencialId, $this->hasher->hash($nueva));
+        $this->sesiones->desactivarOtras($id, $sessionTokenHash);
+    }
+
+    /**
+     * @param array<string, mixed> $credencial
+     *
+     * @throws ApiException 403 ACCOUNT_PENDING o ACCOUNT_BLOCKED
+     */
+    private static function exigirCuentaActiva(array $credencial): void
+    {
+        match ($credencial['estado_cuenta'] ?? null) {
+            'activa' => null,
+            'pendiente_verificacion' => throw new ApiException(
+                403,
+                'ACCOUNT_PENDING',
+                'La cuenta está pendiente de verificación.',
+            ),
+            default => throw new ApiException(403, 'ACCOUNT_BLOCKED', 'La cuenta está bloqueada.'),
+        };
     }
 
     /**

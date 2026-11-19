@@ -64,6 +64,17 @@ class SesionesRepository
         );
     }
 
+    /**
+     * Cierra todas las sesiones activas del usuario salvo la del token dado (cambio de contraseña, DEC-B23).
+     */
+    public function desactivarOtras(ObjectId $usuarioId, string $tokenHashActual): void
+    {
+        $this->collection()->updateMany(
+            ['usuario_id' => $usuarioId, 'activa' => true, 'token' => ['$ne' => $tokenHashActual]],
+            ['$set' => ['activa' => false]],
+        );
+    }
+
     private function collection(): Collection
     {
         return $this->mongo->collection(Collections::SESIONES);

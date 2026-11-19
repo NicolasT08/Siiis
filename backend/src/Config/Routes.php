@@ -43,6 +43,8 @@ final class Routes
                 $auth->post('/logout', [AuthController::class, 'logout'])->add(AuthMiddleware::class);
                 $auth->post('/forgot-password', [AuthController::class, 'forgotPassword']);
                 $auth->post('/reset-password', [AuthController::class, 'resetPassword']);
+                // PROPUESTA DEC-B23: cambio de contraseña con sesión iniciada.
+                $auth->post('/change-password', [AuthController::class, 'changePassword'])->add(AuthMiddleware::class);
             });
 
             $v1->group('/users', function (RouteCollectorProxy $users): void {

@@ -215,6 +215,22 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 - Contexto: no están en el contrato 11.3.
 - Propuesta para una fase futura: cambiar la contraseña estando autenticado, cambiar el correo (vive en `Credenciales`) y desbloquear cuentas `bloqueadas` (ligado a DEC-B06).
 - Impacto: ninguno en la fase 2.
+- **Cambio de contraseña: implementado en la fase 5, paso 2 (2026-11-19), sigue como `PROPUESTA`** hasta que lo
+  apruebe el equipo. Contrato en `docs/api.md` (6a). Reglas:
+  - `POST /auth/change-password`, protegido, con `password_actual` y `password_nueva` (sin recortar). La nueva
+    sigue `PasswordRules` (DEC-B11) y debe ser distinta de la actual.
+  - Contraseña actual incorrecta → `400 VALIDATION_ERROR` en `fields.password_actual`. **No** suma a
+    `intentos_fallidos` (`MAX_LOGIN_ATTEMPTS`) ni cierra la sesión: quien la usa ya tiene una sesión válida, y el
+    abuso lo frena el rate limiting.
+  - Rate limiting por IP propio (`RATE_LIMIT_CHANGE_PASSWORD_MAX`, 10, y `RATE_LIMIT_CHANGE_PASSWORD_WINDOW_SECONDS`,
+    900), aplicado después de autenticar y antes de validar: los intentos inválidos cuentan, las peticiones sin sesión no.
+  - Al cambiarla se cierran las demás sesiones del usuario (`SesionesRepository::desactivarOtras`) y se mantiene la
+    actual; además se anula un token de recuperación pendiente (`CredencialesRepository::cambiarPassword`, el mismo
+    que usa `reset-password`).
+  - Cuenta `bloqueada` o `pendiente_verificacion` con una sesión aún abierta → `403 ACCOUNT_BLOCKED` /
+    `ACCOUNT_PENDING`, como en el login (supuesto del backend: hoy ninguna ruta bloquea cuentas, DEC-B06).
+  - Sin correo de aviso al usuario: el spec no lo pide. Si el equipo lo quiere, se agrega con `MailService`.
+- Cambio de correo y desbloqueo de cuentas: siguen sin implementar.
 
 ## DEC-B24 — `crear_superadmin.php` reutiliza `UserAccountService`
 

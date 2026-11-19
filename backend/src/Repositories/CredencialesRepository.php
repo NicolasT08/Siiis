@@ -31,6 +31,15 @@ class CredencialesRepository
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function findById(ObjectId $id): ?array
+    {
+        /** @var array<string, mixed>|null */
+        return $this->collection()->findOne(['_id' => $id]);
+    }
+
+    /**
      * Datos de cuenta para la vista de administrador de varios usuarios en una sola consulta (evita N+1).
      *
      * @param list<ObjectId> $ids

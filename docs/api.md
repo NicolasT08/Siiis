@@ -1,4 +1,4 @@
-# Contrato API — SIIIS V3 · Fases 1 a 3
+# Contrato API — SIIIS V3 · Fases 1 a 5
 
 Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_SPEC_DRIVEN.md`, sección 11.
 
@@ -7,7 +7,7 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 | Tema | Regla |
 |---|---|
 | URL base | Producción: `https://siiis.com.co/api/v1` (o relativa `/api/v1`). Desarrollo: `http://localhost:8000/api/v1` |
-| Formato | JSON UTF-8. Las peticiones con cuerpo envían `Content-Type: application/json` |
+| Formato | JSON UTF-8. Las peticiones con cuerpo envían `Content-Type: application/json`, salvo las subidas de archivos (`multipart/form-data`, también en UTF-8) |
 | Autenticación | `Authorization: Bearer <token>` en rutas protegidas |
 | IDs | Strings hexadecimales de 24 caracteres, en el campo `id` (nunca `_id`) |
 | Fechas | ISO 8601 UTC, p. ej. `2026-09-23T15:00:00Z` |
@@ -46,6 +46,8 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 | `CLOUDINARY_UNAVAILABLE` | 502 | No se pudo guardar el archivo en Cloudinary |
 | `LAST_SUPERADMIN` | 409 | Se intentó quitar el rol o desactivar al último superadministrador activo |
 | `ATTACHMENT_LIMIT` | 409 | El documento ya tiene el máximo de archivos adjuntos (`DOCUMENTO_ADJUNTOS_MAX`, 10) |
+| `INSCRIPTION_PENDING` | 409 | Ya hay una solicitud de inscripción pendiente con ese correo (13a) |
+| `INSCRIPTION_CLOSED` | 409 | La solicitud de inscripción ya fue aceptada o rechazada (13d) |
 | `NOT_FOUND` | 404 | La ruta o el recurso no existe (p. ej. un usuario en `GET /users/{id}`) |
 | `METHOD_NOT_ALLOWED` | 405 | Método HTTP no soportado en la ruta |
 | `RATE_LIMITED` | 429 | Demasiados intentos; la cabecera `Retry-After` trae los segundos de espera |
@@ -66,7 +68,7 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 - No se puede desactivar ni bajar de rol al último superadministrador activo.
 - Si a un usuario le cambian el rol o lo desactivan, todas sus sesiones se cierran: su siguiente petición protegida responde `401 UNAUTHORIZED` y debe volver a iniciar sesión.
 
-**Rutas públicas con sesión opcional** (p. ej. `GET /users` y `GET /projects`): sin token, o con un token vencido o inválido, responden la vista pública (nunca `401`). Con un token válido incluyen datos adicionales (vista de administrador en `/users`; borradores propios o de revisión en `/projects` y `/articles`, ver secciones 9 y 10).
+**Rutas públicas con sesión opcional** (p. ej. `GET /users` y `GET /projects`): sin token, o con un token vencido o inválido, responden la vista pública (nunca `401`). Con un token válido incluyen datos adicionales (vista de administrador en `/users`; borradores propios o de revisión en `/projects` y `/articles`, ver secciones 9 y 10; reseñas ocultas para los moderadores en `GET /reviews`, sección 12). **Excepción:** `POST /reviews` con un token vencido o inválido responde `401`, para no publicar como anónima la reseña de alguien que creía tener sesión (12b).
 
 ---
 
@@ -191,6 +193,41 @@ Público. La pantalla de restablecimiento lee `token` de la query string y lo en
 Al restablecer, **se cierran todas las sesiones** del usuario.
 
 **Errores:** `400 VALIDATION_ERROR` (con `fields.token` y/o `fields.password`) y `400 INVALID_OR_EXPIRED_TOKEN`.
+
+---
+
+## 6a. `POST /auth/change-password`
+
+Protegido (cualquier rol). Cambia la contraseña del usuario autenticado. Rate limit por IP: `RATE_LIMIT_CHANGE_PASSWORD_MAX` cada `RATE_LIMIT_CHANGE_PASSWORD_WINDOW_SECONDS` (por defecto 10 cada 15 min); los intentos inválidos también cuentan, las peticiones sin sesión (`401`) no.
+
+> `PROPUESTA` (DEC-B23): esta ruta no está en el contrato original 11.3.
+
+**Request**
+```json
+{ "password_actual": "Clave-Segura-2026", "password_nueva": "Otra-Clave-2027" }
+```
+
+- Las contraseñas no se recortan: los espacios cuentan.
+- `password_nueva`: misma política que en el registro (DEC-B11) y distinta de `password_actual`.
+
+**200**
+```json
+{ "mensaje": "Tu contraseña fue actualizada. Se cerraron tus sesiones en otros dispositivos." }
+```
+
+- **La sesión actual sigue activa** (el token enviado sigue sirviendo); las demás sesiones del usuario se cierran y su siguiente petición protegida responde `401`.
+- Si había un enlace de recuperación pendiente (`forgot-password`), deja de servir.
+
+**Errores**
+
+| Caso | Respuesta |
+|---|---|
+| Falta un campo, no es texto o la nueva no cumple la política | `400 VALIDATION_ERROR` con `fields.password_actual` y/o `fields.password_nueva` |
+| Nueva igual a la actual | `400 VALIDATION_ERROR`, `fields.password_nueva` = `"La nueva contraseña debe ser distinta de la actual."` |
+| Contraseña actual incorrecta | `400 VALIDATION_ERROR`, `fields.password_actual` = `"La contraseña actual no es correcta."` (no suma intentos fallidos de login ni cierra la sesión) |
+| Sin token, sesión cerrada o vencida, usuario desactivado | `401 UNAUTHORIZED` |
+| Cuenta bloqueada o pendiente con una sesión aún abierta | `403 ACCOUNT_BLOCKED` / `403 ACCOUNT_PENDING` |
+| Demasiados intentos | `429 RATE_LIMITED` con `Retry-After` |
 
 ---
 
@@ -697,17 +734,248 @@ Al borrar un documento (9e) se borran también todos sus adjuntos.
 
 ---
 
-## Pendiente de confirmar con frontend (fase 3)
+## 12. Reseñas (`/reviews`)
 
-El contrato de las secciones 9 a 11 está completo y probado de punta a punta contra la base de pruebas. Sigue siendo `PROPUESTA` (DEC-B30 a DEC-B42) hasta que lo apruebe el equipo. Puntos que conviene revisar con frontend:
+Fase 4 (RF-10). Una reseña es una **opinión sobre el semillero en general**: no se asocia a un proyecto ni a un artículo. Contrato provisional: `PROPUESTA` DEC-B43 a DEC-B45.
 
-- `contenido` en Markdown, sin HTML (DEC-B37).
-- Usar `permisos` del detalle para mostrar u ocultar los botones; el listado no lo trae.
+**Moderadores:** `superadministrador`, `administrador` y `docente_director` (los mismos revisores del contenido).
+
+### Objeto `resena`
+
+```json
+{
+  "id": "6aee0b1c9439beea66026578",
+  "usuario_id": "6adcffcf84e888428a0cbc83",
+  "nombre_visible": "Luis Gómez",
+  "comentario": "Aprendí mucho en el semillero.",
+  "calificacion": 5,
+  "estado": "visible",
+  "fecha": "2026-11-06T15:00:00Z"
+}
+```
+
+- `usuario_id` es `null` si la escribió un visitante sin sesión.
+- `calificacion` es un entero de 1 a 5, o `null`.
+- `estado`: `visible` u `oculta`.
+
+### 12a. `GET /reviews`
+
+Público con sesión opcional. Listado paginado, de la más reciente a la más antigua.
+
+| Quién consulta | Ve |
+|---|---|
+| Sin token, o cualquier rol que no modera | solo las `visible` |
+| Moderadores | todas; pueden filtrar con `estado` |
+
+**Query string** (todos opcionales)
+
+| Parámetro | Regla |
+|---|---|
+| `page` | entero de 1 a 10000; por defecto 1 |
+| `per_page` | entero de 1 a `RESENAS_PER_PAGE_MAX` (50); por defecto `RESENAS_PER_PAGE_DEFAULT` (10) |
+| `estado` | `visible` u `oculta`. **Solo moderadores**; para los demás se ignora |
+
+**200**
+```json
+{
+  "data": [ { "id": "...", "nombre_visible": "Luis Gómez", "...": "..." } ],
+  "meta": { "page": 1, "per_page": 10, "total": 23, "total_pages": 3 },
+  "resumen": { "promedio": 4.3, "calificaciones": 18 }
+}
+```
+
+- `resumen` se calcula solo con las reseñas **visibles** que tienen calificación (aunque el moderador filtre por `oculta`). `promedio` lleva un decimal, o es `null` si no hay ninguna calificación.
+- Cabeceras: sin sesión, `Cache-Control: public, max-age=60`; con sesión, `no-store`. Siempre `Vary: Authorization`.
+
+**Errores:** `400 VALIDATION_ERROR` con `fields` por parámetro (como en 6c).
+
+### 12b. `POST /reviews`
+
+Público, con sesión opcional. Rate limiting por IP: `RATE_LIMIT_REVIEWS_MAX` (10) por hora (DEC-B48).
+
+| Campo | Regla |
+|---|---|
+| `nombre_visible` | **Solo sin sesión**: obligatorio, hasta 80 caracteres (los saltos de línea se cambian por espacios). Con sesión se ignora: se usa `nombre` + `apellido` del perfil |
+| `comentario` | Obligatorio, hasta 1000 caracteres |
+| `calificacion` | Opcional: entero JSON de 1 a 5 (`"5"` como texto es error) |
+
+Cualquier otro campo (`usuario_id`, `estado`, `fecha`…) se ignora.
+
+| Quién envía | Resultado |
+|---|---|
+| Con sesión válida | `estado: "visible"`, con su `usuario_id` y su nombre |
+| Sin sesión | `estado: "oculta"` hasta que un moderador la apruebe. Conviene avisar: "Tu reseña se publicará cuando la revisemos" |
+| Con un token vencido o inválido | `401 UNAUTHORIZED` (no se publica como anónima): pide iniciar sesión otra vez o envía sin `Authorization` |
+
+**201** `{"resena": {...}}`. Cabecera `Cache-Control: no-store`.
+
+**Errores:** `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `429 RATE_LIMITED` (un envío inválido también cuenta para el límite).
+
+### 12c. `PATCH /reviews/{id}` y `DELETE /reviews/{id}`
+
+Solo moderadores.
+
+- `PATCH` con `{"estado": "visible" | "oculta"}` → **200** `{"resena": {...}}`. Es lo normal para moderar (aprobar u ocultar).
+- `DELETE` → **204**, borrado definitivo (para spam o contenido ofensivo).
+
+**Errores:** `400 VALIDATION_ERROR` (`fields.estado`), `401 UNAUTHORIZED`, `403 FORBIDDEN`, `404 NOT_FOUND`.
+
+---
+
+## 13. Inscripciones (`/inscriptions`)
+
+Fase 4 (RF-12, RF-13). Solicitud de un aspirante para entrar al semillero. Contrato provisional: `PROPUESTA` DEC-B47 a DEC-B52.
+
+**Quién revisa:** `superadministrador` y `administrador`. Aceptar una solicitud **no crea la cuenta**: después el administrador la crea con `POST /auth/register` (6b), usando los datos de la solicitud.
+
+### 13a. `POST /inscriptions`
+
+Público, sin token. `multipart/form-data` (no JSON), con los datos y los archivos en el campo `documentos[]`. Rate limiting por IP: `RATE_LIMIT_INSCRIPTIONS_MAX` (20) por hora. No fijes la cabecera `Content-Type` a mano.
+
+```ts
+const form = new FormData();
+form.append('nombre_completo', nombre);
+form.append('correo', correo);
+form.append('telefono', telefono);              // opcional
+form.append('programa_academico', programa);
+form.append('semestre', String(semestre));
+form.append('carta_motivacion', carta);
+form.append('acepta_tratamiento_datos', 'true'); // casilla obligatoria
+for (const archivo of archivos) form.append('documentos[]', archivo);
+await fetch('/api/v1/inscriptions', { method: 'POST', body: form });
+```
+
+| Campo | Regla |
+|---|---|
+| `nombre_completo` | Obligatorio, hasta 120 caracteres |
+| `correo` | Obligatorio. Debe ser del dominio `INSCRIPCION_DOMINIOS_CORREO` (por defecto `@uptc.edu.co`). Se guarda en minúsculas |
+| `telefono` | Opcional; mismas reglas que el perfil (7 a 20 dígitos, admite `+`, espacios y guiones) |
+| `programa_academico` | Obligatorio, hasta 120 caracteres |
+| `semestre` | Obligatorio, entero de 1 a 10 |
+| `carta_motivacion` | Obligatoria, de 100 a 3000 caracteres |
+| `acepta_tratamiento_datos` | Obligatorio, `true` (autorización de tratamiento de datos, Ley 1581 de 2012). No se guarda |
+| `documentos[]` | De 1 a `INSCRIPCION_DOCUMENTOS_MAX` (3) archivos: PDF de hasta 3 MB, o JPEG/PNG/WebP de hasta 5 MB (se reducen a 1600 px de ancho), igual que los adjuntos (11a). Un solo archivo también puede ir en `documentos` |
+
+- Los documentos se guardan **privados** en Cloudinary: nadie puede abrirlos sin un enlace firmado (13c).
+- Se envían dos correos: confirmación al aspirante y aviso al semillero. Si el correo falla, la solicitud igual queda guardada (`201`).
+
+**201**
+```json
+{
+  "inscripcion": {
+    "id": "6aedd218d4bb38db2a0ca934",
+    "nombre_completo": "Laura Martínez",
+    "correo": "laura@uptc.edu.co",
+    "telefono": "+573105551234",
+    "programa_academico": "Ingeniería de Sistemas",
+    "semestre": 4,
+    "estado_solicitud": "pendiente",
+    "fecha_solicitud": "2026-11-06T13:11:54Z",
+    "documentos_adjuntos": [ { "nombre_archivo": "carta.pdf" } ]
+  },
+  "mensaje": "Recibimos tu solicitud. Te escribiremos al correo que indicaste con la respuesta."
+}
+```
+
+**Errores:**
+- `400 VALIDATION_ERROR` con `fields` (datos o `documentos`: faltan, son más de 3, uno está vacío). Primero se validan los datos y después los archivos.
+- `409 INSCRIPTION_PENDING`: ese correo ya tiene una solicitud pendiente. Si la anterior fue rechazada o aceptada, se puede enviar otra.
+- `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE` (un archivo inválido rechaza toda la solicitud).
+- `429 RATE_LIMITED`; `502 CLOUDINARY_UNAVAILABLE` (no se guardó nada).
+
+### 13b. `GET /inscriptions`
+
+Solo `superadministrador` y `administrador`. Listado paginado, de la más reciente a la más antigua, **sin** la carta ni los documentos.
+
+| Parámetro | Regla |
+|---|---|
+| `page` | entero de 1 a 10000; por defecto 1 |
+| `per_page` | entero de 1 a `INSCRIPCIONES_PER_PAGE_MAX` (50); por defecto 20 |
+| `estado_solicitud` | `pendiente`, `aceptada` o `rechazada` |
+
+**200** `{"data": [{"id", "nombre_completo", "correo", "telefono", "programa_academico", "semestre", "estado_solicitud", "fecha_solicitud"}], "meta": {...}}`. Cabecera `Cache-Control: no-store`.
+
+**Errores:** `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `403 FORBIDDEN`.
+
+### 13c. `GET /inscriptions/{id}`
+
+Solo `superadministrador` y `administrador`. El listado (13b) más `carta_motivacion` y los documentos con **enlaces firmados que vencen** (`INSCRIPCION_ENLACE_TTL_SECONDS`, 1 hora, DEC-B50):
+
+```json
+"documentos_adjuntos": [
+  {
+    "nombre_archivo": "carta.pdf",
+    "formato": "pdf",
+    "url": "https://api.cloudinary.com/v1_1/<cloud>/image/download?...&expires_at=1793976747&signature=...",
+    "expira": "2026-11-06T14:12:27Z"
+  }
+]
+```
+
+- La `url` descarga el archivo. Pasada la hora responde `401`: vuelve a pedir el detalle para tener enlaces nuevos. No la guardes ni la compartas.
+- **200** `{"inscripcion": {...}}`. Cabecera `Cache-Control: no-store`.
+
+**Errores:** `401 UNAUTHORIZED`, `403 FORBIDDEN`, `404 NOT_FOUND`, `502 CLOUDINARY_UNAVAILABLE`.
+
+### 13d. `PATCH /inscriptions/{id}`
+
+Solo `superadministrador` y `administrador`. `{"estado_solicitud": "aceptada" | "rechazada"}`.
+
+- Solo se resuelve una solicitud `pendiente`, una sola vez y sin vuelta atrás. Si dos administradores la resuelven a la vez, gana el primero.
+- Se le avisa al aspirante por correo. Aceptar **no** crea la cuenta (ver arriba).
+- **200** `{"inscripcion": {...}}`: el detalle (13c).
+
+**Errores:** `400 VALIDATION_ERROR` (`fields.estado_solicitud`; `pendiente` no es un valor admitido), `401`, `403`, `404`, `409 INSCRIPTION_CLOSED` (ya estaba resuelta).
+
+---
+
+## 14. Contacto (`/contact`)
+
+Fase 4 (RF-03). Contrato provisional: `PROPUESTA` DEC-B46 a DEC-B48.
+
+### 14a. `POST /contact`
+
+Público, sin token. Rate limiting por IP: `RATE_LIMIT_CONTACT_MAX` (20) por hora.
+
+| Campo | Regla |
+|---|---|
+| `nombre` | Obligatorio, hasta 80 caracteres (una sola línea) |
+| `correo` | Obligatorio, formato válido (cualquier dominio) |
+| `asunto` | Obligatorio, hasta 150 caracteres (una sola línea) |
+| `mensaje` | Obligatorio, hasta 3000 caracteres |
+
+- El mensaje se guarda (`Mensajes_Contacto`, `no_leido`) y se reenvía al buzón del semillero (`CONTACTO_CORREO_DESTINO`) con "Responder a" hacia el remitente. **No** se envía una respuesta automática al remitente.
+- Si el correo falla, el mensaje igual queda guardado (`201`).
+
+**201** `{"mensaje": "Recibimos tu mensaje. El equipo del semillero te responderá al correo que indicaste."}`
+
+**Errores:** `400 VALIDATION_ERROR`, `429 RATE_LIMITED`.
+
+### 14b. `GET /contact/messages` y `PATCH /contact/messages/{id}`
+
+Buzón para `superadministrador` y `administrador` (DEC-B46).
+
+- `GET` con `page`, `per_page` (1 a `MENSAJES_PER_PAGE_MAX`, 50; por defecto 20) y `estado` (`leido` o `no_leido`). De más reciente a más antiguo. **200** `{"data": [{"id", "nombre", "correo", "asunto", "mensaje", "estado", "fecha"}], "meta": {...}}`.
+- `PATCH` con `{"estado": "leido" | "no_leido"}` → **200** `{"mensaje_contacto": {...}}`.
+
+**Errores:** `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `403 FORBIDDEN`, `404 NOT_FOUND`.
+
+---
+
+## Pendiente de confirmar con frontend
+
+El contrato de las secciones 9 a 14 está completo y probado de punta a punta contra la base de pruebas (las inscripciones, también con Cloudinary real). Sigue siendo `PROPUESTA` (DEC-B30 a DEC-B52) hasta que lo apruebe el equipo. Puntos que conviene revisar con frontend:
+
+- `contenido` de proyectos y artículos en Markdown, sin HTML (DEC-B37).
+- Usar `permisos` del detalle de un documento para mostrar u ocultar los botones; el listado no lo trae.
 - Foto de perfil recortada a 400 × 400 en el servidor: si se quiere que el usuario elija el encuadre, recortar en el navegador antes de subir (DEC-B42).
-- Límites de los adjuntos: imágenes de 5 MB y PDF de 3 MB; conviene validarlos también en el navegador para avisar antes de subir.
+- Límites de archivos (adjuntos e inscripción): imágenes de 5 MB y PDF de 3 MB; conviene validarlos también en el navegador para avisar antes de subir.
+- Reseñas: avisar al visitante que su reseña se publicará tras revisión; mostrar `resumen.promedio` (12a).
+- Inscripción: casilla de autorización de datos obligatoria con el texto legal que defina el semillero; aviso de correo `@uptc.edu.co`; manejar `409 INSCRIPTION_PENDING` (13a).
+- Panel de inscripciones: los enlaces de los documentos vencen en 1 hora (13c); para crear la cuenta de un aceptado se usa `POST /auth/register`.
 
-## Fuera de esta fase
+## Fuera del backend actual
 
-- `POST /auth/google` (login con Google, RF-17): no está registrada; responde `404`. Sigue fuera en las fases 2 y 3.
-- Hero, bloques S-I-I-I-S, llamada a la acción y footer de la página de inicio: por ahora son contenido estático del frontend (DEC-B12). El botón "Inscríbete" solo navega a la página de inscripción.
-- Reseñas, inscripciones y contacto: fases siguientes.
+- `POST /auth/google` (login con Google, RF-17): no está registrada; responde `404`.
+- Hero, bloques S-I-I-I-S, llamada a la acción y footer de la página de inicio: contenido estático del frontend (DEC-B12). El botón "Inscríbete" solo navega a la página de inscripción.
+- Borrar solicitudes de inscripción o mensajes de contacto: no hay rutas (el spec no las define; DEC-B52).

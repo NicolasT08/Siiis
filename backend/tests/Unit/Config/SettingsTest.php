@@ -22,6 +22,8 @@ final class SettingsTest extends TestCase
         self::assertSame('siiis', $settings->mongoDbName);
         self::assertSame(28800, $settings->jwtTtlSeconds);
         self::assertSame(20, $settings->homeMaxItems);
+        self::assertSame(10, $settings->rateLimitChangePasswordMax);
+        self::assertSame(900, $settings->rateLimitChangePasswordWindowSeconds);
         self::assertSame(20, $settings->usersPerPageDefault);
         self::assertSame(50, $settings->usersPerPageMax);
         self::assertSame(2097152, $settings->perfilFotoMaxBytes);

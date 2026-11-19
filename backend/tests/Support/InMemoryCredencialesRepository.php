@@ -30,6 +30,11 @@ final class InMemoryCredencialesRepository extends CredencialesRepository
         return null;
     }
 
+    public function findById(ObjectId $id): ?array
+    {
+        return $this->db->credenciales[(string) $id] ?? null;
+    }
+
     /** Veces que se pidió un lote de cuentas (para comprobar que no hay N+1). */
     public int $consultasCuentas = 0;
 

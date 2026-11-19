@@ -14,6 +14,7 @@ use Siiis\Services\PasswordResetService;
 use Siiis\Services\UserAccountService;
 use Siiis\Support\ClientIp;
 use Siiis\Support\JsonResponse;
+use Siiis\Validation\ChangePasswordValidator;
 use Siiis\Validation\ForgotPasswordValidator;
 use Siiis\Validation\LoginValidator;
 use Siiis\Validation\RegisterValidator;
@@ -34,7 +35,34 @@ final class AuthController
         private readonly ResetPasswordValidator $resetValidator,
         private readonly RegisterValidator $registerValidator,
         private readonly UserAccountService $accounts,
+        private readonly ChangePasswordValidator $changeValidator,
     ) {
+    }
+
+    /**
+     * POST /api/v1/auth/change-password — protegido (PROPUESTA DEC-B23). Rate limit por IP antes de validar.
+     */
+    public function changePassword(ServerRequestInterface $request): ResponseInterface
+    {
+        $s = $this->settings;
+        $this->rateLimiter->limitar(
+            'change-password',
+            ClientIp::from($request),
+            $s->rateLimitChangePasswordMax,
+            $s->rateLimitChangePasswordWindowSeconds,
+        );
+
+        $input = $this->changeValidator->validate($request->getParsedBody());
+        $this->auth->cambiarPassword(
+            (string) $request->getAttribute(AuthMiddleware::ATTR_USUARIO_ID),
+            (string) $request->getAttribute(AuthMiddleware::ATTR_SESSION_HASH),
+            $input['password_actual'],
+            $input['password_nueva'],
+        );
+
+        return JsonResponse::ok([
+            'mensaje' => 'Tu contraseña fue actualizada. Se cerraron tus sesiones en otros dispositivos.',
+        ])->withHeader('Cache-Control', 'no-store');
     }
 
     /**
