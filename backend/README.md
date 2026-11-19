@@ -67,6 +67,30 @@ php cron/limpiar_ratelimit.php        # borra contadores de rate limiting vencid
 
 `seed_multimedia.php` usa `scripts/data/multimedia_seed.json` si existe (no versionado, para tus URLs reales de Cloudinary). Si no, usa `scripts/data/multimedia_seed.example.json`, con imágenes del cloud público `demo`. También acepta `--file=ruta.json`.
 
+### Datos de demostración (`seed_demo.php`)
+
+```bash
+php scripts/seed_demo.php --test --password=<contraseña>   # siembra; al final imprime las cuentas
+php scripts/seed_demo.php --test --limpiar                 # borra todo lo sembrado (Atlas y Cloudinary)
+```
+
+- **Solo corre contra `siiis_test`**: con cualquier otra base termina con error sin escribir nada. Solo sube
+  archivos a la carpeta `siiis_test/demo` de Cloudinary y solo borra allí.
+- Siembra 8 integrantes (uno por rol, más 3 estudiantes y un egresado inactivo), 6 proyectos, 6 artículos y
+  noticias en distintos estados y visibilidad, 10 reseñas (3 ocultas), 5 mensajes de contacto, 3 inscripciones
+  pendientes con PDF privados, 3 imágenes en `slider_principal`, 3 en `galeria` y un video en `video_presentacion`.
+- `--password` es la misma para todas las cuentas y sigue la política de contraseñas (DEC-B11). Es idempotente: si
+  se vuelve a correr no duplica nada y les pone esa contraseña a las cuentas que ya existían.
+- Los correos son `demo.*@example.com` (dominio reservado): los correos que mande la API, por ejemplo al aceptar
+  una inscripción, nunca llegan a una persona real. `--limpiar` reconoce los datos por ese prefijo.
+- Las imágenes y los PDF los genera el script en PHP puro (`scripts/demo/DemoArchivos.php`, sin GD), así que no hay
+  archivos de terceros ni licencias. El video se copia en Cloudinary desde el cloud público `demo` (`dog.mp4`).
+  Los datos están en `scripts/demo/datos.php`.
+- No toca lo de `seed_multimedia.php` ni otras cuentas de `siiis_test`.
+- Para servir la API contra `siiis_test` sin editar el `.env`:
+  `MONGO_DB_NAME=siiis_test php -d variables_order=EGPCS -S localhost:8000 -t public` (Git Bash). Sin
+  `variables_order=EGPCS`, PHP no pasa las variables de entorno del proceso a `$_ENV` y se usa la del `.env`.
+
 ## Servir en local
 
 ```bash
