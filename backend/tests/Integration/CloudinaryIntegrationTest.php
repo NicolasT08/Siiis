@@ -12,6 +12,7 @@ use Siiis\Database\Collections;
 use Siiis\Repositories\CredencialesRepository;
 use Siiis\Repositories\SesionesRepository;
 use Siiis\Repositories\UsuariosRepository;
+use Siiis\Services\ArchivoRechazadoException;
 use Siiis\Services\CloudinaryService;
 use Siiis\Services\UsersService;
 use Siiis\Support\CloudinaryUrl;
@@ -79,6 +80,27 @@ final class CloudinaryIntegrationTest extends IntegrationTestCase
         self::assertFalse($this->existe($foto['public_id']));
         // Borrar algo que ya no existe no es error.
         $service->delete($foto['public_id']);
+    }
+
+    /**
+     * El caso que motivó el 415: un archivo que parece PDF (empieza por %PDF, así que pasa finfo) pero está mal
+     * formado. Cloudinary responde 400 "Invalid PDF file"; el servicio lo distingue de una falla de Cloudinary.
+     */
+    public function testPdfDanadoSeRechazaComoArchivoInvalidoYNoComoFallaDelServicio(): void
+    {
+        $service = new CloudinaryService($this->settings());
+        $ruta = tempnam(sys_get_temp_dir(), 'siiis-pdf-');
+        self::assertIsString($ruta);
+        file_put_contents($ruta, "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
+
+        try {
+            $service->upload($ruta, self::FOLDER, CloudinaryService::FORMATOS_ADJUNTO);
+            self::fail('Cloudinary aceptó un PDF dañado.');
+        } catch (ArchivoRechazadoException $e) {
+            self::assertStringContainsString('Invalid', $e->getMessage());
+        } finally {
+            @unlink($ruta);
+        }
     }
 
     public function testCambiarFotoReemplazaYBorraLaAnterior(): void

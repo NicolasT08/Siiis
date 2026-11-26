@@ -156,7 +156,7 @@ class InscripcionesService
      *
      * @return list<array{url: string, public_id: string, nombre_archivo: string}>
      *
-     * @throws ApiException 502 CLOUDINARY_UNAVAILABLE
+     * @throws ApiException 415 UNSUPPORTED_MEDIA_TYPE (archivo rechazado) o 502 CLOUDINARY_UNAVAILABLE
      */
     private function subir(array $archivos, string $inscripcionId): array
     {
@@ -170,6 +170,22 @@ class InscripcionesService
                     $archivo['mime'] === FileValidator::MIME_PDF
                         ? []
                         : CloudinaryService::transformacionImagenAdjunta($this->settings),
+                );
+            } catch (ArchivoRechazadoException $e) {
+                // Un archivo inválido rechaza toda la solicitud (13a): se borra lo ya subido.
+                $this->logger->warning('Cloudinary rechazó un documento de inscripción', [
+                    'inscripcion_id' => $inscripcionId,
+                    'error' => $e->getMessage(),
+                ]);
+                $this->borrarDocumentos($documentos, $inscripcionId, 'compensación tras archivo rechazado');
+
+                throw new ApiException(
+                    415,
+                    'UNSUPPORTED_MEDIA_TYPE',
+                    sprintf(
+                        'El archivo "%s" está dañado o no es un PDF o una imagen válida. Revísalo y vuelve a enviar la solicitud.',
+                        $archivo['nombre'],
+                    ),
                 );
             } catch (CloudinaryException $e) {
                 $this->logger->error('No se pudo subir un documento de inscripción', [

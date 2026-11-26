@@ -257,6 +257,14 @@ class DocumentosService
                     ? []
                     : CloudinaryService::transformacionImagenAdjunta($this->settings),
             );
+        } catch (ArchivoRechazadoException $e) {
+            $this->logger->warning('Cloudinary rechazó un adjunto', ['documento_id' => $id, 'error' => $e->getMessage()]);
+
+            throw new ApiException(
+                415,
+                'UNSUPPORTED_MEDIA_TYPE',
+                'El archivo está dañado o no es un PDF o una imagen válida. Comprueba que se abra en tu equipo o vuelve a exportarlo.',
+            );
         } catch (CloudinaryException $e) {
             $this->logger->error('No se pudo subir un adjunto', ['documento_id' => $id, 'error' => $e->getMessage()]);
 

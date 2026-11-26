@@ -7,8 +7,9 @@ namespace Siiis\Services;
 use RuntimeException;
 
 /**
- * Fallo de Cloudinary (configuración, red o API). El mensaje no incluye credenciales.
+ * Fallo de Cloudinary (configuración, red o API). El mensaje no incluye credenciales. Si Cloudinary rechaza el
+ * archivo por inválido o dañado, se lanza la subclase ArchivoRechazadoException (415, no 502).
  */
-final class CloudinaryException extends RuntimeException
+class CloudinaryException extends RuntimeException
 {
 }

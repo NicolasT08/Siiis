@@ -17,10 +17,14 @@ de este documento: el backend va a Render y el frontend sigue en Hostinger.
 - [ ] **A1. El código está al día y verificado.** En `backend/`: `composer test`, `composer lint`,
   `composer analyse` sin errores. Haz el commit (y el push, si el plan B usa Render con GitHub).
   - Si falla: no despliegues una versión que no pasa; corrige primero.
-- [ ] **A2. Paquete.** Desde la raíz: `powershell -ExecutionPolicy Bypass -File backend\scripts\empaquetar.ps1 -Zip`.
-  - Verifica: termina con `Listo:` y existen `deploy\siiis-api.zip` y `deploy\public_html.zip`.
-  - Si falla: el script dice el motivo (falta `php`/`composer`, `vendor` local desactualizado → `composer install`
-    en `backend/` y repetir).
+- [ ] **A2. Frontend y paquete.** Primero el build del frontend, **en PowerShell** (no en Git Bash):
+  `cd frontend; npm run build` (usa `/api/v1` por defecto). Luego, desde la raíz:
+  `powershell -ExecutionPolicy Bypass -File backend\scripts\empaquetar.ps1 -Zip`.
+  - Verifica: termina con `Listo:` y existen `deploy\siiis-api.zip` y `deploy\public_html.zip`; este último trae
+    el frontend (`index.html`, `assets/`, `.htaccess`) **y** `api/`.
+  - Si falla: el script dice el motivo: falta `php`/`composer`; `vendor` local desactualizado → `composer install`
+    en `backend/` y repetir; `frontend\dist` no existe o es un build de desarrollo (apunta a `localhost:8000` o se
+    compiló con `VITE_API_URL=/api/v1` desde Git Bash) → vuelve a compilar con `npm run build` en PowerShell.
 - [ ] **A3. Secretos a mano** (en un gestor de contraseñas o una nota local, **nunca** en el repo ni en el chat):
   - `JWT_SECRET` nuevo: `php -r "echo bin2hex(random_bytes(32));"` (64 caracteres).
   - `MONGO_URI` de producción: en Atlas, *Database Access* → usuario de la aplicación con contraseña fuerte
@@ -33,9 +37,15 @@ de este documento: el backend va a Render y el frontend sigue en Hostinger.
   - Si falla: revisa usuario/contraseña (caracteres especiales en la URI van codificados, p. ej. `@` → `%40`).
 - [ ] **A5. Cloudinary.** En la cuenta de desarrollo ya está activado *Settings → Security → Allow delivery of PDF
   and ZIP files*. Compruébalo en 10 segundos.
-- [ ] **A6. Frontend.** Quien lo mantiene compila con `VITE_API_URL=/api/v1` (`npm run build`) y trae `dist/`.
-  Ojo: según `docs/auditoria-frontend.md`, varias pantallas llaman a rutas que no existen; avisar al profesor de
-  que eso es del frontend y no del despliegue.
+- [ ] **A6. Fotos y videos del inicio.** Arma una carpeta local, p. ej. `C:\siiis-inicio\`, con:
+  - `slider\`: fotos JPG, PNG o WebP (máx. 10 MB c/u), con prefijo de orden: `01-Inauguracion.jpg`, `02-Laboratorio.jpg`…
+  - `videos\`: videos MP4, WebM o MOV (máx. 100 MB c/u): `01-Presentacion.mp4`…
+  - `descripciones.json` (opcional, es el texto alternativo): `{"01-Inauguracion.jpg": "Inauguración del semillero 2024"}`.
+    Sin él, la descripción sale del nombre del archivo.
+
+  Compruébala sin escribir nada: en `backend/`, `php scripts/cargar_multimedia.php --carpeta=C:\siiis-inicio --simular`
+  (con el `.env` local de pruebas basta). Debe listar cada archivo con `SUBIR` y ningún `!`.
+  - Si sale `!`: el mensaje dice qué archivo y por qué (formato, tamaño o nombre repetido). Corrígelo y repite.
 
 ## B. hPanel: PHP
 
@@ -79,8 +89,8 @@ de este documento: el backend va a Render y el frontend sigue en Hostinger.
   - Verifica: después de E1 aparece `storage/logs/` con contenido solo si hubo errores; en E3 debe aparecer algo en
     `storage/ratelimit/`.
   - Si no se escribe: prueba `775`.
-- [ ] **C4. `public_html/api` y `.htaccess`.** En `public_html/` sube `public_html.zip` y extráelo **ahí**
-  (crea `public_html/.htaccess` y `public_html/api/` con `index.php` y `.htaccess`). Borra el zip. Si había un
+- [ ] **C4. Frontend, `public_html/api` y `.htaccess`.** En `public_html/` sube `public_html.zip` y extráelo **ahí**
+  (crea `index.html`, `assets/`, `.htaccess` y `api/` con `index.php` y su `.htaccess`). Borra el zip. Si había un
   `default.php` o `index.php` de bienvenida de Hostinger, bórralo.
   - Verifica: `public_html/api/index.php` tiene la línea
     `const BOOTSTRAP_PATH = __DIR__ . '/../../siiis-api/bootstrap.php';`.
@@ -99,7 +109,19 @@ de este documento: el backend va a Render y el frontend sigue en Hostinger.
   contraseña no se ve al escribirla).
   - Verifica: termina sin error y en Atlas hay un documento en `Usuarios` con rol `superadministrador`.
   - Si dice que el correo ya existe: ya estaba creado; usa ese.
-  - Al terminar, **vuelve a dejar el `.env` local** como estaba (base de pruebas), si lo cambiaste.
+  - Al terminar, **vuelve a dejar el `.env` local** como estaba (base de pruebas), si lo cambiaste (después de D4).
+- [ ] **D4. Fotos y videos del inicio (para que la página no arranque vacía).** Después de D2/D3 y antes de E, con
+  el mismo `.env` de producción (local o por SSH; en el servidor, sube antes la carpeta de A6):
+  `php scripts/cargar_multimedia.php --carpeta=C:\siiis-inicio` (sin `--test`: base real `siiis`, carpeta
+  `siiis/home` de Cloudinary). Muestra el plan y pide escribir `si` antes de subir o escribir.
+  - Verifica: termina con `Listo: N subidos, 0 actualizados, 0 con error.` y en Atlas, colección `Multimedia`,
+    hay un documento por archivo (`slider_principal` / `video_presentacion`). En E1 se puede comprobar también
+    `curl https://siiis.com.co/api/v1/home/slider`.
+  - Correrlo dos veces **no duplica**: lo ya cargado sale como `sin cambios`. Para cambiar el orden, renombra el
+    prefijo (`02-` → `05-`) y vuelve a correrlo: solo actualiza `orden` y `descripcion`, sin volver a subir.
+  - Si un archivo falla (`x …`): los demás quedan cargados; corrige ese archivo y repite (no duplica).
+  - Si no hay tiempo: el sitio funciona igual; el carrusel muestra las fotos de respaldo del frontend y la sección de
+    videos no aparece hasta que haya alguno.
 
 ## E. Verificar la API en producción
 
@@ -157,8 +179,10 @@ de este documento: el backend va a Render y el frontend sigue en Hostinger.
   `/usr/bin/php /home/<usuario>/domains/siiis.com.co/siiis-api/cron/limpiar_ratelimit.php` (la ruta de PHP la
   muestra hPanel).
   - Verifica: en el historial del cron, la salida dice cuántos contadores borró.
-- [ ] **F2. Frontend.** Sube el **contenido** de `dist/` a `public_html/` **sin borrar** `api/` ni `.htaccess`.
-  - Verifica: `https://siiis.com.co` carga, el carrusel muestra imágenes y una ruta interna recargada
+- [ ] **F2. Frontend.** Ya quedó subido en C4 (viene en `public_html.zip`). Si hay que actualizarlo, repite A2 y
+  sube de nuevo el zip: trae `api/` igual, así que no se pierde.
+  - Verifica: `https://siiis.com.co` carga, el carrusel muestra las fotos de D4, aparece la sección de videos, inicias
+    sesión con el superadmin y ves "Administración". Una ruta interna recargada
     (`https://siiis.com.co/proyectos`) no da `404` (la sirve `index.html`). `https://siiis.com.co/api/v1/health`
     sigue respondiendo.
   - Si al recargar una ruta interna da `404`: falta el `public_html/.htaccess` del paquete.
@@ -185,8 +209,8 @@ sesión (unos 20–30 minutos):
 3. Espera el build (5–10 min la primera vez). Verifica E1–E4 contra `https://<servicio>.onrender.com/api/v1/...`.
    - Si el build falla en `pecl install mongodb-1.21.9`: en *Settings → Build*, agrega el argumento
      `MONGODB_EXT_VERSION` con otra versión 1.21.x.
-4. D2 y D3 desde el portátil (Render no tiene consola en el plan Free).
-5. Frontend: recompilar con `VITE_API_URL=https://<servicio>.onrender.com/api/v1` y subir a `public_html/` (sin
-   `public_html/api/`).
+4. D2, D3 y D4 desde el portátil (Render no tiene consola en el plan Free).
+5. Frontend: en PowerShell, `cd frontend; $env:VITE_API_URL='https://<servicio>.onrender.com/api/v1'; npm run build`
+   y sube el **contenido** de `frontend\dist\` a `public_html/` (sin `api/`; el `.htaccess` sí).
 6. Avisar al profesor de las limitaciones: el plan Free se duerme sin uso (la primera petición tarda ~1 min) y puede
    no dejar salir correo por SMTP (en ese caso, plan Starter).

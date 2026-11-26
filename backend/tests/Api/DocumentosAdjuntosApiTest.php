@@ -270,6 +270,20 @@ final class DocumentosAdjuntosApiTest extends DocumentosTestCase
         self::assertSame([], $this->db->documentos[(string) $id]['archivos_adjuntos']);
     }
 
+    public function testArchivoRechazadoPorCloudinaryResponde415(): void
+    {
+        [$token, $yo] = $this->sesionComo($this->app, 'estudiante');
+        $id = $this->documento(['autor_id' => $yo]);
+        $this->cloudinary->rechazarEnSubida = 1;
+
+        $response = $this->subir('projects', $id, TestImages::subida(TestImages::pdf()), $token);
+
+        $this->assertError($response, 415, 'UNSUPPORTED_MEDIA_TYPE');
+        self::assertStringContainsString('dañado', $this->json($response)['error']['message']);
+        self::assertStringNotContainsString('Invalid PDF', (string) $response->getBody());
+        self::assertSame([], $this->db->documentos[(string) $id]['archivos_adjuntos']);
+    }
+
     public function testFalloDeMongoBorraLoSubido(): void
     {
         [$token, $yo] = $this->sesionComo($this->app, 'estudiante');

@@ -300,6 +300,20 @@ final class InscriptionsApiTest extends AuthTestCase
         self::assertSame([], $this->mail->enviados);
     }
 
+    public function testDocumentoRechazadoPorCloudinaryResponde415YBorraLosAnteriores(): void
+    {
+        $this->cloudinary->rechazarEnSubida = 2;
+
+        $response = $this->enviar(self::datos(), [TestImages::subida(TestImages::pdf()), TestImages::subida(TestImages::png())]);
+
+        $this->assertError($response, 415, 'UNSUPPORTED_MEDIA_TYPE');
+        self::assertStringContainsString('dañado', $this->json($response)['error']['message']);
+        self::assertCount(1, $this->cloudinary->subidas);
+        self::assertSame([$this->cloudinary->subidas[0]['public_id']], $this->cloudinary->borradosPrivados);
+        self::assertSame([], $this->db->inscripciones);
+        self::assertSame([], $this->mail->enviados);
+    }
+
     public function testFalloEnMongoBorraTodosLosDocumentos(): void
     {
         $this->inscripciones->fallarAlInsertar = true;

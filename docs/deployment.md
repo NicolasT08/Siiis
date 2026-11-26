@@ -77,14 +77,18 @@ powershell -ExecutionPolicy Bypass -File backend\scripts\empaquetar.ps1
 Genera `deploy/` (ignorada por Git) con esta misma estructura:
 
 - `deploy/siiis-api/`: `bootstrap.php`, `composer.json/.lock`, `src/`, `cron/`, los scripts de producción
-  (`cli.php`, `crear_indices.php`, `crear_superadmin.php`, `seed_multimedia.php`), `vendor/` **sin** paquetes de
+  (`cli.php`, `crear_indices.php`, `crear_superadmin.php`, `seed_multimedia.php`, `cargar_multimedia.php` con `multimedia/`), `vendor/` **sin** paquetes de
   desarrollo (`composer install --no-dev --optimize-autoloader`), `storage/{logs,ratelimit,cache}` vacías, un
   `.htaccess` que lo deniega todo (por si la carpeta quedara por error dentro de `public_html`) y
   `.env.produccion.ejemplo` (generado desde `.env.example`, con `APP_ENV=production`, `APP_DEBUG=false`, las URL
   de `https://<dominio>` y todos los secretos vacíos). **No** incluye `.env`, `tests/`, `seed_demo.php`,
   `scripts/demo/` ni las herramientas de calidad.
-- `deploy/public_html/`: `.htaccess` de la raíz (el de abajo) y `api/` con `index.php` (ya con el
-  `BOOTSTRAP_PATH` de Hostinger, en UTF-8 sin BOM) y su `.htaccess`.
+- `deploy/public_html/`: el **contenido de `frontend/dist`** (`index.html`, `assets/`, el `.htaccess` de la raíz, el
+  de abajo, que viene de `frontend/public/.htaccess`) y `api/` con `index.php` (ya con el `BOOTSTRAP_PATH` de
+  Hostinger, en UTF-8 sin BOM) y su `.htaccess`. El frontend nunca pisa `api/`: si `frontend/dist` trajera una
+  carpeta `api/`, el script se detiene. Antes de correrlo: `cd frontend; npm run build` **en PowerShell** (en Git
+  Bash, `VITE_API_URL=/api/v1` se convierte en `D:/Program Files/Git/api/v1`; el script detecta ese build y el de
+  desarrollo, que apunta a `localhost:8000`, y se detiene). Con `-SinFrontend` arma solo el backend.
 
 El script parte del `backend/vendor` local (Composer solo quita los paquetes de desarrollo, sin descargar nada; así
 no hace falta la extensión `zip` ni `unzip`) y al final verifica el paquete: sin `.env`, sin PHPUnit/PHPStan,
@@ -136,7 +140,30 @@ Cómo se usa: solo si `REMOTE_ADDR` pertenece a esa lista se lee `X-Forwarded-Fo
 7. Sube `public_html/api/index.php` y su `.htaccess`.
 8. Ejecuta una vez, por SSH o en local contra Atlas: `php scripts/crear_indices.php` y `php scripts/crear_superadmin.php`. Registra el cron de `cron/limpiar_ratelimit.php` (ver "Mantenimiento").
 9. Verifica `GET https://siiis.com.co/api/v1/health` y completa la checklist de arriba (correo, foto de perfil, adjuntos, `PATCH`/`DELETE`). Para la fase 3: crea un proyecto con una cuenta de estudiante, compruébalo oculto en `GET /api/v1/projects` sin sesión, publícalo con un revisor (`{"estado": "ejecucion", "visible": true}`) y confirma que ya aparece; luego bórralo. Para la fase 4: los dos puntos "Fase 4" de la lista de verificación (inscripción, contacto y reseñas).
-10. Frontend: compila con la URL base `/api/v1` y súbelo a `public_html/` **sin borrar** `api/` ni el `.htaccess`.
+10. Frontend: ya va en `public_html/` del paquete (ver arriba). Si se sube aparte, el contenido de `frontend/dist` va a `public_html/` **sin borrar** `api/` ni el `.htaccess`.
+11. Fotos y videos de la página de inicio: `php scripts/cargar_multimedia.php --carpeta=RUTA` contra la base real (ver "Contenido inicial de la página de inicio").
+
+## Contenido inicial de la página de inicio (`scripts/cargar_multimedia.php`)
+
+Sube a Cloudinary (carpeta `siiis/home`) las fotos del slider y los videos de una carpeta local y los registra en
+`Multimedia` con su sección, orden y descripción (DEC-B60). La estructura de la carpeta y las reglas están en el
+encabezado de `scripts/multimedia/PlanMultimedia.php`; el paso a paso, en `docs/checklist-manana.md` (A6 y D4).
+
+```bash
+php scripts/cargar_multimedia.php --carpeta=RUTA --simular   # solo muestra el plan
+php scripts/cargar_multimedia.php --carpeta=RUTA             # base real (MONGO_DB_NAME), pide escribir "si"
+php scripts/cargar_multimedia.php --carpeta=RUTA --test      # base de pruebas y carpeta siiis_test/home
+```
+
+- `RUTA/slider/`: JPG, PNG o WebP hasta 10 MB (se reducen a 1920 px de ancho); `RUTA/videos/`: MP4, WebM o MOV
+  hasta 100 MB (tal cual). El orden sale del nombre (`01-`, `02-`…); la descripción, de `descripciones.json` o del
+  nombre.
+- No duplica: el `public_id` sale del nombre sin el prefijo de orden; lo que ya está en `Multimedia` no se vuelve a
+  subir (solo se actualizan `orden` y `descripcion`). Si una corrida subió un archivo pero no alcanzó a guardarlo,
+  la siguiente lo registra sin subirlo otra vez.
+- No borra: para quitar una foto, bórrala en Atlas (`Multimedia`) y en Cloudinary (`siiis/home`).
+- Usa un cliente de Cloudinary con 10 minutos de espera (un video puede tardar); por eso conviene correrlo desde el
+  portátil o por SSH, no desde la web.
 
 ## Mantenimiento
 

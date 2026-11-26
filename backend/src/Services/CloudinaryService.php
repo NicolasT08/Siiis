@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Siiis\Services;
 
+use Cloudinary\Api\Exception\BadRequest;
 use Cloudinary\Cloudinary;
 use Siiis\Config\Settings;
 use Siiis\Support\CloudinaryUrl;
@@ -162,6 +163,13 @@ class CloudinaryService
             $res = $this->client()->uploadApi()->upload($path, $opciones);
         } catch (CloudinaryException $e) {
             throw $e;
+        } catch (BadRequest $e) {
+            // 400 de Cloudinary: si es por el archivo (dañado, formato falso) es culpa del archivo, no del servicio.
+            if (self::esArchivoInvalido($e->getMessage())) {
+                throw new ArchivoRechazadoException('Cloudinary rechazó el archivo: ' . $e->getMessage(), 0, $e);
+            }
+
+            throw new CloudinaryException('Error al subir a Cloudinary: ' . $e->getMessage(), 0, $e);
         } catch (Throwable $e) {
             throw new CloudinaryException('Error al subir a Cloudinary: ' . $e->getMessage(), 0, $e);
         }
@@ -171,6 +179,18 @@ class CloudinaryService
         }
 
         return ['url' => $res['secure_url'], 'public_id' => $res['public_id']];
+    }
+
+    /**
+     * ¿El mensaje de un 400 de Cloudinary dice que el archivo es inválido o está dañado? Ejemplos reales:
+     * "Invalid PDF file", "Invalid image file", "Invalid Image or file", "Unsupported file format",
+     * "Image file format pdf not allowed". Los 400 por parámetros mal configurados ("Invalid transformation…",
+     * "Invalid value for parameter format", credenciales) siguen siendo fallas del servicio (502).
+     */
+    public static function esArchivoInvalido(string $mensaje): bool
+    {
+        return preg_match('/\b(invalid|corrupt(ed)?|malformed|damaged|unsupported)\s+(image|pdf|video|file)\b/i', $mensaje) === 1
+            || preg_match('/\bfile\s+format\b.{0,30}\bnot\s+allowed\b/i', $mensaje) === 1;
     }
 
     /**

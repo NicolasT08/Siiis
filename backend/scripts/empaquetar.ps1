@@ -13,8 +13,9 @@
       |   |-- storage/logs, storage/ratelimit, storage/cache (vacias)
       |   `-- .env.produccion.ejemplo (copiar como .env y completar los secretos)
       `-- public_html/
-          |-- .htaccess              (/api -> PHP; resto -> SPA de React)
-          `-- api/
+          |-- index.html, assets/... (build de React: contenido de frontend/dist)
+          |-- .htaccess              (/api -> PHP; resto -> SPA de React; el de frontend/dist si existe)
+          `-- api/                   (nunca se pisa con el frontend)
               |-- index.php          (BOOTSTRAP_PATH -> ../../siiis-api/bootstrap.php)
               `-- .htaccess
 
@@ -31,6 +32,10 @@
 .PARAMETER Dominio
     Dominio del sitio; se usa en APP_URL y PASSWORD_RESET_URL del .env de ejemplo.
 
+.PARAMETER SinFrontend
+    No copia frontend/dist (solo el backend). Sin este parametro, frontend/dist/index.html debe existir y ser
+    un build de produccion (npm run build); si no, el script se detiene.
+
 .PARAMETER Zip
     Ademas crea deploy\siiis-api.zip y deploy\public_html.zip para subirlos y extraerlos en el
     Administrador de archivos de hPanel. Usa tar.exe de Windows (guarda las rutas con "/" y las carpetas
@@ -39,7 +44,8 @@
 [CmdletBinding()]
 param(
     [string]$Dominio = 'siiis.com.co',
-    [switch]$Zip
+    [switch]$Zip,
+    [switch]$SinFrontend
 )
 
 $ErrorActionPreference = 'Stop'
@@ -107,10 +113,11 @@ Copy-Item -LiteralPath (Join-Path $Backend 'cron') -Destination $Api -Recurse
 # Scripts que se usan en produccion (docs/deployment.md, paso 8). Los de desarrollo no se copian.
 $Scripts = Join-Path $Api 'scripts'
 New-Item -ItemType Directory -Path (Join-Path $Scripts 'data') -Force | Out-Null
-foreach ($script in @('cli.php', 'crear_indices.php', 'crear_superadmin.php', 'seed_multimedia.php')) {
+foreach ($script in @('cli.php', 'crear_indices.php', 'crear_superadmin.php', 'seed_multimedia.php', 'cargar_multimedia.php')) {
     Copy-Item -LiteralPath (Join-Path $Backend "scripts\$script") -Destination $Scripts
 }
 Copy-Item -LiteralPath (Join-Path $Backend 'scripts\data\multimedia_seed.example.json') -Destination (Join-Path $Scripts 'data')
+Copy-Item -LiteralPath (Join-Path $Backend 'scripts\multimedia') -Destination $Scripts -Recurse
 
 # Defensa extra: si alguien sube siiis-api dentro de public_html, el servidor no la entrega.
 Write-Archivo (Join-Path $Api '.htaccess') @"
@@ -150,8 +157,44 @@ if (-not $Index.Contains($LineaOriginal)) {
 Write-Archivo (Join-Path $PublicHtml 'api\index.php') ($Index.Replace($LineaOriginal, $LineaHostinger))
 Copy-Item -LiteralPath (Join-Path $Backend 'public\.htaccess') -Destination (Join-Path $PublicHtml 'api')
 
-# .htaccess de la raiz del sitio (docs/deployment.md): /api va a PHP y el resto a la SPA de React.
-Write-Archivo (Join-Path $PublicHtml '.htaccess') @"
+# --- public_html: build del frontend ---------------------------------------------------------------------
+# Se copia el CONTENIDO de frontend/dist (index.html, assets/, .htaccess...) junto a api/. Nunca se borra ni
+# se pisa public_html/api/: si el build trajera una carpeta api/, el empaquetado se detiene.
+$Dist = Join-Path $Raiz 'frontend\dist'
+$HayFrontend = $false
+if ($SinFrontend) {
+    Write-Paso 'Sin frontend (-SinFrontend): public_html solo lleva api/ y .htaccess'
+} else {
+    Write-Paso 'Copiando el build del frontend (frontend/dist) a public_html/'
+    if (-not (Test-Path (Join-Path $Dist 'index.html'))) {
+        Stop-Empaquetado 'No existe frontend\dist\index.html. Compila antes: cd frontend; npm run build (o usa -SinFrontend).'
+    }
+    # El build debe ser el de produccion: sin la URL local de la API ni la ruta que Git Bash inventa con
+    # VITE_API_URL=/api/v1 (D:/Program Files/Git/api/v1).
+    foreach ($js in Get-ChildItem -LiteralPath (Join-Path $Dist 'assets') -Filter '*.js' -File) {
+        $contenido = Read-Archivo $js.FullName
+        if ($contenido.Contains('localhost:8000/api')) {
+            Stop-Empaquetado "frontend\dist es un build de desarrollo ($($js.Name) apunta a localhost:8000). Compila con: npm run build"
+        }
+        if ($contenido -match 'Program Files/Git/api') {
+            Stop-Empaquetado 'frontend\dist se compilo desde Git Bash con VITE_API_URL=/api/v1 y la URL quedo mal. Compila desde PowerShell o con npm run build sin VITE_API_URL.'
+        }
+    }
+    foreach ($item in Get-ChildItem -LiteralPath $Dist -Force) {
+        if ($item.Name -eq 'api') {
+            Stop-Empaquetado 'frontend\dist trae una carpeta api/: pisaria public_html/api/ del backend.'
+        }
+        Copy-Item -LiteralPath $item.FullName -Destination $PublicHtml -Recurse
+    }
+    $HayFrontend = $true
+}
+
+# .htaccess de la raiz del sitio (docs/deployment.md): /api va a PHP y el resto a la SPA de React. Si el build
+# del frontend ya trae uno (frontend/public/.htaccess), se usa ese.
+if (Test-Path (Join-Path $PublicHtml '.htaccess')) {
+    Write-Paso 'public_html/.htaccess: se usa el del build del frontend'
+} else {
+    Write-Archivo (Join-Path $PublicHtml '.htaccess') @"
 # Raiz del sitio: /api/ la atiende public_html/api/; los archivos que existen se sirven tal cual y
 # cualquier otra ruta (p. ej. /restablecer) va a index.html, el build de React.
 RewriteEngine On
@@ -161,6 +204,7 @@ RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 RewriteRule ^ index.html [L]
 "@
+}
 
 # --- .env de produccion de ejemplo ---------------------------------------------------------------------
 Write-Paso 'Generando siiis-api/.env.produccion.ejemplo desde backend/.env.example'
@@ -245,6 +289,15 @@ $Autoload = (Join-Path $Api 'vendor\autoload.php') -replace '\\', '/'
 & php -r "require '$Autoload'; exit(class_exists('Siiis\Config\Application') && !class_exists('PHPUnit\Framework\TestCase') ? 0 : 1);"
 if ($LASTEXITCODE -ne 0) { $Problemas.Add('El autoload de produccion no carga Siiis\Config\Application o incluye PHPUnit.') }
 
+if (-not (Test-Path (Join-Path $Scripts 'cargar_multimedia.php')) -or -not (Test-Path (Join-Path $Scripts 'multimedia\PlanMultimedia.php'))) {
+    $Problemas.Add('Falta scripts/cargar_multimedia.php o scripts/multimedia/.')
+}
+# El frontend no piso la API.
+if ((Read-Archivo (Join-Path $PublicHtml 'api\index.php')) -notmatch [regex]::Escape($LineaHostinger)) {
+    $Problemas.Add('public_html/api/index.php no es el del backend.')
+}
+if ($HayFrontend -and -not (Test-Path (Join-Path $PublicHtml 'index.html'))) { $Problemas.Add('Falta public_html/index.html del frontend.') }
+
 if ($Problemas.Count -gt 0) {
     foreach ($p in $Problemas) { Write-Host "  - $p" -ForegroundColor Red }
     Stop-Empaquetado 'El paquete no paso las verificaciones.'
@@ -255,10 +308,12 @@ if ($Zip) {
     if ($null -eq (Get-Command 'tar.exe' -ErrorAction SilentlyContinue)) {
         Stop-Empaquetado 'No se encontro tar.exe (viene con Windows 10/11). Sube las carpetas sin comprimir.'
     }
-    # siiis-api.zip contiene la carpeta siiis-api/; public_html.zip, el CONTENIDO de public_html (.htaccess y api/).
+    # siiis-api.zip contiene la carpeta siiis-api/; public_html.zip, el CONTENIDO de public_html (frontend,
+    # .htaccess y api/), para extraerlo directamente dentro de public_html.
     & tar.exe -a -c -f (Join-Path $Deploy 'siiis-api.zip') -C $Deploy 'siiis-api'
     if ($LASTEXITCODE -ne 0) { Stop-Empaquetado 'No se pudo crear siiis-api.zip.' }
-    & tar.exe -a -c -f (Join-Path $Deploy 'public_html.zip') -C $PublicHtml '.htaccess' 'api'
+    $Contenido = @(Get-ChildItem -LiteralPath $PublicHtml -Force | ForEach-Object { $_.Name })
+    & tar.exe -a -c -f (Join-Path $Deploy 'public_html.zip') -C $PublicHtml @Contenido
     if ($LASTEXITCODE -ne 0) { Stop-Empaquetado 'No se pudo crear public_html.zip.' }
 }
 

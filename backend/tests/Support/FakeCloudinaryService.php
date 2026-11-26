@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Siiis\Tests\Support;
 
+use Siiis\Services\ArchivoRechazadoException;
 use Siiis\Services\CloudinaryException;
 use Siiis\Services\CloudinaryService;
 
@@ -26,6 +27,9 @@ final class FakeCloudinaryService extends CloudinaryService
 
     /** Si es mayor que 0, la subida número N (empezando en 1) falla; las demás funcionan. */
     public int $fallarEnSubida = 0;
+
+    /** Si es mayor que 0, Cloudinary rechaza la subida número N por archivo dañado (ArchivoRechazadoException). */
+    public int $rechazarEnSubida = 0;
 
     public function __construct()
     {
@@ -70,6 +74,9 @@ final class FakeCloudinaryService extends CloudinaryService
      */
     private function registrar(string $path, string $folder, array $formatos, array $transformacion, bool $privado): array
     {
+        if ($this->rechazarEnSubida > 0 && count($this->subidas) + 1 === $this->rechazarEnSubida) {
+            throw new ArchivoRechazadoException('Cloudinary rechazó el archivo: Invalid PDF file');
+        }
         if ($this->fallarSubida || ($this->fallarEnSubida > 0 && count($this->subidas) + 1 === $this->fallarEnSubida)) {
             throw new CloudinaryException('Fallo simulado de subida');
         }

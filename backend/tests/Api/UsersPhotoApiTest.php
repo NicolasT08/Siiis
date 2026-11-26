@@ -194,6 +194,19 @@ final class UsersPhotoApiTest extends AuthTestCase
         self::assertSame([], $this->cloudinary->borrados);
     }
 
+    public function testImagenRechazadaPorCloudinaryResponde415YConservaLaAnterior(): void
+    {
+        [$token, $id] = $this->sesionComo($this->app, 'estudiante');
+        $this->cloudinary->rechazarEnSubida = 1;
+
+        $response = $this->subir((string) $id, TestImages::subida(TestImages::png()), $token);
+
+        $this->assertError($response, 415, 'UNSUPPORTED_MEDIA_TYPE');
+        self::assertStringContainsString('dañada', $this->json($response)['error']['message']);
+        self::assertSame('ana', $this->db->usuarios[(string) $id]['foto_perfil']['public_id']);
+        self::assertSame([], $this->cloudinary->borrados);
+    }
+
     public function testFalloDeMongoBorraLaFotoRecienSubida(): void
     {
         [$token, $id] = $this->sesionComo($this->app, 'estudiante');

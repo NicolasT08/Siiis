@@ -61,7 +61,8 @@ COPY bootstrap.php ./
 COPY public/ public/
 COPY src/ src/
 COPY cron/ cron/
-COPY scripts/cli.php scripts/crear_indices.php scripts/crear_superadmin.php scripts/seed_multimedia.php scripts/
+COPY scripts/cli.php scripts/crear_indices.php scripts/crear_superadmin.php scripts/seed_multimedia.php scripts/cargar_multimedia.php scripts/
+COPY scripts/multimedia/ scripts/multimedia/
 COPY --from=vendor /app/vendor/ vendor/
 RUN mkdir -p storage/logs storage/ratelimit storage/cache \
     && chown -R www-data:www-data storage

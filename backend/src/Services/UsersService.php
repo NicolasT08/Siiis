@@ -209,6 +209,17 @@ class UsersService
                 CloudinaryService::FORMATOS_IMAGEN,
                 CloudinaryService::transformacionFotoPerfil($this->settings),
             );
+        } catch (ArchivoRechazadoException $e) {
+            $this->logger->warning('Cloudinary rechazó una foto de perfil', [
+                'usuario_id' => (string) $objectId,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new ApiException(
+                415,
+                'UNSUPPORTED_MEDIA_TYPE',
+                'La imagen está dañada o no es una imagen válida. Prueba con otra foto en JPG, PNG o WebP.',
+            );
         } catch (CloudinaryException $e) {
             $this->logger->error('No se pudo subir la foto de perfil', [
                 'usuario_id' => (string) $objectId,

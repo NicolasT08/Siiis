@@ -801,3 +801,45 @@ quedaron **aprobadas por el equipo** el 2026-11-26.
 - Limitaciones: el disco del contenedor es efímero (logs y contadores de rate limiting se pierden en cada
   reinicio); el plan gratuito se duerme tras un rato sin uso (la primera petición tarda); la IP real del visitante
   depende de configurar `TRUSTED_PROXIES` con la red interna de Render.
+
+## DEC-B59 — Archivo rechazado por Cloudinary: 415, no 502
+
+- Estado: PROPUESTA (backend, 2026-11-26) · aprobada por el usuario para la entrega
+- Contexto: un archivo que empieza como PDF (pasa `finfo`) pero está mal formado llegaba a Cloudinary, que responde
+  `400 Invalid PDF file`; la API lo convertía en `502 CLOUDINARY_UNAVAILABLE` ("intenta más tarde"), un mensaje
+  engañoso: reintentar no sirve, el problema es el archivo. Se encontró al probar el frontend.
+- Decisión:
+  - `CloudinaryService` distingue los `400` de Cloudinary (`BadRequest` del SDK) cuyo mensaje dice que el archivo
+    es inválido o está dañado (`Invalid PDF file`, `Invalid image file`, `Invalid Image or file`,
+    `Unsupported file format`, `… file format … not allowed`, `Corrupt file`) y lanza `ArchivoRechazadoException`
+    (subclase de `CloudinaryException`).
+  - Foto de perfil, adjuntos de documentos e inscripciones responden entonces `415 UNSUPPORTED_MEDIA_TYPE` con un
+    mensaje claro ("El archivo está dañado o no es un PDF o una imagen válida…"; en la inscripción nombra el
+    archivo). Se mantienen las compensaciones: la foto anterior no se toca, el documento no cambia y la inscripción
+    borra de Cloudinary lo que ya había subido.
+  - `502` queda solo para fallas reales: Cloudinary no responde, credenciales o configuración (otros `400`, como
+    una transformación inválida, siguen siendo `502`).
+- Impacto: `Services/CloudinaryService`, `Services/ArchivoRechazadoException`, `Services/CloudinaryException` (deja
+  de ser `final`), `UsersService`, `DocumentosService`, `InscripcionesService`, `docs/api.md`. Pruebas: unitaria del
+  clasificador, API de las tres rutas e integración con Cloudinary real (PDF dañado).
+
+## DEC-B60 — Carga inicial de fotos y videos del inicio (`scripts/cargar_multimedia.php`)
+
+- Estado: PROPUESTA (backend, 2026-11-26) · pedida por el usuario para la entrega
+- Contexto: en producción `Multimedia` empieza vacía y `seed_multimedia.php` solo registra URL ya subidas (de
+  ejemplo).
+- Decisión: script de consola que sube a Cloudinary (`siiis/home/slider/…` y `siiis/home/videos/…`; con `--test`,
+  `siiis_test/home`) las fotos y videos de una carpeta local (`slider/`, `videos/`, `descripciones.json` opcional) y
+  los registra en `Multimedia` con los campos del modelo (`tipo`, `url`, `public_id`, `seccion`, `descripcion`,
+  `orden`, `fecha_subida`). Sin campos ni colecciones nuevas.
+  - Orden por nombre de archivo (orden natural); `public_id` estable a partir del nombre sin el prefijo de orden.
+  - Idempotente: lo que ya está (misma sección y `public_id`) no se vuelve a subir; solo se actualizan `orden` y
+    `descripcion`. `overwrite=false` en Cloudinary evita duplicados si una corrida se cortó entre la subida y el
+    guardado.
+  - Contra la base real muestra el plan y exige escribir `si`; `--simular` no escribe nada; `--si` omite la
+    pregunta.
+  - Imágenes reducidas a 1920 px de ancho con `CLOUDINARY_CALIDAD` (como DEC-B42); videos tal cual. Límites del plan
+    gratuito: imagen 10 MB, video 100 MB.
+- Impacto: `scripts/cargar_multimedia.php`, `scripts/multimedia/PlanMultimedia.php` (prueba unitaria),
+  `scripts/empaquetar.ps1` y `Dockerfile` (se incluyen en producción), `docs/deployment.md`,
+  `docs/checklist-manana.md`.

@@ -43,8 +43,8 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 | `INVALID_OR_EXPIRED_TOKEN` | 400 | El enlace de recuperación es inválido, está vencido o ya se usó |
 | `EMAIL_TAKEN` | 409 | Ya existe una cuenta con ese correo (registro) |
 | `FILE_TOO_LARGE` | 413 | El archivo supera el tamaño máximo |
-| `UNSUPPORTED_MEDIA_TYPE` | 415 | El contenido del archivo no es de un formato admitido |
-| `CLOUDINARY_UNAVAILABLE` | 502 | No se pudo guardar el archivo en Cloudinary |
+| `UNSUPPORTED_MEDIA_TYPE` | 415 | El contenido del archivo no es de un formato admitido, o el archivo está dañado y Cloudinary lo rechazó (p. ej. un PDF mal formado; DEC-B59) |
+| `CLOUDINARY_UNAVAILABLE` | 502 | Falla real de Cloudinary (no responde, credenciales, configuración). Un archivo dañado nunca da 502: da 415 |
 | `LAST_SUPERADMIN` | 409 | Se intentó quitar el rol o desactivar al último superadministrador activo |
 | `ATTACHMENT_LIMIT` | 409 | El documento ya tiene el máximo de archivos adjuntos (`DOCUMENTO_ADJUNTOS_MAX`, 10) |
 | `INSCRIPTION_PENDING` | 409 | Ya hay una solicitud de inscripción pendiente con ese correo (13a) |
@@ -439,8 +439,8 @@ await fetch(`/api/v1/users/${id}/photo`, { method: 'POST', headers: { Authorizat
 **Errores:**
 - `400 VALIDATION_ERROR` (`fields.foto`): no llegó el archivo, está vacío o la subida quedó incompleta.
 - `401 UNAUTHORIZED`, `403 FORBIDDEN`, `404 NOT_FOUND`: como en 6e.
-- `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE`.
-- `502 CLOUDINARY_UNAVAILABLE`: Cloudinary no respondió; la foto anterior se conserva.
+- `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE` (formato no admitido, o imagen dañada que Cloudinary rechaza: "La imagen está dañada o no es una imagen válida…"). En ambos casos la foto anterior se conserva.
+- `502 CLOUDINARY_UNAVAILABLE`: solo si Cloudinary falla (no responde o está mal configurado); la foto anterior se conserva.
 
 ---
 
@@ -720,8 +720,8 @@ await fetch(`/api/v1/projects/${id}/files`, { method: 'POST', headers: { Authori
 - `400 VALIDATION_ERROR` (`fields.archivo`): no llegó el archivo, está vacío o la subida quedó incompleta.
 - `401 UNAUTHORIZED`; `403 FORBIDDEN` y `404 NOT_FOUND`, como en 9d.
 - `409 ATTACHMENT_LIMIT`: el documento ya tiene el máximo de adjuntos.
-- `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE`.
-- `502 CLOUDINARY_UNAVAILABLE`: Cloudinary no respondió; el documento no cambia.
+- `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE` (formato no admitido, o archivo dañado que Cloudinary rechaza, p. ej. un PDF mal formado: "El archivo está dañado o no es un PDF o una imagen válida…"). El documento no cambia.
+- `502 CLOUDINARY_UNAVAILABLE`: solo si Cloudinary falla (no responde o está mal configurado); el documento no cambia.
 
 ### 11b. `DELETE /{projects|articles}/{id}/files/{archivo}`
 
@@ -888,8 +888,8 @@ await fetch('/api/v1/inscriptions', { method: 'POST', body: form });
 **Errores:**
 - `400 VALIDATION_ERROR` con `fields` (datos o `documentos`: faltan, son más de 3, uno está vacío). Primero se validan los datos y después los archivos.
 - `409 INSCRIPTION_PENDING`: ese correo ya tiene una solicitud pendiente. Si la anterior fue rechazada o aceptada, se puede enviar otra.
-- `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE` (un archivo inválido rechaza toda la solicitud).
-- `429 RATE_LIMITED`; `502 CLOUDINARY_UNAVAILABLE` (no se guardó nada).
+- `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE` (un archivo inválido rechaza toda la solicitud). También es `415` si un documento está dañado y Cloudinary lo rechaza: el mensaje nombra el archivo (`El archivo "carta.pdf" está dañado…`) y se borra de Cloudinary lo que ya se había subido.
+- `429 RATE_LIMITED`; `502 CLOUDINARY_UNAVAILABLE` solo si Cloudinary falla (no se guardó nada).
 
 ### 13b. `GET /inscriptions`
 
