@@ -32,9 +32,9 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
         echo 'variables_order = "EGPCS"'; \
         echo 'expose_php = Off'; \
         echo 'zend.exception_ignore_args = On'; \
-        echo 'upload_max_filesize = 6M'; \
-        echo 'post_max_size = 16M'; \
-        echo 'max_execution_time = 120'; \
+        echo 'upload_max_filesize = 50M'; \
+        echo 'post_max_size = 55M'; \
+        echo 'max_execution_time = 180'; \
         echo 'memory_limit = 256M'; \
     } > "$PHP_INI_DIR/conf.d/zz-siiis.ini"
 

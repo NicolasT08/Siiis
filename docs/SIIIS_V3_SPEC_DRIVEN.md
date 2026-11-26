@@ -948,7 +948,7 @@ CloudinaryService::upload(UploadedFileInterface $file, string $folder): array //
 CloudinaryService::delete(string $publicId): void
 ```
 
-> Límite del hosting: archivos grandes (sobre todo videos) pueden superar `post_max_size` o `max_execution_time` de PHP. `PROPUESTA` (DECISION-006): para videos, subida firmada directa del navegador a Cloudinary, con la firma generada por PHP y el `public_id` registrado luego en MongoDB.
+> Límite del hosting: archivos grandes (sobre todo videos) pueden superar `post_max_size` o `max_execution_time` de PHP. Resuelto en DEC-B62 (DECISION-006): los videos se suben a través de la API con un tope configurable (`MULTIMEDIA_VIDEO_MAX_BYTES`, 50 MB) y los límites de PHP ajustados (`docs/deployment.md`). La subida firmada directa del navegador queda como alternativa si se necesitan videos más grandes.
 
 La estructura de carpetas de Cloudinary debe ser consistente, por ejemplo por dominio funcional (`profile`, `projects`, `inscriptions`, `home`) sólo si el equipo adopta esa convención.
 
@@ -1601,7 +1601,7 @@ Usar este formato para cada decisión importante:
 | DECISION-003 | Campos exactos de entidades | `DECISION_REQUIRED` | `Validation/*` y contratos |
 | DECISION-004 | Borrado físico vs lógico de usuarios | `DECISION_REQUIRED` | `UsersController` |
 | DECISION-005 | Formatos/tipos/tamaños de documentos de inscripción | `DECISION_REQUIRED` | `InscriptionsController` |
-| DECISION-006 | Implementación de videos | `DECISION_REQUIRED` | `HomeController` / almacenamiento |
+| DECISION-006 | Implementación de videos — **Resuelto (26/11/2026, DEC-B62):** se suben a Cloudinary a través de la API (sin subida firmada directa), con tope `MULTIMEDIA_VIDEO_MAX_BYTES` (50 MB) y `post_max_size` acorde | `RESUELTO` | `MultimediaController` |
 | DECISION-007 | Previsualización de documentos | `DECISION_REQUIRED` | perfil/contenido |
 | DECISION-008 | Hosting del backend — **Resuelto (23/09/2026):** plan básico sólo ejecuta PHP; backend reescrito en PHP y alojado en Hostinger. Render eliminado | `RESUELTO` | despliegue (ver 17) |
 | DECISION-009 | Librerías concretas de frontend | `DECISION_REQUIRED` | frontend |

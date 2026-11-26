@@ -108,6 +108,13 @@ final readonly class Settings
         public string $googleClientId,
         /** Dominio que exige el claim `hd` del id_token de Google (DEC-B61) */
         public string $googleDominioPermitido,
+        /** Carpeta de Cloudinary de las fotos y videos del inicio (DEC-B62) */
+        public string $cloudinaryHomeFolder,
+        /** Tamaño máximo de un video subido por la API (DEC-B62); post_max_size debe ser mayor */
+        public int $multimediaVideoMaxBytes,
+        public int $multimediaDescripcionMaxLength,
+        public int $rateLimitMultimediaMax,
+        public int $rateLimitMultimediaWindowSeconds,
         public string $storagePath,
     ) {
     }
@@ -266,6 +273,11 @@ final readonly class Settings
             corsOrigin: self::origen($env, 'CORS_ORIGIN'),
             googleClientId: self::string($env, 'GOOGLE_CLIENT_ID'),
             googleDominioPermitido: self::dominioGoogle($env),
+            cloudinaryHomeFolder: trim(self::string($env, 'CLOUDINARY_HOME_FOLDER', 'siiis/home'), '/'),
+            multimediaVideoMaxBytes: self::positiveInt($env, 'MULTIMEDIA_VIDEO_MAX_BYTES', 52428800),
+            multimediaDescripcionMaxLength: self::positiveInt($env, 'MULTIMEDIA_DESCRIPCION_MAX_LENGTH', 200),
+            rateLimitMultimediaMax: self::positiveInt($env, 'RATE_LIMIT_MULTIMEDIA_MAX', 60),
+            rateLimitMultimediaWindowSeconds: self::positiveInt($env, 'RATE_LIMIT_MULTIMEDIA_WINDOW_SECONDS', 3600),
             storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
         );
     }
@@ -302,6 +314,7 @@ final readonly class Settings
             $this->rateLimitReviewsWindowSeconds,
             $this->rateLimitContactWindowSeconds,
             $this->rateLimitInscriptionsWindowSeconds,
+            $this->rateLimitMultimediaWindowSeconds,
         );
     }
 

@@ -11,6 +11,7 @@ use Siiis\Controllers\HealthController;
 use Siiis\Controllers\HomeController;
 use Siiis\Controllers\InscriptionsController;
 use Siiis\Controllers\MensajesContactoController;
+use Siiis\Controllers\MultimediaController;
 use Siiis\Controllers\ReviewsController;
 use Siiis\Controllers\UsersController;
 use Siiis\Middleware\AuthMiddleware;
@@ -72,6 +73,16 @@ final class Routes
                 $home->get('/slider', [HomeController::class, 'slider']);
                 $home->get('/videos', [HomeController::class, 'videos']);
             });
+
+            // Administración de las fotos y videos del inicio (DEC-B62): solo superadministrador y administrador.
+            // PUT /multimedia/orden va antes de las rutas con {id} (FastRoute prioriza las rutas fijas igualmente).
+            $v1->group('/multimedia', function (RouteCollectorProxy $multimedia): void {
+                $multimedia->get('', [MultimediaController::class, 'index']);
+                $multimedia->post('', [MultimediaController::class, 'store']);
+                $multimedia->put('/orden', [MultimediaController::class, 'reorder']);
+                $multimedia->patch('/{id}', [MultimediaController::class, 'update']);
+                $multimedia->delete('/{id}', [MultimediaController::class, 'destroy']);
+            })->add(RoleMiddleware::administrativos())->add(AuthMiddleware::class);
 
             // Reseñas (DEC-B43 a DEC-B45): públicas con sesión opcional; moderación con RoleMiddleware (DEC-B44).
             $v1->group('/reviews', function (RouteCollectorProxy $reviews): void {

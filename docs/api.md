@@ -51,6 +51,7 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 | `CLOUDINARY_UNAVAILABLE` | 502 | Falla real de Cloudinary (no responde, credenciales, configuración). Un archivo dañado nunca da 502: da 415 |
 | `LAST_SUPERADMIN` | 409 | Se intentó quitar el rol o desactivar al último superadministrador activo |
 | `ATTACHMENT_LIMIT` | 409 | El documento ya tiene el máximo de archivos adjuntos (`DOCUMENTO_ADJUNTOS_MAX`, 10) |
+| `MULTIMEDIA_LIMIT` | 409 | La sección del inicio ya tiene el máximo de elementos (`HOME_MAX_ITEMS`, 20) (8a) |
 | `INSCRIPTION_PENDING` | 409 | Ya hay una solicitud de inscripción pendiente con ese correo (13a) |
 | `INSCRIPTION_CLOSED` | 409 | La solicitud de inscripción ya fue aceptada o rechazada (13d) |
 | `NOT_FOUND` | 404 | La ruta o el recurso no existe (p. ej. un usuario en `GET /users/{id}`) |
@@ -522,6 +523,72 @@ Público. Videos de presentación (RF-11), de `Multimedia` con `seccion = video_
   ]
 }
 ```
+
+---
+
+## 8a. Administración de fotos y videos del inicio (`/multimedia`)
+
+Solo `superadministrador` y `administrador` (RF-07, RF-11, DEC-B62); los demás roles reciben `403` y sin sesión `401`. Usa la misma colección `Multimedia` que `GET /home/slider` y `GET /home/videos`, que **no cambian** para el público (siguen con su caché de 5 minutos). Todas estas respuestas son `Cache-Control: no-store`, para que el panel vea los cambios al instante.
+
+**Objeto `multimedia`** (vista de administración; nunca trae `public_id`):
+
+```json
+{
+  "id": "6b0a1c2e8b3a4a0012345678",
+  "tipo": "imagen",
+  "url": "https://res.cloudinary.com/<cloud>/image/upload/f_auto,q_auto/v1/siiis/home/slider/abc.jpg",
+  "seccion": "slider_principal",
+  "descripcion": "Inauguración del semillero",
+  "orden": 1,
+  "fecha_subida": "2026-11-26T20:00:00Z"
+}
+```
+
+| Sección | `tipo` | Archivos |
+|---|---|---|
+| `slider_principal` | `imagen` | JPEG, PNG o WebP hasta `DOCUMENTO_ADJUNTO_MAX_BYTES` (5 MB). Se reducen a 1600 px de ancho como máximo, con calidad automática (como las imágenes adjuntas, DEC-B42) |
+| `video_presentacion` | `video` | MP4, WebM o MOV hasta `MULTIMEDIA_VIDEO_MAX_BYTES` (50 MB). Se guardan tal cual |
+
+El tipo se revisa por el **contenido** del archivo (cambiar la extensión no sirve). Se guardan en Cloudinary en `CLOUDINARY_HOME_FOLDER` (`siiis/home/slider/…` y `siiis/home/videos/…`). Máximo `HOME_MAX_ITEMS` (20) elementos por sección.
+
+### 8a.1 `GET /multimedia?seccion=slider_principal|video_presentacion`
+
+**200** `{"data": [multimedia, ...]}`, por `orden` ascendente, **sin tope**. Sin `seccion` o con otra: `400 VALIDATION_ERROR` (`fields.seccion`).
+
+### 8a.2 `POST /multimedia`
+
+`multipart/form-data`. Rate limiting por IP: `RATE_LIMIT_MULTIMEDIA_MAX` (60) por hora.
+
+| Campo | Regla |
+|---|---|
+| `archivo` | Obligatorio; imagen o video según la sección (tabla de arriba) |
+| `seccion` | Obligatorio: `slider_principal` o `video_presentacion` |
+| `descripcion` | Obligatoria (es el texto alternativo del carrusel), hasta `MULTIMEDIA_DESCRIPCION_MAX_LENGTH` (200) caracteres, una sola línea |
+| `orden` | Opcional: entero de 1 a 1000. Sin él, va al final (el mayor `orden` de la sección + 1) |
+
+```ts
+const form = new FormData();
+form.append('seccion', 'slider_principal');
+form.append('descripcion', 'Inauguración del semillero');
+form.append('archivo', archivo); // <input type="file" accept="image/jpeg,image/png,image/webp">
+await fetch('/api/v1/multimedia', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+```
+
+**201** `{"multimedia": {...}}`.
+
+**Errores:** `400 VALIDATION_ERROR` (`fields`: `seccion`, `descripcion`, `orden`, `archivo`; primero se validan los datos y después el archivo), `401`, `403`, `409 MULTIMEDIA_LIMIT`, `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE` (formato no admitido, una foto en la sección de videos o al revés, o un archivo dañado que Cloudinary rechaza), `429 RATE_LIMITED`, `502 CLOUDINARY_UNAVAILABLE`. Si MongoDB falla después de subir, el archivo se borra de Cloudinary.
+
+### 8a.3 `PATCH /multimedia/{id}`
+
+JSON con `descripcion` y/o `orden` (mismas reglas). Los demás campos (`url`, `seccion`, `tipo`…) se ignoran; si no llega ninguno editable, `400 VALIDATION_ERROR`. **200** `{"multimedia": {...}}`. `404 NOT_FOUND` si no existe.
+
+### 8a.4 `PUT /multimedia/orden`
+
+Reordena toda una sección: `{"seccion": "slider_principal", "ids": ["…", "…", "…"]}` con **todos** los elementos de la sección, sin repetidos, en el orden deseado; quedan con `orden` 1, 2, 3… **200** `{"data": [multimedia, ...]}` ya ordenados. Si falta, sobra o se repite algún id: `400 VALIDATION_ERROR` (`fields.ids`; recarga y vuelve a intentar).
+
+### 8a.5 `DELETE /multimedia/{id}`
+
+Borra el registro y su archivo en Cloudinary (como imagen o como video, según el `tipo`). **204**. `404 NOT_FOUND` si no existe. Si Cloudinary no responde, el registro igual se borra y el archivo queda en el log (`No se pudo borrar un archivo del inicio de Cloudinary`) para borrarlo a mano.
 
 ---
 

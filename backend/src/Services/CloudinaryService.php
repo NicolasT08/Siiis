@@ -27,6 +27,15 @@ class CloudinaryService
     /** Segundos; el plan compartido de Hostinger no admite peticiones muy largas. */
     private const TIMEOUT_SECONDS = 30;
 
+    /** Un video de hasta MULTIMEDIA_VIDEO_MAX_BYTES tarda más en subir (DEC-B62); max_execution_time debe ser mayor. */
+    private const TIMEOUT_VIDEO_SECONDS = 120;
+
+    /** Formatos de las imágenes del inicio y de los videos de presentación (DEC-B62). */
+    public const FORMATOS_VIDEO = ['mp4', 'webm', 'mov'];
+
+    public const RECURSO_IMAGEN = 'image';
+    public const RECURSO_VIDEO = 'video';
+
     /** Formatos de la foto de perfil (DEC-B29). */
     public const FORMATOS_IMAGEN = ['jpg', 'png', 'webp'];
 
@@ -40,6 +49,8 @@ class CloudinaryService
     private const TIPO_PRIVADO = 'authenticated';
 
     private ?Cloudinary $cloudinary = null;
+
+    private ?Cloudinary $cloudinaryVideo = null;
 
     public function __construct(private readonly Settings $settings)
     {
@@ -144,11 +155,17 @@ class CloudinaryService
      *
      * @throws CloudinaryException
      */
-    private function subir(string $path, string $folder, array $formatos, array $transformacion, string $tipo): array
-    {
+    private function subir(
+        string $path,
+        string $folder,
+        array $formatos,
+        array $transformacion,
+        string $tipo,
+        string $recurso = self::RECURSO_IMAGEN,
+    ): array {
         $opciones = [
             'folder' => $folder,
-            'resource_type' => 'image',
+            'resource_type' => $recurso,
             'type' => $tipo,
             'allowed_formats' => $formatos,
             'unique_filename' => true,
@@ -160,7 +177,8 @@ class CloudinaryService
         }
 
         try {
-            $res = $this->client()->uploadApi()->upload($path, $opciones);
+            $cliente = $recurso === self::RECURSO_VIDEO ? $this->client(self::TIMEOUT_VIDEO_SECONDS) : $this->client();
+            $res = $cliente->uploadApi()->upload($path, $opciones);
         } catch (CloudinaryException $e) {
             throw $e;
         } catch (BadRequest $e) {
@@ -194,16 +212,29 @@ class CloudinaryService
     }
 
     /**
+     * Sube un video público (videos de presentación del inicio, DEC-B62) tal cual, sin transformación, con más
+     * tiempo de espera que una imagen. `$path` también puede ser una URL HTTPS (Cloudinary la descarga).
+     *
+     * @return array{url: string, public_id: string}
+     *
+     * @throws CloudinaryException
+     */
+    public function uploadVideo(string $path, string $folder): array
+    {
+        return $this->subir($path, $folder, self::FORMATOS_VIDEO, [], self::TIPO_PUBLICO, self::RECURSO_VIDEO);
+    }
+
+    /**
      * Borra el archivo y lo invalida en la CDN. Borrar un public_id que ya no existe no es error. Un recurso
      * privado se borra con `$privado = true` (Cloudinary distingue el tipo de entrega).
      *
      * @throws CloudinaryException
      */
-    public function delete(string $publicId, bool $privado = false): void
+    public function delete(string $publicId, bool $privado = false, string $recurso = self::RECURSO_IMAGEN): void
     {
         try {
             $res = $this->client()->uploadApi()->destroy($publicId, [
-                'resource_type' => 'image',
+                'resource_type' => $recurso,
                 'type' => $privado ? self::TIPO_PRIVADO : self::TIPO_PUBLICO,
                 'invalidate' => true,
             ]);
@@ -219,10 +250,12 @@ class CloudinaryService
         }
     }
 
-    private function client(): Cloudinary
+    private function client(int $timeout = self::TIMEOUT_SECONDS): Cloudinary
     {
-        if ($this->cloudinary !== null) {
-            return $this->cloudinary;
+        $esVideo = $timeout !== self::TIMEOUT_SECONDS;
+        $existente = $esVideo ? $this->cloudinaryVideo : $this->cloudinary;
+        if ($existente !== null) {
+            return $existente;
         }
 
         $s = $this->settings;
@@ -230,14 +263,21 @@ class CloudinaryService
             throw new CloudinaryException('Cloudinary no configurado (CLOUDINARY_CLOUD_NAME / _API_KEY / _API_SECRET).');
         }
 
-        return $this->cloudinary = new Cloudinary([
+        $cliente = new Cloudinary([
             'cloud' => [
                 'cloud_name' => $s->cloudinaryCloudName,
                 'api_key' => $s->cloudinaryApiKey,
                 'api_secret' => $s->cloudinaryApiSecret,
             ],
             'url' => ['secure' => true],
-            'api' => ['timeout' => self::TIMEOUT_SECONDS, 'upload_timeout' => self::TIMEOUT_SECONDS],
+            'api' => ['timeout' => $timeout, 'upload_timeout' => $timeout],
         ]);
+        if ($esVideo) {
+            $this->cloudinaryVideo = $cliente;
+        } else {
+            $this->cloudinary = $cliente;
+        }
+
+        return $cliente;
     }
 }

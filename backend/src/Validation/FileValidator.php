@@ -23,6 +23,13 @@ final class FileValidator
 
     public const MIME_PDF = 'application/pdf';
 
+    /** Videos de presentación del inicio (DEC-B62) → extensión. */
+    public const VIDEOS = [
+        'video/mp4' => 'mp4',
+        'video/webm' => 'webm',
+        'video/quicktime' => 'mov',
+    ];
+
     /** Adjuntos de documentos (DEC-B40) → extensión. */
     public const ADJUNTOS = self::IMAGENES + [self::MIME_PDF => 'pdf'];
 
@@ -46,6 +53,30 @@ final class FileValidator
             self::IMAGENES,
             'La imagen',
             'Formato no admitido. Usa una imagen JPEG, PNG o WebP.',
+        );
+
+        return ['path' => $path, 'mime' => $mime, 'size' => $size];
+    }
+
+    /**
+     * Video de presentación del inicio: MP4, WebM o MOV hasta `$maxBytes` (DEC-B62), según el contenido real.
+     *
+     * @param array<string, mixed> $archivos
+     *
+     * @return array{path: string, mime: string, size: int}
+     *
+     * @throws ApiException 400 VALIDATION_ERROR, 413 FILE_TOO_LARGE, 415 UNSUPPORTED_MEDIA_TYPE
+     */
+    public function video(array $archivos, string $campo, int $maxBytes): array
+    {
+        $archivo = self::archivo($archivos, $campo, sprintf('Adjunta un video en el campo "%s".', $campo));
+        ['path' => $path, 'mime' => $mime, 'size' => $size] = self::validar(
+            $archivo,
+            $campo,
+            $maxBytes,
+            self::VIDEOS,
+            'El video',
+            'Formato no admitido. Usa un video MP4, WebM o MOV.',
         );
 
         return ['path' => $path, 'mime' => $mime, 'size' => $size];

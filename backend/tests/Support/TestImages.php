@@ -35,6 +35,15 @@ final class TestImages
     }
 
     /**
+     * Cabecera `ftyp` de un MP4: finfo la reconoce como video/mp4 (no es un video reproducible; para Cloudinary real
+     * las pruebas de integración usan un video de verdad).
+     */
+    public static function mp4(int $relleno = 0): string
+    {
+        return self::escribir("\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom" . str_repeat("\x00", $relleno), 'mp4');
+    }
+
+    /**
      * PDF 1.4 mínimo y válido (una página en blanco), con la tabla xref calculada: Cloudinary lo acepta.
      */
     public static function pdf(): string

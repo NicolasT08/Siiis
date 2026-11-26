@@ -41,7 +41,7 @@ Cuando se confirme la versión real con `phpinfo()`:
 - [ ] Conexión saliente a MongoDB Atlas (puerto 27017, URI `mongodb+srv://`): `GET /api/v1/health` responde `{"status":"ok","db":"ok"}`
 - [ ] Lista de acceso de Atlas (*Atlas → Network Access*): `0.0.0.0/0` con contraseña fuerte del usuario de la aplicación (DEC-B54, DECISION-015 decidida). Si Hostinger confirma una IP saliente estable (______), se puede cambiar a esa IP
 - [ ] Conexión saliente a `smtp.gmail.com:587/465` (probar `forgot-password` y revisar `storage/logs`), a `api.cloudinary.com` y a `www.googleapis.com`. En desarrollo ya se verificaron el SMTP de Gmail y Cloudinary (2026-10-27); falta verificarlos desde Hostinger
-- [ ] Límites de PHP: `upload_max_filesize` ___ · `post_max_size` ___ · `max_execution_time` ___ · `memory_limit` ___. Para los adjuntos de documentos (DEC-B40, DEC-B42), que son el archivo más grande: `upload_max_filesize` ≥ el mayor entre `DOCUMENTO_ADJUNTO_MAX_BYTES` (imágenes, 5 MB) y `DOCUMENTO_PDF_MAX_BYTES` (PDF, 3 MB) y `post_max_size` algo mayor (p. ej. 6 MB); con eso también caben las fotos de perfil (2 MB, DEC-B29). **Desde la fase 4**, la inscripción manda hasta 3 documentos en una sola petición (DEC-B49): `post_max_size` debe ser de unos 16 MB y `upload_max_filesize` de al menos 5 MB, y `max_execution_time` debe alcanzar para 3 subidas seguidas a Cloudinary (hasta 30 s cada una). Si el cuerpo supera `post_max_size`, PHP descarta los archivos y la API responde `400` en lugar de `413`
+- [ ] Límites de PHP: `upload_max_filesize` ___ · `post_max_size` ___ · `max_execution_time` ___ · `memory_limit` ___. Para los adjuntos de documentos (DEC-B40, DEC-B42), que son el archivo más grande: `upload_max_filesize` ≥ el mayor entre `DOCUMENTO_ADJUNTO_MAX_BYTES` (imágenes, 5 MB) y `DOCUMENTO_PDF_MAX_BYTES` (PDF, 3 MB) y `post_max_size` algo mayor (p. ej. 6 MB); con eso también caben las fotos de perfil (2 MB, DEC-B29). **Desde la fase 4**, la inscripción manda hasta 3 documentos en una sola petición (DEC-B49): `post_max_size` debe ser de unos 16 MB y `upload_max_filesize` de al menos 5 MB, y `max_execution_time` debe alcanzar para 3 subidas seguidas a Cloudinary (hasta 30 s cada una). Si el cuerpo supera `post_max_size`, PHP descarta los archivos y la API responde `400` en lugar de `413`. **Desde DEC-B62**, el panel sube los videos del inicio a través de la API: `upload_max_filesize` ≥ `MULTIMEDIA_VIDEO_MAX_BYTES` (50 MB por defecto), `post_max_size` **mayor** (p. ej. 55M; el formulario agrega unos KB) y `max_execution_time` de unos 180 s (el navegador sube el video al servidor y luego el servidor a Cloudinary, con hasta 120 s de espera). Si Hostinger no deja subir esos límites, baja `MULTIMEDIA_VIDEO_MAX_BYTES` para que quede por debajo de `post_max_size` (p. ej. 32M → `31457280`); el panel avisa con `413` si un video lo supera
 - [ ] Foto de perfil de punta a punta: `POST /api/v1/users/{id}/photo` con una imagen real → `200` y la URL de Cloudinary abre; la foto queda en `CLOUDINARY_PERFILES_FOLDER` (`siiis/perfiles`), recortada a 400 × 400 (en la consola de Cloudinary, el archivo ya mide 400 × 400; DEC-B42), y la URL que devuelve la API lleva `f_auto,q_auto`
 - [ ] **Cloudinary del semillero: activar "Allow delivery of PDF and ZIP files"** (consola de Cloudinary → *Settings → Security*), en la misma cuenta que usan las `CLOUDINARY_*` de producción. Sin ese ajuste los PDF adjuntos se suben, pero al abrirlos Cloudinary responde `401` con `X-Cld-Error: deny or ACL failure` (DEC-B40). Subirlos como `raw` no lo evita: se probó el 2026-11-04 y la cuenta bloquea cualquier PDF, sin importar el tipo de recurso ni la extensión. En la cuenta de desarrollo ya está activado (2026-11-05)
 - [ ] Adjunto de punta a punta: `POST /api/v1/projects/{id}/files` con un PDF real → `201`, y la URL de `archivos_adjuntos[].url` abre el PDF en el navegador (no `401`); el archivo queda en `CLOUDINARY_DOCUMENTOS_FOLDER` (`siiis/documentos`). Luego quitarlo con `DELETE /api/v1/projects/{id}/files/{archivo}`. Con una imagen de más de 1600 px de ancho, comprobar en la consola que quedó de 1600 px y que su URL en la API lleva `f_auto,q_auto` (DEC-B42)
@@ -164,6 +164,24 @@ php scripts/cargar_multimedia.php --carpeta=RUTA --test      # base de pruebas y
 - No borra: para quitar una foto, bórrala en Atlas (`Multimedia`) y en Cloudinary (`siiis/home`).
 - Usa un cliente de Cloudinary con 10 minutos de espera (un video puede tardar); por eso conviene correrlo desde el
   portátil o por SSH, no desde la web.
+
+## Administrar fotos y videos del inicio desde el panel (DEC-B62)
+
+Además de `scripts/cargar_multimedia.php`, superadministradores y administradores gestionan el carrusel y los videos
+en *Administración → Inicio* (ruta `/admin/inicio` del sitio; API `/multimedia`, `docs/api.md` 8a): subir, editar la
+descripción, cambiar el orden y borrar (borra también el archivo en Cloudinary).
+
+| Variable | Por defecto | Para qué |
+|---|---|---|
+| `CLOUDINARY_HOME_FOLDER` | `siiis/home` | Carpeta de Cloudinary (subcarpetas `slider/` y `videos/`) |
+| `MULTIMEDIA_VIDEO_MAX_BYTES` | `52428800` (50 MB) | Tamaño máximo de un video; **`post_max_size` debe ser mayor** y `upload_max_filesize` igual o mayor |
+| `MULTIMEDIA_DESCRIPCION_MAX_LENGTH` | `200` | Largo de la descripción (texto alternativo) |
+| `RATE_LIMIT_MULTIMEDIA_MAX` / `_WINDOW_SECONDS` | `60` / `3600` | Subidas por IP por hora |
+| `HOME_MAX_ITEMS` | `20` | Máximo por sección (también lo que muestran las rutas públicas) |
+
+Las fotos usan las reglas de las imágenes adjuntas (`DOCUMENTO_ADJUNTO_MAX_BYTES`, 5 MB, reducidas a 1600 px). Los videos
+van tal cual: conviene exportarlos en 720p (H.264, MP4) para que pesen poco. Los cambios se ven en la página de inicio
+en hasta 5 minutos (caché pública de `GET /home/*`).
 
 ## Login con Google (RF-17, DEC-B61)
 

@@ -63,10 +63,12 @@ de este documento: el backend va a Render y el frontend sigue en Hostinger.
   - mongodb **≥ 1.18**: seguimos (1.21 o mayor también sirve sin cambios hoy; ver "Versiones fijadas" en
     `docs/deployment.md` para después). **< 1.18** o ausente: Plan B.
   - **Borra `info-temp.php` en cuanto termines** (expone la configuración del servidor).
-- [ ] **B4. Límites de PHP** (*Configuración de PHP → Opciones de PHP*): `upload_max_filesize` ≥ **6M**,
-  `post_max_size` **16M**, `max_execution_time` **120**, `memory_limit` **256M**. Anota los finales: `____`.
-  - Si no deja subirlos tanto: con menos de 16M la inscripción con 3 archivos grandes responde `400`; se puede
-    seguir y anotarlo como limitación.
+- [ ] **B4. Límites de PHP** (*Configuración de PHP → Opciones de PHP*): `upload_max_filesize` ≥ **50M**,
+  `post_max_size` **55M**, `max_execution_time` **180**, `memory_limit` **256M**. Anota los finales: `____`.
+  Los 50/55 MB son por los videos del inicio que se suben desde el panel (`MULTIMEDIA_VIDEO_MAX_BYTES`, DEC-B62).
+  - Si no deja subirlos tanto: baja `MULTIMEDIA_VIDEO_MAX_BYTES` en el `.env` a lo que permita (p. ej. con
+    `post_max_size` 32M, `MULTIMEDIA_VIDEO_MAX_BYTES=31457280`, 30 MB). Con menos de 16M la inscripción con 3
+    archivos grandes responde `400`; se puede seguir y anotarlo como limitación.
 - [ ] **B5. SSL.** *Seguridad → SSL*: certificado activo para `siiis.com.co` y "Forzar HTTPS" encendido.
   - Verifica: `https://siiis.com.co` abre con candado.
   - Si falla: instala el SSL gratuito y espera unos minutos; sin HTTPS no sigas (el token viajaría en claro).

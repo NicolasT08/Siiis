@@ -872,3 +872,38 @@ quedaron **aprobadas por el equipo** el 2026-11-26.
   `Config/Settings`, `Config/Routes`, `Config/Container`, `docs/api.md` (2a), `docs/deployment.md`; frontend
   `components/GoogleLoginButton.tsx` y `AuthModal.tsx`.
 - Requiere migración: no.
+
+## DEC-B62 — Administrar las fotos del carrusel y los videos del inicio desde la página (RF-07, RF-11)
+
+- Estado: PROPUESTA (backend, 2026-11-26) · pedida por el equipo para la entrega · resuelve DECISION-006 del spec
+- Contexto: RF-07 dice que el slider es un recurso **administrable** y RF-11 aplica igual a los videos de
+  presentación; hasta ahora solo se cargaban con `scripts/cargar_multimedia.php` (DEC-B60).
+- Decisión:
+  - Rutas `/multimedia` solo para `superadministrador` y `administrador` (`RoleMiddleware::administrativos()`):
+    listar por sección, subir, editar `descripcion` y `orden`, reordenar la sección completa y borrar
+    (`docs/api.md`, 8a). `GET /home/slider` y `GET /home/videos` no cambian.
+  - Mismos campos y colección `Multimedia` (`tipo`, `url`, `public_id`, `seccion`, `descripcion`, `orden`,
+    `fecha_subida`); solo se administran `slider_principal` (imágenes) y `video_presentacion` (videos).
+  - Imágenes: las reglas de las imágenes adjuntas (JPEG, PNG o WebP de hasta `DOCUMENTO_ADJUNTO_MAX_BYTES`,
+    reducidas a 1600 px de ancho con calidad automática, DEC-B42), en `CLOUDINARY_HOME_FOLDER/slider`
+    (`siiis/home/slider`).
+  - **Videos (DECISION-006):** el spec proponía subida firmada directa del navegador a Cloudinary. Se elige lo más
+    simple que funciona en el hosting compartido: **subirlos a través de la API**, como el resto de archivos, con un
+    tope configurable `MULTIMEDIA_VIDEO_MAX_BYTES` (50 MB por defecto), MP4/WebM/MOV por contenido, sin
+    transformación, en `CLOUDINARY_HOME_FOLDER/videos`, con 120 s de espera hacia Cloudinary. Exige
+    `post_max_size` mayor que el tope y `max_execution_time` suficiente (`docs/deployment.md`). Un video
+    institucional de 1–3 minutos en 720p cabe en 50 MB. Si se necesitan videos más grandes, se retoma la subida
+    firmada directa (no pasa por PHP).
+  - Máximo `HOME_MAX_ITEMS` (20) por sección (`409 MULTIMEDIA_LIMIT`), lo mismo que muestran las rutas públicas.
+  - Mismas validaciones y errores que las otras rutas con archivos (400/413/415/502; archivo dañado → 415,
+    DEC-B59); compensación: si MongoDB falla después de subir, el archivo se borra de Cloudinary. Borrar elimina el
+    registro y después el archivo (como imagen o como video); si Cloudinary falla, queda en el log.
+  - Rate limiting de subidas por IP: `RATE_LIMIT_MULTIMEDIA_MAX` (60) por `RATE_LIMIT_MULTIMEDIA_WINDOW_SECONDS`
+    (1 h).
+  - `scripts/cargar_multimedia.php` sigue sirviendo para la carga inicial; ahora usa también `CLOUDINARY_HOME_FOLDER`.
+- Variables: `CLOUDINARY_HOME_FOLDER`, `MULTIMEDIA_VIDEO_MAX_BYTES`, `MULTIMEDIA_DESCRIPCION_MAX_LENGTH`,
+  `RATE_LIMIT_MULTIMEDIA_MAX`, `RATE_LIMIT_MULTIMEDIA_WINDOW_SECONDS`.
+- Impacto: `Controllers/MultimediaController`, `Services/MultimediaService`, `Validation/MultimediaValidator`,
+  `Validation/FileValidator::video`, `Services/CloudinaryService` (`uploadVideo`, `delete` con tipo de recurso),
+  `Repositories/MultimediaRepository`, `Config/Routes`, `Config/Settings`; frontend `features/admin/AdminHomeMediaPage`.
+- Requiere migración: no.

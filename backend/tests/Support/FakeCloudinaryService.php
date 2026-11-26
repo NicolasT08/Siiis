@@ -55,7 +55,21 @@ final class FakeCloudinaryService extends CloudinaryService
         );
     }
 
-    public function delete(string $publicId, bool $privado = false): void
+    /** @var list<string> public_id de videos subidos (uploadVideo) */
+    public array $videosSubidos = [];
+
+    /** @var list<string> public_id borrados como video */
+    public array $borradosVideo = [];
+
+    public function uploadVideo(string $path, string $folder): array
+    {
+        $subido = $this->registrar($path, $folder, self::FORMATOS_VIDEO, [], false);
+        $this->videosSubidos[] = $subido['public_id'];
+
+        return ['url' => str_replace('/image/', '/video/', $subido['url']), 'public_id' => $subido['public_id']];
+    }
+
+    public function delete(string $publicId, bool $privado = false, string $recurso = self::RECURSO_IMAGEN): void
     {
         if ($this->fallarBorrado) {
             throw new CloudinaryException('Fallo simulado de borrado');
@@ -63,6 +77,9 @@ final class FakeCloudinaryService extends CloudinaryService
         $this->borrados[] = $publicId;
         if ($privado) {
             $this->borradosPrivados[] = $publicId;
+        }
+        if ($recurso === self::RECURSO_VIDEO) {
+            $this->borradosVideo[] = $publicId;
         }
     }
 

@@ -8,7 +8,7 @@ declare(strict_types=1);
  * producción (DEC-B60). Estructura de la carpeta y reglas: scripts/multimedia/PlanMultimedia.php.
  *
  * Uso:
- *   php scripts/cargar_multimedia.php --carpeta=RUTA            base real (MONGO_DB_NAME) → Cloudinary siiis/home
+ *   php scripts/cargar_multimedia.php --carpeta=RUTA            base real (MONGO_DB_NAME) → CLOUDINARY_HOME_FOLDER (siiis/home)
  *   php scripts/cargar_multimedia.php --carpeta=RUTA --test     base de pruebas → Cloudinary siiis_test/home
  *   php scripts/cargar_multimedia.php --carpeta=RUTA --simular  solo muestra el plan; no sube ni escribe nada
  *   ... --si                                                    no pregunta (para usarlo en otro script)
@@ -51,7 +51,7 @@ if ($settings->cloudinaryCloudName === '' || $settings->cloudinaryApiKey === '' 
 }
 
 // La base de pruebas nunca escribe en la carpeta de producción de Cloudinary.
-$folder = $opciones['test'] ? 'siiis_test/home' : 'siiis/home';
+$folder = $opciones['test'] ? 'siiis_test/home' : $settings->cloudinaryHomeFolder;
 $base = $opciones['test'] ? $settings->mongoDbNameTest : $settings->mongoDbName;
 
 $plan = PlanMultimedia::desdeCarpeta($opciones['carpeta'], $folder);
