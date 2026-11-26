@@ -127,6 +127,9 @@ export const api = {
   login: (correo: string, password: string) =>
     request<LoginResponse>('/auth/login', { method: 'POST', body: { correo, password } }),
 
+  contact: (correo: string, mensaje: string) =>
+    request<{ mensaje: string }>('/contacto', { method: 'POST', body: { correo, mensaje } }),
+
   me: (token: string, signal?: AbortSignal) => request<{ usuario: Usuario }>('/auth/me', { token, signal }),
 
   logout: (token: string) => request<void>('/auth/logout', { method: 'POST', token }),
