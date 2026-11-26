@@ -48,7 +48,7 @@ export default function LoginPage() {
           </button>
         </form>
         <p>
-          ¿No tienes cuenta? <a href="/registro">Regístrate</a>
+          ¿Quieres postularte al semillero? <a href="/registro">Inscríbete</a>
         </p>
       </div>
     </section>

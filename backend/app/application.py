@@ -14,7 +14,7 @@ from app.container import Container
 from app.cors import CorsMiddleware
 from app.errors import ErrorBoundaryMiddleware, register_exception_handlers
 from app.request_body import parse_body
-from app.routers import auth, contacto, health, home
+from app.routers import auth, contacto, health, home, inscripciones
 
 API_PREFIX = "/api/v1"
 
@@ -27,6 +27,7 @@ def build_api_router() -> APIRouter:
     api.include_router(auth.router)
     api.include_router(home.router)
     api.include_router(contacto.router)
+    api.include_router(inscripciones.router)
     return api
 
 

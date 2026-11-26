@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { BookOpenCheck, Code2, Eye, Lightbulb } from 'lucide-react';
 import ProjectsHero from '../projects/components/ProjectsHero';
+import DevelopersCarousel from './DevelopersCarousel';
 import '../projects/projects.css';
+import '../users/users.css';
 import './about.css';
 
 type Version = '1.0' | '2.0' | '3.0';
@@ -13,16 +15,6 @@ const VERSION_DEVELOPERS: Record<Version, string[]> = {
 };
 
 const VERSIONS: Version[] = ['1.0', '2.0', '3.0'];
-
-function initials(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toLocaleUpperCase('es');
-}
 
 export default function AboutPage() {
   const [version, setVersion] = useState<Version>('3.0');
@@ -125,20 +117,7 @@ export default function AboutPage() {
           </p>
 
           {developers.length > 0 ? (
-            <ul className="about-developer-grid">
-              {developers.map((developer, index) => (
-                <li key={developer}>
-                  <article className="about-developer-card">
-                    <span className={`about-developer-card__avatar about-developer-card__avatar--${index + 1}`}>
-                      {initials(developer)}
-                    </span>
-                    <span className="about-developer-card__label">Desarrollador/a</span>
-                    <h3>{developer}</h3>
-                    <span className="about-developer-card__version">SIIIS · v{version}</span>
-                  </article>
-                </li>
-              ))}
-            </ul>
+            <DevelopersCarousel key={version} developers={developers} version={version} />
           ) : (
             <div className="about-version-empty" role="status">
               <Code2 size={26} aria-hidden="true" />

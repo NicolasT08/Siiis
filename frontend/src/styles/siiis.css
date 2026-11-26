@@ -18,8 +18,12 @@
 }
 
 /* El footer queda al fondo aunque la página tenga poco contenido. */
-.app-shell { display: flex; flex-direction: column; }
-.page-shell { flex: 1; }
+.app-shell {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+}
+.page-shell { min-width: 0; }
 
 .visually-hidden {
   position: absolute !important;
@@ -56,23 +60,47 @@
 .btn--bronze:hover:not(:disabled) { background: #96681f; }
 
 /* Logo + nombre */
-.brand-logo { display: inline-flex; align-items: center; gap: 0.7rem; color: #fff; }
-.brand-logo__mark {
-  width: 46px;
-  height: 46px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, var(--siiis-blue), var(--siiis-navy-dark));
-  box-shadow: 0 0 0 2px var(--siiis-gold), 0 0 0 5px rgba(250, 197, 66, 0.18);
-}
-.brand-logo__mark img { width: 62%; height: 62%; object-fit: contain; }
-.brand-logo__text { display: grid; line-height: 1.1; }
+.brand-logo { position: relative; display: inline-flex; align-items: center; gap: 0.7rem; color: #fff; }
+.brand-logo__mark { width: 44px; height: 44px; flex: none; object-fit: contain; }
+.brand-logo__text { display: flex; flex-direction: column; line-height: 1.05; }
 .brand-logo__text strong { font: 700 1.4rem/1 var(--font-heading); letter-spacing: 0.02em; }
-.brand-logo__text small { margin-top: 3px; font-size: 0.68rem; color: rgba(255, 255, 255, 0.75); }
+.brand-logo__text small { margin-bottom: 3px; color: var(--siiis-gold); font-size: 0.62rem; font-weight: 600; letter-spacing: 0.14em; }
+.brand-logo__acronym {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 0;
+  z-index: 60;
+  display: grid;
+  min-width: 154px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: var(--siiis-navy-dark);
+  box-shadow: 0 12px 30px rgba(0, 10, 20, 0.3);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-5px);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+  pointer-events: none;
+}
+.brand-logo__acronym span { padding: 0.2rem 0; color: rgba(255, 255, 255, 0.75); font-size: 0.82rem; }
+.brand-logo__acronym span + span { border-top: 1px solid rgba(250, 197, 66, 0.2); }
+.brand-logo__acronym b { color: var(--siiis-gold); font: 700 1rem var(--font-heading); }
 .brand-logo--lg .brand-logo__mark { width: 60px; height: 60px; }
 .brand-logo--lg .brand-logo__text strong { font-size: 1.75rem; }
+@media (min-width: 1081px) and (hover: hover) and (pointer: fine) {
+  .nav__brand:hover .brand-logo__acronym,
+  .nav__brand:focus-visible .brand-logo__acronym {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    pointer-events: auto;
+  }
+}
+@media (max-width: 1080px) {
+  .brand-logo__acronym { display: none; }
+}
 
 /* Navbar */
 .topbar {
@@ -245,5 +273,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .nav__link::after,
-  .btn { transition: none; }
+  .btn,
+  .brand-logo__acronym { transition: none; }
 }

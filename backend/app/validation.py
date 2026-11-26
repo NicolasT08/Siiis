@@ -124,6 +124,80 @@ class ResetPasswordInput:
     password: str
 
 
+INSCRIPCION_AREAS = {
+    "desarrollo_software",
+    "transformacion_digital",
+    "tic",
+    "innovacion",
+    "inteligencia_artificial",
+    "ciencia_datos",
+}
+
+
+@dataclass(frozen=True)
+class InscripcionInput:
+    nombre: str
+    correo: str
+    codigo_estudiantil: str
+    programa_academico: str
+    semestre: int
+    areas_interes: list[str]
+    motivacion: str
+
+
+def validate_inscripcion(body: Any) -> InscripcionInput:
+    """POST /inscripciones — valida una solicitud pública para ingresar al semillero."""
+    errors: dict[str, str] = {}
+    nombre = read_string(body, "nombre", errors)
+    correo = read_correo(body, errors)
+    codigo = read_string(body, "codigo_estudiantil", errors)
+    programa = read_string(body, "programa_academico", errors)
+    semestre_texto = read_string(body, "semestre", errors)
+    motivacion = read_string(body, "motivacion", errors)
+
+    if "nombre" not in errors and len(nombre) > 120:
+        errors["nombre"] = "El nombre no puede superar los 120 caracteres."
+    if "codigo_estudiantil" not in errors and len(codigo) > 32:
+        errors["codigo_estudiantil"] = "El código estudiantil no puede superar los 32 caracteres."
+    if "programa_academico" not in errors and len(programa) > 120:
+        errors["programa_academico"] = "El programa académico no puede superar los 120 caracteres."
+    if "semestre" not in errors:
+        try:
+            semestre = int(semestre_texto)
+            if not 1 <= semestre <= 12:
+                raise ValueError
+        except ValueError:
+            errors["semestre"] = "Selecciona un semestre válido entre 1 y 12."
+            semestre = 0
+    else:
+        semestre = 0
+    if "motivacion" not in errors:
+        if len(motivacion) < 20:
+            errors["motivacion"] = (
+                "Cuéntanos un poco más sobre tu motivación (mínimo 20 caracteres)."
+            )
+        elif len(motivacion) > 2000:
+            errors["motivacion"] = "La motivación no puede superar los 2000 caracteres."
+
+    areas_raw = body.get("areas_interes") if isinstance(body, dict) else None
+    areas: list[str] = []
+    if not isinstance(areas_raw, list) or not areas_raw:
+        errors["areas_interes"] = "Selecciona al menos un área de interés."
+    elif any(not isinstance(area, str) or area not in INSCRIPCION_AREAS for area in areas_raw):
+        errors["areas_interes"] = "Una o más áreas de interés no son válidas."
+    elif len(areas_raw) > len(INSCRIPCION_AREAS):
+        errors["areas_interes"] = "Hay demasiadas áreas de interés seleccionadas."
+    else:
+        areas = list(dict.fromkeys(areas_raw))
+
+    if isinstance(body, dict) and body.get("disponibilidad") is not True:
+        errors["disponibilidad"] = "Debes confirmar tu disponibilidad para participar."
+
+    if errors:
+        raise ApiError.validation(errors)
+    return InscripcionInput(nombre, correo, codigo, programa, semestre, areas, motivacion)
+
+
 def validate_login(body: Any) -> LoginInput:
     """POST /auth/login — {"correo", "password"}. Campos extra (p. ej. "recordarme") se ignoran."""
     errors: dict[str, str] = {}

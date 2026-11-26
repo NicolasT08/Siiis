@@ -13,6 +13,7 @@ const links = [
   { to: '/proyectos', label: 'Proyectos' },
   { to: '/blog', label: 'Blog' },
   { to: '/contacto', label: 'Contacto' },
+  { to: '/registro', label: 'Registro' },
 ];
 
 export default function Navbar() {
@@ -28,8 +29,13 @@ export default function Navbar() {
     <>
       <header className="topbar">
         <nav className="nav container" aria-label="Navegación principal">
-          <NavLink to="/" className="nav__brand" aria-label="SIIIS, ir al inicio">
-            <BrandLogo />
+          <NavLink
+            to="/"
+            className="nav__brand"
+            aria-label="SIIIS, ir al inicio"
+            aria-describedby="brand-acronym"
+          >
+            <BrandLogo showAcronym />
           </NavLink>
 
           <button

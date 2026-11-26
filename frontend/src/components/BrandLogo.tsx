@@ -1,16 +1,29 @@
 // Logo oficial (Cloudinary del proyecto). No sustituir por recortes del mockup.
 const LOGO_URL = 'https://res.cloudinary.com/we3ya7sq/image/upload/v1789264275/Logo_Png_Blanco.png';
 
-export default function BrandLogo({ size = 'md' }: { size?: 'md' | 'lg' }) {
+export default function BrandLogo({
+  size = 'md',
+  showAcronym = false,
+}: {
+  size?: 'md' | 'lg';
+  showAcronym?: boolean;
+}) {
   return (
     <span className={`brand-logo brand-logo--${size}`}>
-      <span className="brand-logo__mark">
-        <img src={LOGO_URL} alt="" width="40" height="40" />
-      </span>
+      <img className="brand-logo__mark" src={LOGO_URL} alt="" width="44" height="44" />
       <span className="brand-logo__text">
+        <small>Semillero</small>
         <strong>SIIIS</strong>
-        <small>Semillero de Investigación</small>
       </span>
+      {showAcronym && (
+        <span className="brand-logo__acronym" id="brand-acronym" role="tooltip">
+          <span><b>S</b>emillero</span>
+          <span><b>I</b>nvestigación</span>
+          <span><b>I</b>nnovación</span>
+          <span><b>I</b>ngeniería</span>
+          <span><b>S</b>istemas</span>
+        </span>
+      )}
     </span>
   );
 }

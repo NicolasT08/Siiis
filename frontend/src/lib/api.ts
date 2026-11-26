@@ -62,6 +62,17 @@ export type Miembro = {
   estado: boolean;
 };
 
+export type Inscripcion = {
+  nombre: string;
+  correo: string;
+  codigo_estudiantil: string;
+  programa_academico: string;
+  semestre: number;
+  areas_interes: string[];
+  motivacion: string;
+  disponibilidad: boolean;
+};
+
 /** Error con el formato {"error": {"code", "message", "fields"?}} del backend. */
 export class ApiError extends Error {
   readonly code: string;
@@ -129,6 +140,9 @@ export const api = {
 
   contact: (correo: string, mensaje: string) =>
     request<{ mensaje: string }>('/contacto', { method: 'POST', body: { correo, mensaje } }),
+
+  inscripcion: (datos: Inscripcion) =>
+    request<{ mensaje: string }>('/inscripciones', { method: 'POST', body: datos }),
 
   me: (token: string, signal?: AbortSignal) => request<{ usuario: Usuario }>('/auth/me', { token, signal }),
 

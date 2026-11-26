@@ -37,6 +37,10 @@ function settings(width: number, layout: ArcCarouselLayout) {
     if (width < 768) return { visible: 3, gap: width * 0.76, arc: 18, tilt: 2 };
     return { visible: 3, gap: Math.min(width, 1400) * 0.58, arc: 58, tilt: 3 };
   }
+  if (layout === 'developers') {
+    if (width < 768) return { visible: 7, gap: width * 0.27, arc: 48, tilt: 3 };
+    return { visible: 7, gap: Math.min(width, 1200) * 0.24, arc: 82, tilt: 4 };
+  }
   if (width < 768) return { visible: 5, gap: width * 0.36, arc: 40, tilt: 3 };
   if (width < 1200) return { visible: 7, gap: width * 0.17, arc: 80, tilt: 4 };
   return { visible: 7, gap: Math.min(width, 2000) * 0.15, arc: 100, tilt: 5 };
@@ -45,7 +49,7 @@ function settings(width: number, layout: ArcCarouselLayout) {
 /** Tarjetas necesarias para que el bucle no deje huecos (visibles + 3, con 7 visibles). */
 export const MIN_CARDS = 10;
 
-export type ArcCarouselLayout = 'members' | 'testimonials';
+export type ArcCarouselLayout = 'members' | 'testimonials' | 'developers';
 
 export interface ArcCarousel {
   next: () => void;
@@ -67,7 +71,7 @@ export function startArcCarousel(
   let step = 0;
   let started = false;
   let onScreen = false;
-  let paused = reduceMotion;
+  let paused = reduceMotion || carouselLayout === 'developers';
   let timer: number | undefined;
   let drag: { startX: number; dx: number; id: number } | undefined;
 
@@ -89,13 +93,17 @@ export function startArcCarousel(
     card.dataset.center = String(Math.abs(e) < 0.5);
   };
 
-  // Slot de cada tarjeta en un paso: de -1 (fuera por la izquierda) a total - 2.
+  // El desarrollador activo queda centrado; los demás se desplazan a sus lados.
   const slotOf = (i: number, at: number) => {
     if (total === 1) return Math.floor((s.visible - 1) / 2);
+    if (carouselLayout === 'developers') return i - at + Math.floor((s.visible - 1) / 2);
     return ((((i - at) % total) + total) % total) - 1;
   };
   const isShown = (slot: number) =>
-    slot >= 0 && (carouselLayout === 'testimonials' ? slot < s.visible : slot <= s.visible);
+    slot >= 0 &&
+    (carouselLayout === 'testimonials' || carouselLayout === 'developers'
+      ? slot < s.visible
+      : slot <= s.visible);
 
   const placeCards = (animate: boolean, from = step) => {
     cards.forEach((card, i) => {
@@ -111,13 +119,17 @@ export function startArcCarousel(
   const schedule = (ms: number) => {
     window.clearTimeout(timer);
     timer = undefined;
-    if (total < 2 || paused || !onScreen || !started) return;
+    if (total < 2 || carouselLayout === 'developers' || paused || !onScreen || !started) return;
     timer = window.setTimeout(loop, ms);
   };
 
   const go = (by: number) => {
     const from = step;
-    step += by;
+    step =
+      carouselLayout === 'developers'
+        ? Math.max(0, Math.min(total - 1, step + by))
+        : step + by;
+    if (step === from) return;
     placeCards(true, from);
   };
 
@@ -144,7 +156,7 @@ export function startArcCarousel(
       place(card, slot);
       card.style.opacity = slot >= 0 && slot < s.visible ? '1' : '0';
     });
-    // 3) Después, los pasos sin fin.
+    // 3) Reanuda el avance automático en los diseños que lo permiten.
     schedule(INTRO_MS + LOOP_DELAY_MS);
   };
 
@@ -196,10 +208,12 @@ export function startArcCarousel(
     else go(by);
     schedule(RESUME_MS);
   };
-  stage.addEventListener('pointerdown', onPointerDown);
-  stage.addEventListener('pointermove', onPointerMove);
-  stage.addEventListener('pointerup', endDrag);
-  stage.addEventListener('pointercancel', endDrag);
+  if (carouselLayout !== 'developers') {
+    stage.addEventListener('pointerdown', onPointerDown);
+    stage.addEventListener('pointermove', onPointerMove);
+    stage.addEventListener('pointerup', endDrag);
+    stage.addEventListener('pointercancel', endDrag);
+  }
 
   const trigger = new IntersectionObserver(
     ([entry]) => {
@@ -250,10 +264,12 @@ export function startArcCarousel(
       trigger.disconnect();
       visibility.disconnect();
       resize.disconnect();
-      stage.removeEventListener('pointerdown', onPointerDown);
-      stage.removeEventListener('pointermove', onPointerMove);
-      stage.removeEventListener('pointerup', endDrag);
-      stage.removeEventListener('pointercancel', endDrag);
+      if (carouselLayout !== 'developers') {
+        stage.removeEventListener('pointerdown', onPointerDown);
+        stage.removeEventListener('pointermove', onPointerMove);
+        stage.removeEventListener('pointerup', endDrag);
+        stage.removeEventListener('pointercancel', endDrag);
+      }
     },
   };
 }
