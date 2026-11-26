@@ -32,7 +32,11 @@ const EASE = 'cubic-bezier(.22,1,.36,1)';
 const SIDE_SCALE = 0.82;
 
 /** Tarjetas visibles, separación entre centros (px), caída del arco (px) e inclinación (°). */
-function settings(width: number) {
+function settings(width: number, layout: ArcCarouselLayout) {
+  if (layout === 'testimonials') {
+    if (width < 768) return { visible: 3, gap: width * 0.76, arc: 18, tilt: 2 };
+    return { visible: 3, gap: Math.min(width, 1400) * 0.58, arc: 58, tilt: 3 };
+  }
   if (width < 768) return { visible: 5, gap: width * 0.36, arc: 40, tilt: 3 };
   if (width < 1200) return { visible: 7, gap: width * 0.17, arc: 80, tilt: 4 };
   return { visible: 7, gap: Math.min(width, 2000) * 0.15, arc: 100, tilt: 5 };
@@ -41,6 +45,8 @@ function settings(width: number) {
 /** Tarjetas necesarias para que el bucle no deje huecos (visibles + 3, con 7 visibles). */
 export const MIN_CARDS = 10;
 
+export type ArcCarouselLayout = 'members' | 'testimonials';
+
 export interface ArcCarousel {
   next: () => void;
   previous: () => void;
@@ -48,12 +54,16 @@ export interface ArcCarousel {
   dispose: () => void;
 }
 
-export function startArcCarousel(stage: HTMLElement, cards: HTMLElement[]): ArcCarousel {
+export function startArcCarousel(
+  stage: HTMLElement,
+  cards: HTMLElement[],
+  carouselLayout: ArcCarouselLayout = 'members',
+): ArcCarousel {
   const total = cards.length;
   const noop = () => {};
   if (total === 0) return { next: noop, previous: noop, setPaused: noop, dispose: noop };
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let s = settings(stage.clientWidth);
+  let s = settings(stage.clientWidth, carouselLayout);
   let step = 0;
   let started = false;
   let onScreen = false;
@@ -80,10 +90,14 @@ export function startArcCarousel(stage: HTMLElement, cards: HTMLElement[]): ArcC
   };
 
   // Slot de cada tarjeta en un paso: de -1 (fuera por la izquierda) a total - 2.
-  const slotOf = (i: number, at: number) => ((((i - at) % total) + total) % total) - 1;
-  const isShown = (slot: number) => slot >= 0 && slot <= s.visible;
+  const slotOf = (i: number, at: number) => {
+    if (total === 1) return Math.floor((s.visible - 1) / 2);
+    return ((((i - at) % total) + total) % total) - 1;
+  };
+  const isShown = (slot: number) =>
+    slot >= 0 && (carouselLayout === 'testimonials' ? slot < s.visible : slot <= s.visible);
 
-  const layout = (animate: boolean, from = step) => {
+  const placeCards = (animate: boolean, from = step) => {
     cards.forEach((card, i) => {
       const slot = slotOf(i, step);
       // Dio la vuelta (de un extremo al otro): se mueve sin animación, ya invisible.
@@ -97,14 +111,14 @@ export function startArcCarousel(stage: HTMLElement, cards: HTMLElement[]): ArcC
   const schedule = (ms: number) => {
     window.clearTimeout(timer);
     timer = undefined;
-    if (paused || !onScreen || !started) return;
+    if (total < 2 || paused || !onScreen || !started) return;
     timer = window.setTimeout(loop, ms);
   };
 
   const go = (by: number) => {
     const from = step;
     step += by;
-    layout(true, from);
+    placeCards(true, from);
   };
 
   function loop() {
@@ -137,7 +151,7 @@ export function startArcCarousel(stage: HTMLElement, cards: HTMLElement[]): ArcC
   // Antes de la entrada (o sin animaciones) las tarjetas esperan en su lugar o escondidas.
   if (reduceMotion) {
     started = true;
-    layout(false);
+    placeCards(false);
   } else {
     cards.forEach((card) => (card.style.opacity = '0'));
   }
@@ -147,7 +161,7 @@ export function startArcCarousel(stage: HTMLElement, cards: HTMLElement[]): ArcC
     if (started) return;
     trigger.disconnect();
     started = true;
-    layout(false);
+    placeCards(false);
   };
 
   // ---- Arrastrar con el mouse o el dedo ----
@@ -178,7 +192,7 @@ export function startArcCarousel(stage: HTMLElement, cards: HTMLElement[]): ArcC
     drag = undefined;
     if (Math.abs(dx) < 4) return schedule(RESUME_MS); // fue un clic, no un arrastre
     const by = Math.abs(dx) < DRAG_THRESHOLD ? 0 : -Math.sign(dx) * Math.max(1, Math.round(Math.abs(dx) / s.gap));
-    if (by === 0) layout(true);
+    if (by === 0) placeCards(true);
     else go(by);
     schedule(RESUME_MS);
   };
@@ -205,8 +219,8 @@ export function startArcCarousel(stage: HTMLElement, cards: HTMLElement[]): ArcC
   visibility.observe(stage);
 
   const resize = new ResizeObserver(() => {
-    s = settings(stage.clientWidth);
-    if (started) layout(false);
+    s = settings(stage.clientWidth, carouselLayout);
+    if (started) placeCards(false);
   });
   resize.observe(stage);
 
