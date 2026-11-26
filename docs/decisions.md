@@ -12,7 +12,7 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 
 ## DEC-B01 — Contenedor de dependencias PHP-DI
 
-- Estado: PROPUESTA (aprobada por backend para la fase 1)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (aprobada por backend para la fase 1)
 - Fecha: 2026-09-25
 - Autor: Backend (Nicolás Tinjaca)
 - Contexto: la sección 16 del spec no incluye contenedor; las pruebas de API necesitan sustituir repositorios y `MailService` por dobles.
@@ -23,7 +23,7 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 
 ## DEC-B02 — `firebase/php-jwt` ^7 en lugar de ^6
 
-- Estado: PROPUESTA (aprobada por backend para la fase 1)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (aprobada por backend para la fase 1)
 - Fecha: 2026-09-25
 - Contexto: todas las versiones < 7.0.0 tienen el aviso de seguridad PKSA-y2cr-5h3j-g3ys (cifrado débil); Composer las bloquea.
 - Decisión: usar `^7.0` (requiere PHP ^8.0). Se desvía de la sección 16 del spec, que indicaba `^6`.
@@ -57,7 +57,7 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 
 ## DEC-B05 — Endpoint `POST /api/v1/auth/logout`
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-09-25
 - Contexto: no estaba en el contrato 11.3; la sección 10.13.6 lo sugiere gracias a la colección `Sesiones`.
 - Decisión: `POST /api/v1/auth/logout` con JWT → marca la sesión `activa: false` → `204`.
@@ -81,18 +81,18 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 
 ## DEC-B08 — Cuenta en `pendiente_verificacion` → `403 ACCOUNT_PENDING`
 
-- Estado: DECISION_REQUIRED
-- Fecha: 2026-09-25
+- Estado: DECIDIDA (equipo, 2026-11-26)
+- Fecha: 2026-09-25 · decidida el 2026-11-26
 - Contexto: `estado_cuenta` admite `pendiente_verificacion`, pero no hay flujo de verificación definido.
-- Provisional: login rechazado con `403 ACCOUNT_PENDING`. Cualquier otro valor de `estado_cuenta` distinto de `activa` (incluidos valores fuera del modelo) se trata como `403 ACCOUNT_BLOCKED`.
-- Falta decidir: cómo y quién verifica una cuenta.
+- Comportamiento: login rechazado con `403 ACCOUNT_PENDING`. Cualquier otro valor de `estado_cuenta` distinto de `activa` (incluidos valores fuera del modelo) se trata como `403 ACCOUNT_BLOCKED`.
+- Decisión del equipo: las cuentas pendientes **no se usan en esta entrega** (todas las cuentas se crean activas, DEC-B16). Se mantiene el `403 ACCOUNT_PENDING` tal como está; no hay flujo de verificación. Sin cambios de código.
 
 ## DEC-B09 — Recuperación de contraseña solo para cuentas activas
 
-- Estado: DECISION_REQUIRED
-- Fecha: 2026-09-25
-- Provisional: el token y el correo solo se generan si `estado_cuenta = activa` y `Usuarios.estado = true`. La respuesta es **siempre** el mensaje genérico `200`.
-- Falta decidir: si una cuenta bloqueada/pendiente puede recuperar la contraseña.
+- Estado: DECIDIDA (equipo, 2026-11-26)
+- Fecha: 2026-09-25 · decidida el 2026-11-26
+- Comportamiento: el token y el correo solo se generan si `estado_cuenta = activa` y `Usuarios.estado = true`. La respuesta es **siempre** el mensaje genérico `200`.
+- Decisión del equipo: una cuenta **bloqueada o inactiva no puede recuperar la contraseña**. Es lo que ya está implementado (también excluye las pendientes, que no se usan, DEC-B08). Sin cambios de código.
 
 ## DEC-B10 — Ruta de restablecimiento en el frontend
 
@@ -124,13 +124,13 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 
 ## DEC-B14 — Sin índice sobre `Credenciales.token_recuperacion`
 
-- Estado: PROPUESTA
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA
 - Contexto: `reset-password` busca por el hash del token. La sección 8.4 no incluye ese índice.
 - Decisión: no se crea (colección pequeña). Si crece, proponer un índice `sparse` al equipo de BD.
 
 ## DEC-B15 — Diferencia de tiempo en `forgot-password`
 
-- Estado: PROPUESTA (limitación conocida)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (limitación conocida)
 - Fecha: 2026-09-25
 - Contexto: el cuerpo y el status de `forgot-password` son idénticos exista o no el correo, pero el envío SMTP es síncrono (hosting compartido sin colas). Una cuenta existente tarda más en responder, lo que en teoría permite enumerar correos midiendo tiempos.
 - Mitigación actual: rate limiting por IP (`RATE_LIMIT_FORGOT_*`).
@@ -140,12 +140,12 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 
 # Fase 2 — Autenticación y usuarios
 
-Todas las decisiones de esta sección son provisionales: aprobadas por backend para implementar la fase 2,
-pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, bases de datos).
+Las decisiones de esta sección fueron aprobadas por backend para implementar la fase 2 y **aprobadas por el
+equipo el 2026-11-26** (Andryw Barrera, líder, y Luisa Merchán, bases de datos).
 
 ## DEC-B16 — Registro solo administrativo
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-10-24
 - Autor: Backend (Nicolás Tinjaca)
 - Contexto: RF-01 pide "registro mediante roles", pero el spec no define un rol por defecto ni un flujo de aprobación. La sección 8.2 indica que un aspirante entra por `Inscripciones` y que un administrador crea el par `Credenciales`/`Usuarios`.
@@ -156,7 +156,7 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 
 ## DEC-B17 — Jerarquía de roles para gestionar usuarios
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-10-24
 - Contexto: el spec (8.2, 8.6) deja abierto el límite de permisos entre `superadministrador` y `administrador`.
 - Decisión:
@@ -171,15 +171,15 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 
 ## DEC-B18 — Cupo de 2 administradores (RF-01)
 
-- Estado: DECISION_REQUIRED
-- Fecha: 2026-10-24
+- Estado: DECIDIDA (equipo, 2026-11-26)
+- Fecha: 2026-10-24 · decidida el 2026-11-26
 - Contexto: RF-01 dice "únicamente 2 administradores: el docente y el estudiante líder de proyectos".
-- Provisional: el código no limita la cantidad de administradores.
-- Falta decidir: si el cupo es una regla de negocio, si cuenta `superadministrador` y si esos cupos los ocupan solo `docente_director` y `estudiante_lider`.
+- Decisión del equipo: **el código no limita la cantidad de administradores**; el cupo es una regla de uso que
+  cumplen los superadministradores al asignar roles. Es lo que ya está implementado. Sin cambios de código.
 
 ## DEC-B19 — Datos públicos de los integrantes
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-10-24
 - Decisión: la vista pública de un integrante expone `id`, `nombre`, `apellido`, `rol`, `programa_academico`, `semestre`, `foto_perfil` (solo `url`) y `biografia`. El `telefono` y el correo nunca son públicos. Los administradores ven además `correo`, `telefono`, `estado`, `estado_cuenta` y fechas.
 - Impacto: `UsersService`, `docs/api.md`.
@@ -193,7 +193,7 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 
 ## DEC-B21 — Límites de perfil y de foto en configuración
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-10-24
 - Contexto: la sección 13.3 pide no fijar en código límites no aprobados.
 - Decisión (valores por defecto, configurables en `.env`): foto JPEG, PNG o WebP de hasta 2 MB en la carpeta de Cloudinary `siiis/perfiles`; `semestre` entre 1 y 10; `nombre` y `apellido` de hasta 80 caracteres; `programa_academico` de hasta 120; `biografia` de hasta 1000; `telefono` de 7 a 20 dígitos (se admite `+` inicial).
@@ -203,20 +203,20 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 
 ## DEC-B22 — Reactivación de usuarios
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-10-24
 - Decisión: la desactivación (`DELETE /users/{id}`) es lógica: `estado = false`, `fecha_salida = ahora` y cierre de sesiones (spec 8.6 y 10.13.6). Un administrador reactiva con `PATCH /users/{id}` `{"estado": true}`, que deja `fecha_salida = null` y conserva `fecha_ingreso`.
 - Impacto: `UsersService`.
 
 ## DEC-B23 — Operaciones de cuenta fuera de la fase 2
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-10-24
 - Contexto: no están en el contrato 11.3.
 - Propuesta para una fase futura: cambiar la contraseña estando autenticado, cambiar el correo (vive en `Credenciales`) y desbloquear cuentas `bloqueadas` (ligado a DEC-B06).
 - Impacto: ninguno en la fase 2.
-- **Cambio de contraseña: implementado en la fase 5, paso 2 (2026-11-19), sigue como `PROPUESTA`** hasta que lo
-  apruebe el equipo. Contrato en `docs/api.md` (6a). Reglas:
+- **Cambio de contraseña: implementado en la fase 5, paso 2 (2026-11-19), aprobado por el equipo el
+  2026-11-26.** Contrato en `docs/api.md` (6a). Reglas:
   - `POST /auth/change-password`, protegido, con `password_actual` y `password_nueva` (sin recortar). La nueva
     sigue `PasswordRules` (DEC-B11) y debe ser distinta de la actual.
   - Contraseña actual incorrecta → `400 VALIDATION_ERROR` en `fields.password_actual`. **No** suma a
@@ -234,14 +234,14 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 
 ## DEC-B24 — `crear_superadmin.php` reutiliza `UserAccountService`
 
-- Estado: PROPUESTA (aprobada por backend)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (aprobada por backend)
 - Fecha: 2026-10-24
 - Decisión: el script usa el mismo servicio que `POST /auth/register` para crear el par `Credenciales`/`Usuarios`, de modo que la forma de los documentos esté en un solo lugar. Su comportamiento no cambia.
 - Impacto: `scripts/crear_superadmin.php`, `UserAccountService`.
 
 ## DEC-B25 — Unicidad del correo al registrar
 
-- Estado: PROPUESTA (aprobada por backend)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (aprobada por backend)
 - Fecha: 2026-10-24
 - Contexto: el índice único de `Credenciales.correo` (spec 8.4) aún no está creado en la base real `siiis` (pendiente de la fase 1).
 - Decisión: `UserAccountService` comprueba primero si el correo existe (`409 EMAIL_TAKEN`) y, además, traduce el error de clave duplicada del índice (código 11000) al mismo `409`, para cubrir dos altas simultáneas.
@@ -250,7 +250,7 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 
 ## DEC-B26 — Contrato de `GET /users` y `GET /users/{id}`
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-10-25
 - Contexto: el spec (10.13.4, 19) pide paginar con un `per_page` máximo configurable, pero no define parámetros, orden, forma de la respuesta ni qué ve cada actor en el detalle.
 - Decisión:
@@ -268,7 +268,7 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 
 ## DEC-B27 — Contrato de `PATCH /users/{id}`
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-10-27
 - Contexto: el spec (10.8, 11.3) solo nombra la ruta; DEC-B17 fija quién puede editar a quién, pero no la forma de la petición ni los errores.
 - Decisión:
@@ -286,7 +286,7 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 
 ## DEC-B28 — Contrato de `DELETE /users/{id}` y de `estado` en `PATCH /users/{id}`
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-10-27
 - Contexto: DEC-B22 fija la desactivación lógica y la reactivación por `PATCH`, pero no la respuesta, la idempotencia ni qué hace `PATCH {"estado": false}`.
 - Decisión:
@@ -302,7 +302,7 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 
 ## DEC-B29 — Contrato de `POST /users/{id}/photo`
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-10-27
 - Contexto: RF-06 y el spec (10.13.8, 13) fijan el patrón (MIME real con `finfo`, Cloudinary, `{url, public_id}`, compensación), pero no el formato de la petición, los permisos ni los códigos de error.
 - Decisión:
@@ -324,12 +324,12 @@ pendientes de aprobación del equipo (Andryw Barrera, líder, y Luisa Merchán, 
 
 El spec (8.2, 10.9 y 11.3) define la colección `Documentos` y las rutas `/projects` y `/articles`, pero no
 quién publica, si hay revisión ni quién edita o borra. Las decisiones DEC-B30 a DEC-B40 responden las 11 dudas
-del plan de la fase 3. Backend las aprobó el 2026-11-04 con estas recomendaciones y están **pendientes de
-aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato de las rutas.
+del plan de la fase 3. Backend las aprobó el 2026-11-04 con estas recomendaciones y el equipo (líder y bases
+de datos) las **aprobó el 2026-11-26**. DEC-B41 recoge el contrato de las rutas.
 
 ## DEC-B30 — Rutas y categorías: las noticias van en `/articles`
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-04
 - Contexto: `Documentos.categoria` admite `proyecto`, `articulo` y `noticia`, pero el spec 11.3 solo tiene `/projects` y `/articles`.
 - Decisión: `/projects` sirve solo `categoria = proyecto` (la categoría es fija; si el cuerpo trae otra, se ignora). `/articles` sirve `articulo` y `noticia`: al crear, `categoria` es obligatoria, y el listado se filtra con `?categoria=articulo|noticia`. Un documento de otro módulo responde `404` (p. ej. un artículo pedido por `/projects/{id}`). Un solo `DocumentosController`, como pide el spec 9.
@@ -339,7 +339,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B31 — Estados por categoría y vista pública
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo). Relacionada con DECISION-010 del spec (estados definitivos).
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo). Relacionada con DECISION-010 del spec (estados definitivos).
 - Fecha: 2026-11-04
 - Contexto: `estado` mezcla el avance de un proyecto (`ejecucion`, `finalizado`) con la revisión (`en_revision`, `publicado`). Si el público solo viera `publicado`, nunca vería un proyecto en ejecución.
 - Decisión:
@@ -352,7 +352,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B32 — Quién crea documentos
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-04
 - Decisión: cualquier usuario con sesión, de cualquier rol, crea proyectos, artículos y noticias, y queda como autor (`autor_id` sale del token, nunca del cuerpo). Lo que crea queda en `en_revision` y con `visible = false`. Si alguien que no es revisor intenta crearlo con otro estado o con `visible: true`, recibe `403 FORBIDDEN`; reenviar `en_revision` o `false` está permitido.
 - Impacto: `DocumentosService::crear`.
@@ -360,7 +360,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B33 — Revisión y publicación
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-04
 - Decisión: hay revisión antes de publicar. Solo los **revisores** (`superadministrador`, `administrador` y `docente_director`; `Roles::REVISORES_CONTENIDO`) cambian `estado` o `visible`, en cualquier documento y en cualquier sentido (también pueden devolverlo a `en_revision`). Pueden crear un documento ya publicado. Para el contenido no se aplica la jerarquía de usuarios de DEC-B17: un revisor puede publicar el documento de un superadministrador.
 - Impacto: `Roles`, `DocumentosService`.
@@ -368,7 +368,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B34 — Quién edita
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-04
 - Decisión:
   - El **autor** edita su documento solo mientras está `en_revision`; después recibe `403` y debe pedir el cambio a un revisor.
@@ -382,7 +382,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B35 — Borrado físico
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-04
 - Contexto: el modelo de `Documentos` no tiene un campo de "eliminado", y para ocultar ya existe `visible = false`.
 - Decisión: `DELETE` borra el documento de verdad (`204`). Puede hacerlo el autor mientras está `en_revision` (con la misma condición atómica de DEC-B34) o un revisor en cualquier momento. Desde el paso 3 también se borran sus adjuntos en Cloudinary.
@@ -392,7 +392,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B36 — Qué ve cada actor
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-04
 - Decisión:
   - Sin sesión: solo lo público (DEC-B31).
@@ -404,7 +404,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B37 — `contenido` en Markdown y límites de texto
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo) · **pendiente de confirmar con el frontend**
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo) · **pendiente de confirmar con el frontend**
 - Fecha: 2026-11-04
 - Contexto: el spec 8.2 dice que `contenido` es "texto enriquecido" sin definir el formato. Guardar HTML exigiría sanitizarlo en el backend (una librería nueva) para evitar XSS.
 - Decisión: `contenido` es **Markdown**, opcional, de hasta 50 000 caracteres. Se guarda tal cual (sin espacios alrededor; vacío o `null` → `null`). El frontend debe mostrarlo con un renderizador de Markdown que **no interprete HTML incrustado**. `titulo` es obligatorio (máx. 200) y `descripcion` también (máx. 1000): la descripción es el resumen que aparece en los listados.
@@ -415,7 +415,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B38 — Integrantes de un documento
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-04
 - Decisión:
   - `integrantes` es una lista de ids de `Usuarios`, sin repetidos y de hasta 20. Se valida que existan (spec 8.5).
@@ -428,7 +428,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B39 — Rutas para los archivos adjuntos
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo) · implementada en el paso 3
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo) · implementada en el paso 3
 - Fecha: 2026-11-04
 - Contexto: el spec 11.3 no tiene rutas para subir o quitar adjuntos.
 - Contrato:
@@ -443,7 +443,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B40 — Tipos y tamaño de los adjuntos
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo) · implementada en el paso 3
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo) · implementada en el paso 3
 - Fecha: 2026-11-04
 - Contexto: el spec 13.3 prohíbe fijar en el código límites que el equipo no haya aprobado.
 - Decisión: PDF, JPG, PNG y WebP, detectados por el contenido real (`finfo`), de hasta 5 MB por archivo y con un máximo de 10 adjuntos por documento. Todo en `.env`. Hostinger debe permitir subidas de al menos 5 MB. **Desde DEC-B42** (2026-11-05) los PDF tienen su propio límite, 3 MB (`DOCUMENTO_PDF_MAX_BYTES`); las imágenes siguen en 5 MB.
@@ -458,7 +458,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B41 — Contrato de `/projects` y `/articles`
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-04
 - Decisión:
   - Listado: `page` (1 a 10000), `per_page` (1 a `DOCUMENTOS_PER_PAGE_MAX`, por defecto `DOCUMENTOS_PER_PAGE_DEFAULT`; 50 y 12), `estado`, `autor` e `integrante` (ids, para el perfil de RF-05 y RF-08), `categoria` (solo `/articles`) y `visible` (solo revisores; para los demás se ignora). Un valor fuera de la lista blanca, un id inválido o un parámetro enviado como arreglo → `400 VALIDATION_ERROR` con `fields`. Respuesta `{"data", "meta"}`, igual que `GET /users`. Orden: más recientes primero (`fecha_creacion` y `_id` descendentes).
@@ -471,7 +471,7 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 ## DEC-B42 — Optimización de espacio en Cloudinary
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-05
 - Contexto: el plan gratuito de Cloudinary tiene un cupo de almacenamiento y de transferencia. Hasta ahora las fotos de perfil y las imágenes adjuntas se guardaban tal como las subía el usuario (una foto de celular puede pesar varios MB y tener más de 4000 px), y la API entregaba siempre el archivo original.
 - Decisión:
@@ -497,13 +497,13 @@ aprobación del equipo** (líder y bases de datos). DEC-B41 recoge el contrato d
 
 El spec (8.2, 10.10 a 10.12, 11.3, 13 y 14) define las colecciones `Reseñas`, `Inscripciones` y
 `Mensajes_Contacto`, las rutas y que haya validación y rate limiting, pero casi ninguna regla de negocio
-(DECISION-005 sigue abierta). DEC-B43 a DEC-B52 responden las 18 dudas del plan de la fase 4 (aprobado el
-2026-11-06 con cuatro cambios del responsable de backend) y quedan como **PROPUESTA pendiente de aprobación
-del equipo**. No hay colecciones, campos ni índices nuevos.
+(DECISION-005, resuelta el 2026-11-26 en DEC-B49). DEC-B43 a DEC-B52 responden las 18 dudas del plan de la
+fase 4 (aprobado el 2026-11-06 con cuatro cambios del responsable de backend) y el equipo las **aprobó el
+2026-11-26**. No hay colecciones, campos ni índices nuevos.
 
 ## DEC-B43 — Reseñas: qué son, quién escribe y cómo empiezan
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-06
 - Contexto: RF-10 dice "cualquier usuario puede escribir reseñas" y el modelo permite `usuario_id` nulo
   (visitantes), pero no dice sobre qué es la reseña ni si se publica de inmediato.
@@ -526,7 +526,7 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
 
 ## DEC-B44 — Moderación de reseñas
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-06
 - Contexto: el spec solo tiene `GET` y `POST /reviews`, pero el campo `estado` (`visible`/`oculta`) existe
   "para moderación".
@@ -541,7 +541,7 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
 
 ## DEC-B45 — Contrato de `GET /reviews`
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-06
 - Decisión:
   - Público con sesión opcional. Parámetros: `page` (1 a 10000), `per_page` (1 a `RESENAS_PER_PAGE_MAX`, por
@@ -561,7 +561,7 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
 
 ## DEC-B46 — Contacto: un correo con plantilla fija y buzón para administradores
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-06
 - Contexto: RF-03 habla de "correos preescritos"; el modelo guarda `estado` (`leido`/`no_leido`), pero el
   spec no tiene rutas para leer los mensajes.
@@ -587,7 +587,7 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
 
 ## DEC-B47 — Si el correo falla, la operación igual responde `201`
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-06
 - Decisión: en contacto e inscripciones el registro en MongoDB es la fuente de verdad (el modelo lo pide "para
   trazabilidad"). Si el SMTP falla después de guardar, la API responde `201` igualmente y el error queda en el
@@ -597,7 +597,7 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
 
 ## DEC-B48 — Rate limiting de las rutas públicas
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-06
 - Contexto: dentro de la universidad muchos estudiantes comparten la misma IP pública; un límite muy bajo
   bloquearía a gente real.
@@ -611,8 +611,8 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
 
 ## DEC-B49 — Documentos de la inscripción (DECISION-005)
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo; DECISION-005 sigue abierta en el spec)
-- Fecha: 2026-11-06
+- Estado: DECIDIDA (equipo, 2026-11-26) · resuelve DECISION-005 del spec
+- Fecha: 2026-11-06 · decidida el 2026-11-26
 - Contexto: el spec no dice qué documentos se piden ni sus formatos o tamaños.
 - Decisión: de 1 a `INSCRIPCION_DOCUMENTOS_MAX` (3) archivos en el campo `documentos[]` de un solo
   `multipart/form-data`, con las mismas reglas de los adjuntos (DEC-B40, DEC-B42): PDF de hasta 3 MB guardado
@@ -620,15 +620,24 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
   detecta por el contenido. Si una subida falla, se borran las anteriores; si falla el guardado en MongoDB, se
   borran todas.
 - Notas: con 3 archivos la petición puede llegar a unos 15 MB: Hostinger debe permitir `post_max_size` y
-  `upload_max_filesize` suficientes (ver `docs/deployment.md`). Si el semillero define qué documentos pide
-  (carta, certificado de notas…), se puede ajustar.
+  `upload_max_filesize` suficientes (ver `docs/deployment.md`).
+- Decisión del equipo (DECISION-005, 2026-11-26): la inscripción lleva de 1 a 3 archivos PDF o imagen: la
+  **carta de motivación es obligatoria** y el **certificado de matrícula o de notas es opcional**.
+  - Cómo se cumple sin cambiar el contrato ni el modelo: el backend ya exige al menos 1 archivo y como máximo 3,
+    con los formatos y tamaños de arriba. `Inscripciones.documentos_adjuntos` solo guarda `{url, public_id,
+    nombre_archivo}` (sin un "tipo de documento"), así que el backend **no distingue** cuál archivo es la carta y
+    cuál el certificado.
+  - El frontend pide la carta en un campo obligatorio y el certificado en uno opcional, y los envía en ese orden
+    en `documentos[]`; el administrador comprueba el contenido al revisar la solicitud (13c).
+  - Si se quiere guardar qué tipo es cada archivo, hay que pedir un campo nuevo al equipo de BD (cambio de
+    modelo, spec 8.2).
 - Variables: `INSCRIPCION_DOCUMENTOS_MAX`, `CLOUDINARY_INSCRIPCIONES_FOLDER`.
 - Impacto: `InscriptionsController`, `InscripcionesService`, `FileValidator`, `CloudinaryService`.
 - Requiere migración: no.
 
 ## DEC-B50 — Documentos de la inscripción privados con enlaces firmados
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo; verificada con Cloudinary real el 2026-11-06)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo; verificada con Cloudinary real el 2026-11-06)
 - Fecha: 2026-11-06 · corregida el 2026-11-06 tras la prueba con Cloudinary real
 - Contexto: son datos personales del aspirante (Ley 1581 de 2012, habeas data). Una URL pública de Cloudinary
   la puede abrir cualquiera que la consiga.
@@ -660,7 +669,7 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
 
 ## DEC-B51 — Datos de la inscripción
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-06
 - Decisión:
   - Obligatorios: `nombre_completo` (máximo 120), `correo`, `programa_academico` (como en el perfil),
@@ -686,7 +695,7 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
 
 ## DEC-B52 — Revisión de inscripciones y correos
 
-- Estado: PROPUESTA (pendiente de aprobación del equipo)
+- Estado: DECIDIDA (equipo, 2026-11-26) · antes PROPUESTA (pendiente de aprobación del equipo)
 - Fecha: 2026-11-06
 - Contexto: el spec se contradice: 8.2 dice que aceptar es un flujo manual y 10.13.4 habla de una transacción
   al aceptar una inscripción.
@@ -701,8 +710,94 @@ del equipo**. No hay colecciones, campos ni índices nuevos.
   - Correos: al aspirante cuando se recibe la solicitud, al semillero (`INSCRIPCION_CORREO_AVISO`; si está
     vacío, el mismo destino del contacto) cuando llega una nueva, y al aspirante cuando se acepta o rechaza.
     Si fallan, aplica DEC-B47.
-  - No hay `DELETE` (el spec no lo tiene). Cuánto tiempo se guardan las solicitudes rechazadas queda para el
-    equipo.
+  - No hay `DELETE` (el spec no lo tiene).
+  - **Conservación (equipo, 2026-11-26):** las solicitudes **rechazadas** se conservan **6 meses** y luego un
+    administrador las **borra manualmente** (el documento en `Inscripciones` y sus archivos privados en
+    Cloudinary, `siiis/inscripciones`). No hay ruta ni cron para esto; el procedimiento está en
+    `docs/deployment.md` ("Mantenimiento"). `Inscripciones` no guarda la fecha de resolución (y agregarla cambiaría
+    el modelo), así que los 6 meses se cuentan desde `fecha_solicitud`: una solicitud nunca se borra antes de
+    tiempo, como mucho se guarda unos días más.
 - Variables: `INSCRIPCION_CORREO_AVISO`, `INSCRIPCIONES_PER_PAGE_DEFAULT`, `INSCRIPCIONES_PER_PAGE_MAX`.
 - Impacto: `InscriptionsController`, `InscripcionesService`, `InscripcionesRepository`, `Routes`.
 - Requiere migración: no.
+
+---
+
+# Entrega en Hostinger (2026-11-26)
+
+Decisiones del equipo para el despliegue con el profesor y resultado de la revisión de seguridad previa a
+producción. Además, todas las decisiones que estaban en `PROPUESTA` en las fases 1 a 5 (DEC-B01 a DEC-B52)
+quedaron **aprobadas por el equipo** el 2026-11-26.
+
+## DEC-B53 — Login con Google (RF-17) fuera de esta entrega
+
+- Estado: DECIDIDA (equipo, 2026-11-26)
+- Decisión: RF-17 no se entrega ahora. `POST /auth/google` sigue sin registrarse (responde `404`) y DECISION-011
+  (rol por defecto de una cuenta creada con Google) queda abierta para cuando se retome.
+- Impacto: ninguno (ya era así).
+
+## DEC-B54 — Acceso de red a MongoDB Atlas (DECISION-015)
+
+- Estado: DECIDIDA (equipo, 2026-11-26) · resuelve DECISION-015 del spec
+- Contexto: en el hosting compartido la IP saliente puede cambiar si Hostinger mueve la cuenta de servidor.
+- Decisión: la lista de acceso de Atlas permite `0.0.0.0/0`, con una **contraseña fuerte** para el usuario de
+  base de datos de la aplicación.
+- Riesgo y mitigaciones (recomendación de backend): cualquiera en Internet puede intentar conectarse, así que la
+  seguridad depende solo de la credencial. Usar una contraseña larga y aleatoria (24+ caracteres, sin reutilizar),
+  un usuario con rol `readWrite` **solo** sobre la base `siiis` (no `atlasAdmin` ni acceso a otras bases), el
+  usuario de pruebas aparte para `siiis_test`, y rotarla si se filtra. Si Hostinger confirma una IP estable, se
+  puede cambiar a esa IP sin tocar el código.
+- Impacto: solo configuración de Atlas y `MONGO_URI`.
+
+## DEC-B55 — Credenciales de correo y Cloudinary de desarrollo en la entrega
+
+- Estado: DECIDIDA (equipo, 2026-11-26) · temporal
+- Decisión: las variables `MAIL_*` y `CLOUDINARY_*` de desarrollo se usan en producción **hasta que el semillero
+  tenga sus propias cuentas**. Reemplaza la indicación anterior de `docs/deployment.md` (paso 5).
+- Riesgo: son cuentas personales; los correos salen desde ese buzón y los archivos (incluidos los documentos
+  privados de inscripción) quedan en esa cuenta de Cloudinary, junto a `siiis_test/`. Los datos de producción van
+  a las carpetas `siiis/…`, distintas de las de pruebas.
+- Salida: cuando el semillero tenga sus cuentas, cambiar las variables en el `.env` de producción. Los archivos ya
+  subidos siguen en la cuenta vieja (sus URL dejan de servir si se borra esa cuenta); migrarlos sería un paso
+  aparte. La cuenta de desarrollo ya tiene activada la entrega de PDF (DEC-B40).
+- Impacto: solo `.env` de producción.
+
+## DEC-B56 — Endurecimiento para producción (revisión de seguridad)
+
+- Estado: PROPUESTA (revisión de seguridad de backend, 2026-11-26)
+- Cambios:
+  - `SecurityHeadersMiddleware` en todas las respuestas, también las de error: `X-Content-Type-Options: nosniff`,
+    `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`,
+    `Referrer-Policy: no-referrer`; `Cache-Control: no-store` cuando la ruta no fija su propia caché (las
+    respuestas de error y algunas rutas no llevaban ninguna); `Strict-Transport-Security: max-age=15552000` solo con
+    `APP_ENV=production` (sin `includeSubDomains`).
+  - `APP_DEBUG=true` con `APP_ENV=production` (o sin `APP_ENV`, que vale `production`) hace que la API no arranque:
+    con debug, un `500` devuelve la traza y las rutas del servidor.
+  - `public/index.php` fija `zend.exception_ignore_args=1`: las trazas que se guardan en `storage/logs` no
+    incluyen los argumentos de las funciones (podían incluir fragmentos de contraseñas).
+  - `ObjectIdValidator` y el token de `reset-password` usan `\z` en lugar de `$`: con `$`, un id con un salto de
+    línea final (`/users/<id>%0A`) pasaba la validación y el driver lanzaba una excepción (`500` en vez de `404`).
+- Impacto: `Middleware/SecurityHeadersMiddleware`, `Config/Application`, `Config/Settings`, `public/index.php`,
+  `Support/ObjectIdValidator`, `Services/PasswordResetService`. Sin cambios de contrato.
+
+## DEC-B57 — CORS en producción solo con `CORS_ORIGIN` (plan B)
+
+- Estado: PROPUESTA (backend, 2026-11-26)
+- Contexto: en Hostinger frontend y API comparten dominio y no hay CORS (spec 10.13.9). En el plan B (DEC-B58) la
+  API vive en otro dominio (Render) y el navegador necesita CORS.
+- Decisión: nueva variable `CORS_ORIGIN`, un origen exacto con `https` (sin ruta, sin `*`; si no, la API no
+  arranca). En desarrollo sigue mandando `FRONTEND_ORIGIN`; fuera de desarrollo, CORS solo se activa si
+  `CORS_ORIGIN` tiene valor. Las respuestas CORS exponen `Retry-After` para que el frontend lea la espera de un `429`.
+- Impacto: `Settings::origenCors`, `Application`, `CorsMiddleware`, `.env.example`.
+
+## DEC-B58 — Plan B: backend en Render con Docker si Hostinger no tiene `ext-mongodb`
+
+- Estado: PROPUESTA (backend, 2026-11-26) · contingencia, no desplegada
+- Contexto: DECISION-008 eligió Hostinger y descartó Render. Si mañana el plan compartido no ofrece la extensión
+  `mongodb`, el backend no puede arrancar allí.
+- Decisión: `backend/Dockerfile` (PHP 8.2 + Apache + `ext-mongodb`) para desplegar **solo el backend** en Render;
+  el frontend sigue en Hostinger y llama a la URL de Render con `CORS_ORIGIN` configurado (DEC-B57). Pasos en
+  `docs/deployment.md` ("Plan B").
+- Limitaciones: el disco del contenedor es efímero (logs y contadores de rate limiting se pierden en cada
+  reinicio); el plan gratuito se duerme tras un rato sin uso (la primera petición tarda); la IP real del visitante
+  depende de configurar `TRUSTED_PROXIES` con la red interna de Render.

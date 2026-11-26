@@ -9,6 +9,7 @@ use Siiis\Middleware\ClientIpMiddleware;
 use Siiis\Middleware\CorsMiddleware;
 use Siiis\Middleware\ErrorHandler;
 use Siiis\Middleware\JsonBodyMiddleware;
+use Siiis\Middleware\SecurityHeadersMiddleware;
 use Slim\App;
 use Slim\Factory\AppFactory;
 
@@ -37,8 +38,13 @@ final class Application
         $errorMiddleware = $app->addErrorMiddleware($settings->appDebug, false, false);
         $errorMiddleware->setDefaultErrorHandler($container->get(ErrorHandler::class));
 
-        if ($settings->isDevelopment()) {
-            $app->add(new CorsMiddleware($settings->frontendOrigin));
+        // Envuelve también las respuestas de error.
+        $app->add(new SecurityHeadersMiddleware($settings->isProduction()));
+
+        // CORS: en desarrollo para FRONTEND_ORIGIN; fuera de desarrollo solo si CORS_ORIGIN está configurado
+        // (plan B, API en otro dominio). En Hostinger, con frontend y API en el mismo dominio, no hay CORS.
+        if ($settings->origenCors() !== '') {
+            $app->add(new CorsMiddleware($settings->origenCors()));
         }
 
         return $app;

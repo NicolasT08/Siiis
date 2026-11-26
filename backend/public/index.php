@@ -11,6 +11,10 @@ const BOOTSTRAP_PATH = __DIR__ . '/../bootstrap.php';
 
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
+// Las trazas que se guardan en storage/logs no incluyen los argumentos de las funciones (p. ej. contraseñas).
+ini_set('zend.exception_ignore_args', '1');
+// No anunciar la versión de PHP (expose_php no se puede cambiar desde aquí).
+header_remove('X-Powered-By');
 
 try {
     /** @var \Slim\App<\Psr\Container\ContainerInterface> $app */
@@ -20,6 +24,8 @@ try {
     $debug = in_array(strtolower((string) ($_ENV['APP_DEBUG'] ?? '')), ['1', 'true', 'yes', 'on'], true);
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    header('X-Content-Type-Options: nosniff');
     echo json_encode([
         'error' => [
             'code' => 'CONFIG_ERROR',

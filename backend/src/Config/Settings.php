@@ -102,6 +102,8 @@ final readonly class Settings
         public string $inscripcionCorreoAviso,
         /** @var list<string> IP o rangos CIDR de proxies de confianza; vacío = solo REMOTE_ADDR (fase 5) */
         public array $trustedProxies,
+        /** Origen permitido por CORS fuera de desarrollo (plan B: API en otro dominio); vacío = sin CORS */
+        public string $corsOrigin,
         public string $storagePath,
     ) {
     }
@@ -158,9 +160,16 @@ final readonly class Settings
             );
         }
 
+        $appEnv = self::string($env, 'APP_ENV', 'production');
+        $appDebug = self::bool($env, 'APP_DEBUG', false);
+        if ($appEnv === 'production' && $appDebug) {
+            // Con APP_DEBUG=true los errores 500 incluyen trazas y rutas del servidor.
+            throw new ConfigException('APP_DEBUG=true no está permitido con APP_ENV=production.');
+        }
+
         return new self(
-            appEnv: self::string($env, 'APP_ENV', 'production'),
-            appDebug: self::bool($env, 'APP_DEBUG', false),
+            appEnv: $appEnv,
+            appDebug: $appDebug,
             appUrl: self::string($env, 'APP_URL', 'http://localhost:8000'),
             frontendOrigin: self::string($env, 'FRONTEND_ORIGIN', 'http://localhost:5173'),
             mongoUri: $mongoUri,
@@ -250,6 +259,7 @@ final readonly class Settings
             inscripcionCartaMaxLength: $cartaMax,
             inscripcionCorreoAviso: self::string($env, 'INSCRIPCION_CORREO_AVISO'),
             trustedProxies: self::proxies($env, 'TRUSTED_PROXIES'),
+            corsOrigin: self::origen($env, 'CORS_ORIGIN'),
             storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
         );
     }
@@ -257,6 +267,20 @@ final readonly class Settings
     public function isDevelopment(): bool
     {
         return $this->appEnv === 'development';
+    }
+
+    public function isProduction(): bool
+    {
+        return $this->appEnv === 'production';
+    }
+
+    /**
+     * Origen al que se le permite CORS: FRONTEND_ORIGIN en desarrollo; fuera de desarrollo, solo CORS_ORIGIN
+     * (vacío = sin CORS, el caso normal en Hostinger, donde frontend y API comparten dominio).
+     */
+    public function origenCors(): string
+    {
+        return $this->isDevelopment() ? $this->frontendOrigin : $this->corsOrigin;
     }
 
     /**
@@ -330,6 +354,28 @@ final readonly class Settings
         }
 
         return array_values(array_unique($dominios));
+    }
+
+    /**
+     * Un origen exacto `https://dominio[:puerto]`, sin ruta ni comodines. Vacío si la variable no existe.
+     *
+     * @param array<string, mixed> $env
+     */
+    private static function origen(array $env, string $key): string
+    {
+        $origen = self::string($env, $key);
+        if ($origen === '') {
+            return '';
+        }
+        if (preg_match('#^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?\z#i', $origen) !== 1) {
+            throw new ConfigException(sprintf(
+                '%s debe ser un origen exacto con https (p. ej. https://siiis.com.co), sin ruta ni "*": "%s".',
+                $key,
+                $origen,
+            ));
+        }
+
+        return strtolower($origen);
     }
 
     /**

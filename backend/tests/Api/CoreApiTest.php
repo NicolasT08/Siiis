@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Siiis\Tests\Api;
 
 use Siiis\Database\Mongo;
+use Siiis\Repositories\MultimediaRepository;
+use Siiis\Tests\Support\InMemoryMultimediaRepository;
 
 final class CoreApiTest extends ApiTestCase
 {
@@ -98,6 +100,65 @@ final class CoreApiTest extends ApiTestCase
         $response = $app->handle($this->request('OPTIONS', '/api/v1/health', null, ['Origin' => 'https://evil.example']));
 
         self::assertSame('', $response->getHeaderLine('Access-Control-Allow-Origin'));
+    }
+
+    public function testCabecerasDeSeguridadEnRespuestasNormalesYDeError(): void
+    {
+        $mongo = $this->createStub(Mongo::class);
+        $mongo->method('ping')->willReturn(true);
+        $app = $this->app([Mongo::class => $mongo]);
+
+        foreach ([$this->request('GET', '/api/v1/health'), $this->request('GET', '/api/v1/no-existe')] as $request) {
+            $response = $app->handle($request);
+            self::assertSame('nosniff', $response->getHeaderLine('X-Content-Type-Options'));
+            self::assertSame('DENY', $response->getHeaderLine('X-Frame-Options'));
+            self::assertSame("default-src 'none'; frame-ancestors 'none'", $response->getHeaderLine('Content-Security-Policy'));
+            self::assertSame('no-referrer', $response->getHeaderLine('Referrer-Policy'));
+            // Sin caché propia, no-store; fuera de producción, sin HSTS.
+            self::assertSame('no-store', $response->getHeaderLine('Cache-Control'));
+            self::assertSame('', $response->getHeaderLine('Strict-Transport-Security'));
+        }
+    }
+
+    public function testRutaPublicaConservaSuCacheYProduccionAgregaHsts(): void
+    {
+        $repo = new InMemoryMultimediaRepository([]);
+        $app = $this->app([MultimediaRepository::class => $repo], ['APP_ENV' => 'production']);
+        $response = $app->handle($this->request('GET', '/api/v1/home/slider'));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('public, max-age=300', $response->getHeaderLine('Cache-Control'));
+        self::assertSame('max-age=15552000', $response->getHeaderLine('Strict-Transport-Security'));
+    }
+
+    public function testIdConSaltoDeLineaFinalResponde404(): void
+    {
+        $response = $this->app()->handle($this->request('GET', '/api/v1/users/650f1c2e8b3a4a0012345678%0A'));
+
+        $this->assertError($response, 404, 'NOT_FOUND');
+    }
+
+    public function testCorsEnProduccionSoloConCorsOrigin(): void
+    {
+        $app = $this->app(
+            [MultimediaRepository::class => new InMemoryMultimediaRepository([])],
+            ['APP_ENV' => 'production', 'CORS_ORIGIN' => 'https://siiis.com.co'],
+        );
+
+        $preflight = $app->handle($this->request('OPTIONS', '/api/v1/auth/login', null, [
+            'Origin' => 'https://siiis.com.co',
+            'Access-Control-Request-Method' => 'POST',
+        ]));
+        self::assertSame(204, $preflight->getStatusCode());
+        self::assertSame('https://siiis.com.co', $preflight->getHeaderLine('Access-Control-Allow-Origin'));
+
+        $otro = $app->handle($this->request('OPTIONS', '/api/v1/auth/login', null, ['Origin' => 'http://localhost:5173']));
+        self::assertSame('', $otro->getHeaderLine('Access-Control-Allow-Origin'));
+
+        $normal = $app->handle($this->request('GET', '/api/v1/home/slider', null, ['Origin' => 'https://siiis.com.co']));
+        self::assertSame(200, $normal->getStatusCode());
+        self::assertSame('https://siiis.com.co', $normal->getHeaderLine('Access-Control-Allow-Origin'));
+        self::assertSame('Retry-After', $normal->getHeaderLine('Access-Control-Expose-Headers'));
     }
 
     public function testSinCorsFueraDeDesarrollo(): void

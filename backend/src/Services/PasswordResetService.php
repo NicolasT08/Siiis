@@ -78,7 +78,7 @@ class PasswordResetService
      */
     public function restablecer(string $token, string $password): void
     {
-        if (preg_match('/^[a-f0-9]{64}$/', $token) !== 1) {
+        if (preg_match('/^[a-f0-9]{64}\z/', $token) !== 1) {
             throw self::tokenInvalido();
         }
 

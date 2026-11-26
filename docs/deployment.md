@@ -39,7 +39,7 @@ Cuando se confirme la versión real con `phpinfo()`:
 - [ ] Extensión `mongodb` activada en hPanel y su versión exacta (`phpinfo()`): ______ (se asume 1.18.1; si difiere, seguir los pasos de "Versiones fijadas")
 - [ ] Extensiones `fileinfo`, `curl`, `openssl` y `mbstring` activas
 - [ ] Conexión saliente a MongoDB Atlas (puerto 27017, URI `mongodb+srv://`): `GET /api/v1/health` responde `{"status":"ok","db":"ok"}`
-- [ ] Lista de acceso IP de Atlas: IP saliente del servidor ______ agregada en *Atlas → Network Access*. Si la IP no es estable, decidir sobre `0.0.0.0/0` (DECISION-015)
+- [ ] Lista de acceso de Atlas (*Atlas → Network Access*): `0.0.0.0/0` con contraseña fuerte del usuario de la aplicación (DEC-B54, DECISION-015 decidida). Si Hostinger confirma una IP saliente estable (______), se puede cambiar a esa IP
 - [ ] Conexión saliente a `smtp.gmail.com:587/465` (probar `forgot-password` y revisar `storage/logs`), a `api.cloudinary.com` y a `www.googleapis.com`. En desarrollo ya se verificaron el SMTP de Gmail y Cloudinary (2026-10-27); falta verificarlos desde Hostinger
 - [ ] Límites de PHP: `upload_max_filesize` ___ · `post_max_size` ___ · `max_execution_time` ___ · `memory_limit` ___. Para los adjuntos de documentos (DEC-B40, DEC-B42), que son el archivo más grande: `upload_max_filesize` ≥ el mayor entre `DOCUMENTO_ADJUNTO_MAX_BYTES` (imágenes, 5 MB) y `DOCUMENTO_PDF_MAX_BYTES` (PDF, 3 MB) y `post_max_size` algo mayor (p. ej. 6 MB); con eso también caben las fotos de perfil (2 MB, DEC-B29). **Desde la fase 4**, la inscripción manda hasta 3 documentos en una sola petición (DEC-B49): `post_max_size` debe ser de unos 16 MB y `upload_max_filesize` de al menos 5 MB, y `max_execution_time` debe alcanzar para 3 subidas seguidas a Cloudinary (hasta 30 s cada una). Si el cuerpo supera `post_max_size`, PHP descarta los archivos y la API responde `400` en lugar de `413`
 - [ ] Foto de perfil de punta a punta: `POST /api/v1/users/{id}/photo` con una imagen real → `200` y la URL de Cloudinary abre; la foto queda en `CLOUDINARY_PERFILES_FOLDER` (`siiis/perfiles`), recortada a 400 × 400 (en la consola de Cloudinary, el archivo ya mide 400 × 400; DEC-B42), y la URL que devuelve la API lleva `f_auto,q_auto`
@@ -65,7 +65,33 @@ domains/siiis.com.co/
 └── siiis-api/                      # contenido de backend/ excepto public/: src/, vendor/, storage/, scripts/, cron/, bootstrap.php, .env
 ```
 
-En `public_html/api/index.php`, cambia solo esta línea:
+### Paquete listo para subir (`backend/scripts/empaquetar.ps1`)
+
+En Windows, desde la raíz del repositorio:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File backend\scripts\empaquetar.ps1
+# otro dominio: ... -Dominio midominio.com
+```
+
+Genera `deploy/` (ignorada por Git) con esta misma estructura:
+
+- `deploy/siiis-api/`: `bootstrap.php`, `composer.json/.lock`, `src/`, `cron/`, los scripts de producción
+  (`cli.php`, `crear_indices.php`, `crear_superadmin.php`, `seed_multimedia.php`), `vendor/` **sin** paquetes de
+  desarrollo (`composer install --no-dev --optimize-autoloader`), `storage/{logs,ratelimit,cache}` vacías, un
+  `.htaccess` que lo deniega todo (por si la carpeta quedara por error dentro de `public_html`) y
+  `.env.produccion.ejemplo` (generado desde `.env.example`, con `APP_ENV=production`, `APP_DEBUG=false`, las URL
+  de `https://<dominio>` y todos los secretos vacíos). **No** incluye `.env`, `tests/`, `seed_demo.php`,
+  `scripts/demo/` ni las herramientas de calidad.
+- `deploy/public_html/`: `.htaccess` de la raíz (el de abajo) y `api/` con `index.php` (ya con el
+  `BOOTSTRAP_PATH` de Hostinger, en UTF-8 sin BOM) y su `.htaccess`.
+
+El script parte del `backend/vendor` local (Composer solo quita los paquetes de desarrollo, sin descargar nada; así
+no hace falta la extensión `zip` ni `unzip`) y al final verifica el paquete: sin `.env`, sin PHPUnit/PHPStan,
+secretos vacíos, `index.php` sin BOM y sin errores de sintaxis, y que el autoload carga la aplicación. Si algo
+falla, se detiene con el motivo.
+
+En `public_html/api/index.php` (el script ya lo hace), cambia solo esta línea:
 
 ```php
 const BOOTSTRAP_PATH = __DIR__ . '/../../siiis-api/bootstrap.php';
@@ -102,10 +128,10 @@ Cómo se usa: solo si `REMOTE_ADDR` pertenece a esa lista se lee `X-Forwarded-Fo
 ## Pasos de despliegue (spec 17.7)
 
 1. Activa PHP 8.2+ y la extensión `mongodb` en hPanel (*Avanzado → Configuración PHP → Extensiones*).
-2. Agrega la IP del servidor en la lista de acceso de MongoDB Atlas.
-3. `composer install --no-dev --optimize-autoloader` (por SSH o en local/CI).
+2. Lista de acceso de MongoDB Atlas: `0.0.0.0/0` con contraseña fuerte del usuario de la aplicación (DEC-B54, DECISION-015). El usuario de la base de producción debe tener solo `readWrite` sobre `siiis`.
+3. `composer install --no-dev --optimize-autoloader` (por SSH o en local/CI). En Windows, `backend/scripts/empaquetar.ps1` lo hace y arma `deploy/` (ver arriba).
 4. Sube `siiis-api/` (código y `vendor/`) por Git, FTP o el Administrador de archivos.
-5. Crea el `.env` de producción en `siiis-api/` (fuera de `public_html`) con `APP_ENV=production` y `APP_DEBUG=false`. Usa un `JWT_SECRET` nuevo de al menos 32 caracteres, y las credenciales `MAIL_*` y `CLOUDINARY_*` **del semillero** (las de desarrollo son cuentas personales). Deja `CLOUDINARY_PERFILES_FOLDER=siiis/perfiles`, `CLOUDINARY_DOCUMENTOS_FOLDER=siiis/documentos` y `CLOUDINARY_INSCRIPCIONES_FOLDER=siiis/inscripciones`. Configura `CONTACTO_CORREO_DESTINO` (buzón del semillero que recibe contacto y avisos de inscripción; opcional `INSCRIPCION_CORREO_AVISO`) y revisa `INSCRIPCION_DOMINIOS_CORREO` (por defecto `uptc.edu.co`). Activa en esa cuenta la entrega de PDF (ver la lista de verificación). Las variables de optimización (`PERFIL_FOTO_LADO_PX`, `DOCUMENTO_IMAGEN_MAX_ANCHO_PX`, `CLOUDINARY_CALIDAD` y `DOCUMENTO_PDF_MAX_BYTES`, DEC-B42) pueden omitirse: los valores por defecto son los de `.env.example`.
+5. Crea el `.env` de producción en `siiis-api/` (fuera de `public_html`) a partir de `.env.produccion.ejemplo`, con `APP_ENV=production` y `APP_DEBUG=false` (con `APP_DEBUG=true` en producción la API no arranca, DEC-B56). Usa un `JWT_SECRET` nuevo de al menos 32 caracteres. Para las credenciales `MAIL_*` y `CLOUDINARY_*` se usan **por ahora las de desarrollo**, hasta que el semillero tenga sus cuentas (DEC-B55); cuando las tenga, solo hay que cambiarlas en el `.env`. Deja `CORS_ORIGIN` vacío (mismo dominio). Deja `CLOUDINARY_PERFILES_FOLDER=siiis/perfiles`, `CLOUDINARY_DOCUMENTOS_FOLDER=siiis/documentos` y `CLOUDINARY_INSCRIPCIONES_FOLDER=siiis/inscripciones`. Configura `CONTACTO_CORREO_DESTINO` (buzón del semillero que recibe contacto y avisos de inscripción; opcional `INSCRIPCION_CORREO_AVISO`) y revisa `INSCRIPCION_DOMINIOS_CORREO` (por defecto `uptc.edu.co`). Activa en esa cuenta la entrega de PDF (ver la lista de verificación). Las variables de optimización (`PERFIL_FOTO_LADO_PX`, `DOCUMENTO_IMAGEN_MAX_ANCHO_PX`, `CLOUDINARY_CALIDAD` y `DOCUMENTO_PDF_MAX_BYTES`, DEC-B42) pueden omitirse: los valores por defecto son los de `.env.example`.
 6. Da permisos de escritura a `siiis-api/storage/` (logs, ratelimit, cache).
 7. Sube `public_html/api/index.php` y su `.htaccess`.
 8. Ejecuta una vez, por SSH o en local contra Atlas: `php scripts/crear_indices.php` y `php scripts/crear_superadmin.php`. Registra el cron de `cron/limpiar_ratelimit.php` (ver "Mantenimiento").
@@ -129,4 +155,56 @@ Cómo se usa: solo si `REMOTE_ADDR` pertenece a esa lista se lee `X-Forwarded-Fo
 - Los usuarios desactivados no se borran (borrado lógico, DEC-B22): conservan sus datos y su foto.
 - Documentos de inscripción huérfanos (fase 4): si falla una subida o el guardado en MongoDB, la API borra de Cloudinary lo ya subido; si ese borrado también falla, queda en el log `Documento de inscripción huérfano en Cloudinary` con el `public_id`. Se borran desde la consola (filtrando por tipo **Authenticated** en `siiis/inscripciones`).
 - Correos de contacto e inscripción que fallan: la operación responde `201` igual (DEC-B47) y el log registra `No se pudo reenviar el mensaje de contacto` o `No se pudo enviar un correo de inscripción`, con el id del registro. El mensaje sigue en `Mensajes_Contacto` y la solicitud en `Inscripciones`.
-- Las solicitudes de inscripción y los mensajes de contacto no se borran (no hay ruta, DEC-B52). Cuánto tiempo conservar las rechazadas y sus documentos (datos personales) lo debe decidir el equipo.
+- Los mensajes de contacto no se borran (no hay ruta, DEC-B52).
+- **Solicitudes de inscripción rechazadas: se conservan 6 meses y luego se borran a mano** (DEC-B52, decisión del equipo del 2026-11-26). No hay ruta ni cron. Una vez al mes, un administrador con acceso a Atlas y a Cloudinary:
+  1. En Atlas (*Data Explorer*, base `siiis`, colección `Inscripciones`) filtra las rechazadas con más de 6 meses, contados desde `fecha_solicitud` (el modelo no guarda la fecha de resolución). Ejemplo, cambiando la fecha por la de hoy menos 6 meses:
+
+     ```json
+     { "estado_solicitud": "rechazada", "fecha_solicitud": { "$lt": { "$date": "2026-05-26T00:00:00Z" } } }
+     ```
+
+  2. Anota el `public_id` de cada elemento de `documentos_adjuntos` y bórralos en la consola de Cloudinary (*Media Library*, carpeta `siiis/inscripciones`, tipo **Authenticated**). Primero los archivos: si se borra antes el documento, se pierden los `public_id`.
+  3. Borra esos documentos en Atlas.
+  Las solicitudes `pendiente` y `aceptada` no se borran con este procedimiento.
+
+## Seguridad en producción (revisión del 2026-11-26)
+
+- Cabeceras en todas las respuestas (DEC-B56): `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` si la ruta no fija su caché y `Strict-Transport-Security` con `APP_ENV=production`. Sin `X-Powered-By`.
+- `APP_DEBUG=true` con `APP_ENV=production` impide arrancar (los `500` mostrarían trazas).
+- Sin CORS en Hostinger (mismo dominio). Solo se activa con `CORS_ORIGIN` (plan B, DEC-B57).
+- Los logs no guardan contraseñas, tokens ni argumentos de funciones en las trazas.
+- El `.env`, `vendor/` y `storage/` quedan fuera de `public_html`; `siiis-api/.htaccess` deniega todo por si acaso.
+
+## Plan B: backend en Render (Docker)
+
+Solo si Hostinger **no** permite activar la extensión `mongodb` (DEC-B58). El frontend sigue en Hostinger; solo el
+backend va a Render. No está desplegado: estos son los pasos para hacerlo si hace falta.
+
+Archivos: `backend/Dockerfile` (PHP 8.2 + Apache + `ext-mongodb` 1.21.9, la versión con la que pasan las pruebas
+en local) y `backend/.dockerignore` (deja fuera `.env`, `vendor/`, `tests/` y los scripts de desarrollo).
+
+1. **Prueba local (opcional, requiere Docker):**
+
+   ```bash
+   cd backend
+   docker build -t siiis-api .
+   # Contra la base de pruebas. --env-file no quita las comillas: MAIL_FROM_NAME llega con ellas (solo en esta prueba).
+   docker run --rm -p 10000:10000 --env-file .env -e APP_ENV=production -e APP_DEBUG=false -e MONGO_DB_NAME=siiis_test siiis-api
+   curl http://localhost:10000/api/v1/health
+   ```
+
+   Si `pecl` no encuentra la versión 1.21.9, construye con otra de la rama 1.x: `--build-arg MONGODB_EXT_VERSION=1.21.x`.
+2. **Render:** *New → Web Service*, conecta el repositorio de GitHub, *Language/Runtime* **Docker**, *Root Directory* `backend`, *Dockerfile Path* `./Dockerfile`, región cercana (p. ej. Virginia/Ohio) y plan Free o Starter.
+3. **Variables de entorno** (*Environment*): las mismas del `.env.produccion.ejemplo`, con estos cambios:
+   - `APP_ENV=production`, `APP_DEBUG=false`, `MONGO_URI`, `JWT_SECRET`, `MAIL_*`, `CLOUDINARY_*`, `CONTACTO_CORREO_DESTINO`.
+   - `APP_URL=https://<servicio>.onrender.com`.
+   - `CORS_ORIGIN=https://siiis.com.co` (el dominio **del frontend**, exacto, con https y sin barra final).
+   - `PASSWORD_RESET_URL=https://siiis.com.co/restablecer` (la pantalla está en el frontend).
+   - No hace falta `PORT`: Render lo define y Apache escucha en él.
+4. **Health check path:** `/api/v1/health`. Tras el despliegue, `https://<servicio>.onrender.com/api/v1/health` → `{"status":"ok","db":"ok"}`. Si responde `CONFIG_ERROR`, falta una variable (p. ej. `MONGO_URI`) o `CORS_ORIGIN` está mal escrito.
+5. **Atlas:** la lista de acceso `0.0.0.0/0` (DEC-B54) ya cubre las IP de Render.
+6. **IP real del visitante:** Render pone un proxy delante. Haz un login y mira `Sesiones.ip_acceso`; si aparece una IP interna (`10.x.x.x`) en lugar de la tuya, configura `TRUSTED_PROXIES` con ese rango interno (p. ej. `10.0.0.0/8`, que solo alcanza la red interna de Render) y vuelve a comprobar.
+7. **Frontend:** compílalo con `VITE_API_URL=https://<servicio>.onrender.com/api/v1` y súbelo a `public_html/` como siempre (en ese caso no se sube `public_html/api/`).
+8. **Cron:** sin `cron/limpiar_ratelimit.php` no pasa nada grave: el disco del contenedor es efímero y los contadores se borran en cada reinicio.
+
+Limitaciones: logs y contadores de rate limiting se pierden al reiniciar o redeplegar (revisa los errores en *Logs* de Render, donde también llega `error_log`); el plan Free se duerme tras unos 15 minutos sin uso y la primera petición tarda cerca de un minuto; Render restringe el SMTP saliente (puertos 25, 465 y 587) en las instancias gratuitas, así que prueba `forgot-password` y el contacto desde Render y, si los correos no salen (log `No se pudo…`), pasa el servicio al plan Starter.

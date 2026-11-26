@@ -1,0 +1,18 @@
+# Nunca dentro de la imagen: secretos, dependencias locales (se instalan en el Dockerfile) y archivos de desarrollo.
+.env
+.env.*
+!.env.example
+vendor/
+tests/
+storage/
+coverage/
+.phpunit.cache/
+.php-cs-fixer.cache
+.php-cs-fixer.php
+phpstan.neon
+phpunit.xml
+scripts/seed_demo.php
+scripts/demo/
+scripts/empaquetar.ps1
+Dockerfile
+.dockerignore

@@ -13,7 +13,7 @@ final class ObjectIdValidator
 {
     public static function isValid(mixed $id): bool
     {
-        return is_string($id) && preg_match('/^[a-f0-9]{24}$/i', $id) === 1;
+        return is_string($id) && preg_match('/^[a-f0-9]{24}\z/i', $id) === 1;
     }
 
     /**

@@ -27,3 +27,6 @@ backend/scripts/data/multimedia_seed.json
 Thumbs.db
 .idea/
 .vscode/
+
+# Paquete de despliegue generado por backend/scripts/empaquetar.ps1
+/deploy/

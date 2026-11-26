@@ -216,6 +216,46 @@ final class SettingsTest extends TestCase
                 'CLOUDINARY_CALIDAD',
             ];
         }
+        yield 'debug en producción' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'APP_ENV' => 'production', 'APP_DEBUG' => 'true'],
+            'APP_DEBUG=true no está permitido',
+        ];
+        yield 'debug sin APP_ENV (producción por defecto)' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'APP_DEBUG' => 'true'],
+            'APP_DEBUG=true no está permitido',
+        ];
+        $origenesInvalidos = [
+            '*', 'http://siiis.com.co', 'https://siiis.com.co/', 'https://siiis.com.co/app', 'siiis.com.co',
+            'https://*.siiis.com.co', 'https://siiis.com.co:123456', 'https://siiis.com.co?x=1',
+        ];
+        foreach ($origenesInvalidos as $origen) {
+            yield 'CORS_ORIGIN ' . json_encode($origen) => [
+                ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'CORS_ORIGIN' => $origen],
+                'CORS_ORIGIN',
+            ];
+        }
+    }
+
+    public function testOrigenCorsSegunEntorno(): void
+    {
+        $base = ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET];
+
+        self::assertSame('', Settings::fromEnv($base)->origenCors());
+        self::assertSame(
+            'https://siiis.com.co',
+            Settings::fromEnv($base + ['CORS_ORIGIN' => 'https://SIIIS.com.co'])->origenCors(),
+        );
+        self::assertSame(
+            'https://siiis-api.onrender.com:8443',
+            Settings::fromEnv($base + ['CORS_ORIGIN' => 'https://siiis-api.onrender.com:8443'])->origenCors(),
+        );
+        // En desarrollo manda FRONTEND_ORIGIN.
+        self::assertSame(
+            'http://localhost:5173',
+            Settings::fromEnv($base + ['APP_ENV' => 'development', 'CORS_ORIGIN' => 'https://siiis.com.co'])->origenCors(),
+        );
+        // Debug fuera de producción sí se permite.
+        self::assertTrue(Settings::fromEnv($base + ['APP_ENV' => 'development', 'APP_DEBUG' => 'true'])->appDebug);
     }
 
     /**

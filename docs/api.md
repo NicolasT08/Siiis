@@ -11,7 +11,8 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 | Autenticación | `Authorization: Bearer <token>` en rutas protegidas |
 | IDs | Strings hexadecimales de 24 caracteres, en el campo `id` (nunca `_id`) |
 | Fechas | ISO 8601 UTC, p. ej. `2026-09-23T15:00:00Z` |
-| CORS | Solo en desarrollo, para `FRONTEND_ORIGIN` (por defecto `http://localhost:5173`). En producción no hace falta (mismo dominio) |
+| CORS | En desarrollo, para `FRONTEND_ORIGIN` (por defecto `http://localhost:5173`). En producción en Hostinger no hace falta (mismo dominio). Si la API vive en otro dominio (plan B en Render), solo para el origen de `CORS_ORIGIN` (DEC-B57). Las respuestas CORS exponen `Retry-After` |
+| Caché y seguridad | Toda respuesta trae `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` y `Referrer-Policy: no-referrer`; si la ruta no indica su caché, `Cache-Control: no-store` (DEC-B56) |
 | Imágenes | Las URL de imágenes de Cloudinary llegan con `f_auto,q_auto` (p. ej. `https://res.cloudinary.com/<cloud>/image/upload/f_auto,q_auto/v1/siiis/perfiles/abc.png`): Cloudinary elige el formato y la calidad para cada navegador. Úsalas tal cual, sin quitar ni agregar transformaciones. Los PDF y los videos llegan sin cambios (DEC-B42) |
 
 ### Formato de error (todas las rutas)
@@ -56,7 +57,7 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 
 ### Roles y permisos
 
-`PROPUESTA` (DEC-B17), pendiente de aprobación del equipo. El rol sale del token; el frontend puede leerlo de `usuario.rol` (login o `/auth/me`) para mostrar u ocultar opciones, pero el backend siempre vuelve a validar.
+Aprobado por el equipo el 2026-11-26 (DEC-B17). El rol sale del token; el frontend puede leerlo de `usuario.rol` (login o `/auth/me`) para mostrar u ocultar opciones, pero el backend siempre vuelve a validar.
 
 | Rol | Puede gestionar usuarios con rol |
 |---|---|
@@ -149,7 +150,7 @@ Protegido. Cierra **solo la sesión del token enviado**; otras sesiones del mism
 
 **204** sin contenido. **401** `UNAUTHORIZED`.
 
-> `PROPUESTA` (DEC-B05): esta ruta no estaba en el contrato original 11.3.
+> DEC-B05, aprobada por el equipo el 2026-11-26: esta ruta no estaba en el contrato original 11.3.
 
 ---
 
@@ -200,7 +201,7 @@ Al restablecer, **se cierran todas las sesiones** del usuario.
 
 Protegido (cualquier rol). Cambia la contraseña del usuario autenticado. Rate limit por IP: `RATE_LIMIT_CHANGE_PASSWORD_MAX` cada `RATE_LIMIT_CHANGE_PASSWORD_WINDOW_SECONDS` (por defecto 10 cada 15 min); los intentos inválidos también cuentan, las peticiones sin sesión (`401`) no.
 
-> `PROPUESTA` (DEC-B23): esta ruta no está en el contrato original 11.3.
+> DEC-B23, aprobada por el equipo el 2026-11-26: esta ruta no estaba en el contrato original 11.3.
 
 **Request**
 ```json
@@ -233,7 +234,7 @@ Protegido (cualquier rol). Cambia la contraseña del usuario autenticado. Rate l
 
 ## 6b. `POST /auth/register`
 
-Protegido: solo `superadministrador` y `administrador` (DEC-B16, `PROPUESTA`). No hay registro público; los aspirantes usan el módulo de inscripción. El rol que se puede asignar depende del rol de quien crea la cuenta (ver "Roles y permisos"). La cuenta se crea activa y ya puede iniciar sesión.
+Protegido: solo `superadministrador` y `administrador` (DEC-B16). No hay registro público; los aspirantes usan el módulo de inscripción. El rol que se puede asignar depende del rol de quien crea la cuenta (ver "Roles y permisos"). La cuenta se crea activa y ya puede iniciar sesión.
 
 **Request**
 ```json
@@ -250,7 +251,7 @@ Protegido: solo `superadministrador` y `administrador` (DEC-B16, `PROPUESTA`). N
 }
 ```
 
-| Campo | Obligatorio | Regla (límites provisionales, DEC-B21) |
+| Campo | Obligatorio | Regla (límites configurables, DEC-B21) |
 |---|---|---|
 | `correo` | sí | formato de correo; se guarda sin espacios y en minúsculas |
 | `password` | sí | mínimo `PASSWORD_MIN_LENGTH` (8) caracteres, al menos una letra y un número, y máximo 72 bytes (DEC-B11) |
@@ -299,7 +300,7 @@ Esta es la **vista de administrador** de un usuario; la usan también `GET /user
 
 ## 6c. `GET /users`
 
-Público con sesión opcional (RF-08). Listado paginado de integrantes, ordenado por `apellido` y `nombre` (orden alfabético en español: ignora tildes y mayúsculas). Contrato provisional: `PROPUESTA` DEC-B26.
+Público con sesión opcional (RF-08). Listado paginado de integrantes, ordenado por `apellido` y `nombre` (orden alfabético en español: ignora tildes y mayúsculas). Contrato aprobado por el equipo el 2026-11-26 (DEC-B26).
 
 | Quién consulta | Vista | Ve inactivos |
 |---|---|---|
@@ -367,7 +368,7 @@ Público con sesión opcional. Perfil de un integrante.
 
 ## 6e. `PATCH /users/{id}`
 
-Requiere token. Edición parcial de un perfil (RF-15): solo cambian los campos enviados. Contrato provisional: `PROPUESTA` DEC-B27 y DEC-B28.
+Requiere token. Edición parcial de un perfil (RF-15): solo cambian los campos enviados. Contrato aprobado por el equipo el 2026-11-26 (DEC-B27 y DEC-B28).
 
 | Quién | Puede editar | Puede cambiar `rol` y `estado` |
 |---|---|---|
@@ -400,7 +401,7 @@ Requiere token. Edición parcial de un perfil (RF-15): solo cambian los campos e
 
 ## 6f. `DELETE /users/{id}`
 
-Solo `superadministrador` y `administrador`, dentro de su jerarquía (ver "Roles y permisos"). Desactivación **lógica** por deserción (RF-09): el usuario no se borra. Contrato provisional: `PROPUESTA` DEC-B28.
+Solo `superadministrador` y `administrador`, dentro de su jerarquía (ver "Roles y permisos"). Desactivación **lógica** por deserción (RF-09): el usuario no se borra. Contrato aprobado por el equipo el 2026-11-26 (DEC-B28).
 
 - Deja `estado = false` y `fecha_salida` con la fecha actual, y cierra todas las sesiones del usuario.
 - Desde ese momento no puede iniciar sesión (`403 ACCOUNT_INACTIVE`) y deja de aparecer en la vista pública de `GET /users` y `GET /users/{id}`.
@@ -419,7 +420,7 @@ Solo `superadministrador` y `administrador`, dentro de su jerarquía (ver "Roles
 
 ## 6g. `POST /users/{id}/photo`
 
-Requiere token. Sube o cambia la foto de perfil (RF-06). Mismos permisos que editar el perfil (6e): el propio usuario, o un administrador sobre los roles que gestiona. Contrato provisional: `PROPUESTA` DEC-B29.
+Requiere token. Sube o cambia la foto de perfil (RF-06). Mismos permisos que editar el perfil (6e): el propio usuario, o un administrador sobre los roles que gestiona. Contrato aprobado por el equipo el 2026-11-26 (DEC-B29).
 
 **Request**: `multipart/form-data` con el archivo en el campo `foto`. No fijes la cabecera `Content-Type` a mano: el navegador la arma con el `boundary`.
 
@@ -491,7 +492,7 @@ Público. Videos de presentación (RF-11), de `Multimedia` con `seccion = video_
 
 ## 9. Contenido: proyectos (`/projects`)
 
-Fase 3. Proyectos de la colección `Documentos` (`categoria = proyecto`). Artículos y noticias usan el mismo contrato en `/articles` (sección 10). Contrato provisional: `PROPUESTA` DEC-B30 a DEC-B41, pendiente de aprobación del equipo.
+Fase 3. Proyectos de la colección `Documentos` (`categoria = proyecto`). Artículos y noticias usan el mismo contrato en `/articles` (sección 10). Contrato aprobado por el equipo el 2026-11-26 (DEC-B30 a DEC-B41).
 
 ### Reglas
 
@@ -585,7 +586,7 @@ Requiere token.
 }
 ```
 
-| Campo | Obligatorio | Regla (límites provisionales en `.env`) |
+| Campo | Obligatorio | Regla (límites configurables en `.env`) |
 |---|---|---|
 | `titulo` | sí | texto de 1 a 200 caracteres |
 | `descripcion` | sí | texto de 1 a 1000 caracteres |
@@ -630,7 +631,7 @@ Requiere token. Borrado **físico**: el proyecto desaparece. Puede hacerlo el au
 
 ## 10. Contenido: artículos y noticias (`/articles`)
 
-Fase 3. Artículos y noticias de la colección `Documentos` (`categoria = articulo` o `noticia`). Usa **el mismo contrato que `/projects`** (sección 9): mismas reglas de quién crea, edita, publica, borra y ve; mismo objeto `documento`, paginación, caché y errores. Contrato provisional: `PROPUESTA` DEC-B30 a DEC-B41.
+Fase 3. Artículos y noticias de la colección `Documentos` (`categoria = articulo` o `noticia`). Usa **el mismo contrato que `/projects`** (sección 9): mismas reglas de quién crea, edita, publica, borra y ve; mismo objeto `documento`, paginación, caché y errores. Contrato aprobado por el equipo el 2026-11-26 (DEC-B30 a DEC-B41).
 
 Lo que cambia respecto a `/projects`:
 
@@ -691,7 +692,7 @@ Como 9e: borrado físico, `204`.
 
 ## 11. Archivos adjuntos (`/projects/{id}/files` y `/articles/{id}/files`)
 
-Fase 3. Archivos de un proyecto, artículo o noticia, guardados en Cloudinary. Un archivo por petición. Contrato provisional: `PROPUESTA` DEC-B39 y DEC-B40.
+Fase 3. Archivos de un proyecto, artículo o noticia, guardados en Cloudinary. Un archivo por petición. Contrato aprobado por el equipo el 2026-11-26 (DEC-B39 y DEC-B40).
 
 **Permisos:** los mismos que editar el documento (9d): el autor mientras está `en_revision`, y los revisores siempre. Quien no puede ver el documento recibe `404`.
 
@@ -736,7 +737,7 @@ Al borrar un documento (9e) se borran también todos sus adjuntos.
 
 ## 12. Reseñas (`/reviews`)
 
-Fase 4 (RF-10). Una reseña es una **opinión sobre el semillero en general**: no se asocia a un proyecto ni a un artículo. Contrato provisional: `PROPUESTA` DEC-B43 a DEC-B45.
+Fase 4 (RF-10). Una reseña es una **opinión sobre el semillero en general**: no se asocia a un proyecto ni a un artículo. Contrato aprobado por el equipo el 2026-11-26 (DEC-B43 a DEC-B45).
 
 **Moderadores:** `superadministrador`, `administrador` y `docente_director` (los mismos revisores del contenido).
 
@@ -824,7 +825,7 @@ Solo moderadores.
 
 ## 13. Inscripciones (`/inscriptions`)
 
-Fase 4 (RF-12, RF-13). Solicitud de un aspirante para entrar al semillero. Contrato provisional: `PROPUESTA` DEC-B47 a DEC-B52.
+Fase 4 (RF-12, RF-13). Solicitud de un aspirante para entrar al semillero. Contrato aprobado por el equipo el 2026-11-26 (DEC-B47 a DEC-B52).
 
 **Quién revisa:** `superadministrador` y `administrador`. Aceptar una solicitud **no crea la cuenta**: después el administrador la crea con `POST /auth/register` (6b), usando los datos de la solicitud.
 
@@ -856,7 +857,14 @@ await fetch('/api/v1/inscriptions', { method: 'POST', body: form });
 | `acepta_tratamiento_datos` | Obligatorio, `true` (autorización de tratamiento de datos, Ley 1581 de 2012). No se guarda |
 | `documentos[]` | De 1 a `INSCRIPCION_DOCUMENTOS_MAX` (3) archivos: PDF de hasta 3 MB, o JPEG/PNG/WebP de hasta 5 MB (se reducen a 1600 px de ancho), igual que los adjuntos (11a). Un solo archivo también puede ir en `documentos` |
 
+**Documentos que se piden (DECISION-005, DEC-B49):** la **carta de motivación** (obligatoria) y el **certificado de matrícula o de notas** (opcional), en PDF o imagen. El backend no distingue qué archivo es cada uno: muestra en el formulario un campo obligatorio para la carta y uno opcional para el certificado, y envíalos en ese orden en `documentos[]` (carta primero).
+
+**Texto legal de la casilla `acepta_tratamiento_datos`** (aprobado por el equipo, 2026-11-26). Muéstralo completo junto a la casilla, que debe ir sin marcar y ser obligatoria; el formulario solo se envía si el aspirante la marca:
+
+> Autorizo al Semillero de Investigación SIIIS de la Universidad Pedagógica y Tecnológica de Colombia (UPTC) para recolectar, almacenar y usar los datos personales y documentos que envío en este formulario, con la única finalidad de evaluar mi solicitud de ingreso al semillero y comunicarme su resultado, conforme a la Ley 1581 de 2012. Sé que puedo consultar, actualizar o pedir la eliminación de mis datos escribiendo al correo de contacto del semillero.
+
 - Los documentos se guardan **privados** en Cloudinary: nadie puede abrirlos sin un enlace firmado (13c).
+- Las solicitudes **rechazadas** se conservan 6 meses y luego se borran manualmente (DEC-B52).
 - Se envían dos correos: confirmación al aspirante y aviso al semillero. Si el correo falla, la solicitud igual queda guardada (`201`).
 
 **201**
@@ -931,7 +939,7 @@ Solo `superadministrador` y `administrador`. `{"estado_solicitud": "aceptada" | 
 
 ## 14. Contacto (`/contact`)
 
-Fase 4 (RF-03). Contrato provisional: `PROPUESTA` DEC-B46 a DEC-B48.
+Fase 4 (RF-03). Contrato aprobado por el equipo el 2026-11-26 (DEC-B46 a DEC-B48).
 
 ### 14a. `POST /contact`
 
@@ -964,18 +972,18 @@ Buzón para `superadministrador` y `administrador` (DEC-B46).
 
 ## Pendiente de confirmar con frontend
 
-El contrato de las secciones 9 a 14 está completo y probado de punta a punta contra la base de pruebas (las inscripciones, también con Cloudinary real). Sigue siendo `PROPUESTA` (DEC-B30 a DEC-B52) hasta que lo apruebe el equipo. Puntos que conviene revisar con frontend:
+El contrato de las secciones 9 a 14 está completo y probado de punta a punta contra la base de pruebas (las inscripciones, también con Cloudinary real). El equipo lo aprobó el 2026-11-26 (DEC-B30 a DEC-B52). Puntos que conviene revisar con frontend:
 
 - `contenido` de proyectos y artículos en Markdown, sin HTML (DEC-B37).
 - Usar `permisos` del detalle de un documento para mostrar u ocultar los botones; el listado no lo trae.
 - Foto de perfil recortada a 400 × 400 en el servidor: si se quiere que el usuario elija el encuadre, recortar en el navegador antes de subir (DEC-B42).
 - Límites de archivos (adjuntos e inscripción): imágenes de 5 MB y PDF de 3 MB; conviene validarlos también en el navegador para avisar antes de subir.
 - Reseñas: avisar al visitante que su reseña se publicará tras revisión; mostrar `resumen.promedio` (12a).
-- Inscripción: casilla de autorización de datos obligatoria con el texto legal que defina el semillero; aviso de correo `@uptc.edu.co`; manejar `409 INSCRIPTION_PENDING` (13a).
+- Inscripción: casilla de autorización de datos obligatoria con el texto legal de 13a; campo obligatorio para la carta de motivación y opcional para el certificado; aviso de correo `@uptc.edu.co`; manejar `409 INSCRIPTION_PENDING` (13a).
 - Panel de inscripciones: los enlaces de los documentos vencen en 1 hora (13c); para crear la cuenta de un aceptado se usa `POST /auth/register`.
 
 ## Fuera del backend actual
 
-- `POST /auth/google` (login con Google, RF-17): no está registrada; responde `404`.
+- `POST /auth/google` (login con Google, RF-17): fuera de esta entrega (DEC-B53); no está registrada y responde `404`.
 - Hero, bloques S-I-I-I-S, llamada a la acción y footer de la página de inicio: contenido estático del frontend (DEC-B12). El botón "Inscríbete" solo navega a la página de inscripción.
 - Borrar solicitudes de inscripción o mensajes de contacto: no hay rutas (el spec no las define; DEC-B52).

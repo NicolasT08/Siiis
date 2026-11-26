@@ -11,8 +11,8 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Slim\Psr7\Response;
 
 /**
- * CORS solo para desarrollo (spec 10.13.9): en producción frontend y API comparten dominio.
- * Acepta únicamente FRONTEND_ORIGIN y responde el preflight OPTIONS con 204.
+ * CORS (spec 10.13.9): en desarrollo para FRONTEND_ORIGIN; en producción solo si CORS_ORIGIN está configurado
+ * (plan B con la API en otro dominio). Acepta únicamente ese origen y responde el preflight OPTIONS con 204.
  */
 final class CorsMiddleware implements MiddlewareInterface
 {
@@ -43,7 +43,8 @@ final class CorsMiddleware implements MiddlewareInterface
             ->withAddedHeader('Vary', 'Origin');
 
         if (!$preflight) {
-            return $response;
+            // Para que el frontend pueda leer la espera de un 429 (RATE_LIMITED).
+            return $response->withHeader('Access-Control-Expose-Headers', 'Retry-After');
         }
 
         return $response
