@@ -67,6 +67,47 @@ class AuthService
             throw self::invalidCredentials();
         }
 
+        return $this->iniciarSesion(
+            $credencial,
+            $credencialId,
+            $ip,
+            $this->hasher->needsRehash($hash) ? $this->hasher->hash($password) : null,
+        );
+    }
+
+    /**
+     * Login con Google (RF-17, DEC-B61): el correo ya viene verificado por GoogleTokenVerifier (firma, aud, exp,
+     * email_verified y dominio). Nunca crea cuentas: si el correo no está en Credenciales, 403 NOT_A_MEMBER.
+     * Después aplica las mismas reglas y la misma sesión de 8 h que el login local.
+     *
+     * @return array{token: string, expira_en: int, usuario: array<string, mixed>}
+     *
+     * @throws ApiException
+     */
+    public function loginConGoogle(string $correo, string $ip): array
+    {
+        $credencial = $this->credenciales->findByCorreo($correo);
+        $credencialId = $credencial['_id'] ?? null;
+        if ($credencial === null || !$credencialId instanceof ObjectId) {
+            throw new ApiException(
+                403,
+                'NOT_A_MEMBER',
+                'Tu cuenta institucional no está registrada en el semillero. Si quieres unirte, envía tu solicitud de inscripción.',
+            );
+        }
+
+        return $this->iniciarSesion($credencial, $credencialId, $ip, null);
+    }
+
+    /**
+     * Reglas comunes tras identificar a la persona: estado de la cuenta, perfil activo, JWT de 8 h y su sesión.
+     *
+     * @param array<string, mixed> $credencial
+     *
+     * @return array{token: string, expira_en: int, usuario: array<string, mixed>}
+     */
+    private function iniciarSesion(array $credencial, ObjectId $credencialId, string $ip, ?string $nuevoHash): array
+    {
         self::exigirCuentaActiva($credencial);
 
         $usuario = $this->usuarios->findByCredencialId($credencialId);
@@ -89,11 +130,7 @@ class AuthService
             $issued->expiresAt,
             $ip,
         );
-        $this->credenciales->registrarAccesoExitoso(
-            $credencialId,
-            $this->clock->now(),
-            $this->hasher->needsRehash($hash) ? $this->hasher->hash($password) : null,
-        );
+        $this->credenciales->registrarAccesoExitoso($credencialId, $this->clock->now(), $nuevoHash);
 
         return [
             'token' => $issued->token,

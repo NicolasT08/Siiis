@@ -8,6 +8,7 @@ use DI\ContainerBuilder;
 use Psr\Container\ContainerInterface;
 use Siiis\Database\Mongo;
 use Siiis\Middleware\ErrorHandler;
+use Siiis\Security\GoogleJwksProvider;
 use Siiis\Security\JwtService;
 use Siiis\Security\RateLimiter;
 use Siiis\Support\Clock;
@@ -40,6 +41,13 @@ final class Container
             RateLimiter::class => factory(
                 static fn (Settings $s, Clock $clock, Logger $logger): RateLimiter => new RateLimiter(
                     $s->storagePath . '/ratelimit',
+                    $clock,
+                    $logger,
+                ),
+            ),
+            GoogleJwksProvider::class => factory(
+                static fn (Settings $s, Clock $clock, Logger $logger): GoogleJwksProvider => new GoogleJwksProvider(
+                    $s->storagePath . '/cache/google_jwks.json',
                     $clock,
                     $logger,
                 ),

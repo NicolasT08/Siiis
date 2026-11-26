@@ -104,6 +104,10 @@ final readonly class Settings
         public array $trustedProxies,
         /** Origen permitido por CORS fuera de desarrollo (plan B: API en otro dominio); vacío = sin CORS */
         public string $corsOrigin,
+        /** Client ID de Google Identity Services (RF-17); vacío = POST /auth/google no existe (404) */
+        public string $googleClientId,
+        /** Dominio que exige el claim `hd` del id_token de Google (DEC-B61) */
+        public string $googleDominioPermitido,
         public string $storagePath,
     ) {
     }
@@ -260,6 +264,8 @@ final readonly class Settings
             inscripcionCorreoAviso: self::string($env, 'INSCRIPCION_CORREO_AVISO'),
             trustedProxies: self::proxies($env, 'TRUSTED_PROXIES'),
             corsOrigin: self::origen($env, 'CORS_ORIGIN'),
+            googleClientId: self::string($env, 'GOOGLE_CLIENT_ID'),
+            googleDominioPermitido: self::dominioGoogle($env),
             storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
         );
     }
@@ -324,6 +330,21 @@ final readonly class Settings
         }
 
         return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * GOOGLE_DOMINIO_PERMITIDO: un solo dominio (por defecto uptc.edu.co). El claim `hd` debe ser exactamente este.
+     *
+     * @param array<string, mixed> $env
+     */
+    private static function dominioGoogle(array $env): string
+    {
+        $dominios = self::dominios($env, 'GOOGLE_DOMINIO_PERMITIDO', ['uptc.edu.co']);
+        if (count($dominios) !== 1) {
+            throw new ConfigException('GOOGLE_DOMINIO_PERMITIDO debe ser un solo dominio (p. ej. uptc.edu.co).');
+        }
+
+        return $dominios[0];
     }
 
     /**

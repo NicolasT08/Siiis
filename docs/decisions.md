@@ -86,6 +86,7 @@ Formato según la sección 29 del spec (`docs/SIIIS_V3_SPEC_DRIVEN.md`). Etiquet
 - Contexto: `estado_cuenta` admite `pendiente_verificacion`, pero no hay flujo de verificación definido.
 - Comportamiento: login rechazado con `403 ACCOUNT_PENDING`. Cualquier otro valor de `estado_cuenta` distinto de `activa` (incluidos valores fuera del modelo) se trata como `403 ACCOUNT_BLOCKED`.
 - Decisión del equipo: las cuentas pendientes **no se usan en esta entrega** (todas las cuentas se crean activas, DEC-B16). Se mantiene el `403 ACCOUNT_PENDING` tal como está; no hay flujo de verificación. Sin cambios de código.
+- **Resuelta del todo (equipo, 2026-11-26, DEC-B61):** el login con Google tampoco crea cuentas, así que no existe ningún camino que genere cuentas `pendiente_verificacion`. El `403 ACCOUNT_PENDING` se conserva solo como defensa (también en `POST /auth/google`) por si una cuenta se marcara así a mano.
 
 ## DEC-B09 — Recuperación de contraseña solo para cuentas activas
 
@@ -731,10 +732,9 @@ quedaron **aprobadas por el equipo** el 2026-11-26.
 
 ## DEC-B53 — Login con Google (RF-17) fuera de esta entrega
 
-- Estado: DECIDIDA (equipo, 2026-11-26)
-- Decisión: RF-17 no se entrega ahora. `POST /auth/google` sigue sin registrarse (responde `404`) y DECISION-011
-  (rol por defecto de una cuenta creada con Google) queda abierta para cuando se retome.
-- Impacto: ninguno (ya era así).
+- Estado: **REEMPLAZADA** por DEC-B61 (equipo, 2026-11-26): el login con Google sí entra en la entrega.
+- Decisión original: RF-17 no se entregaba; `POST /auth/google` no estaba registrada (`404`) y DECISION-011 (rol por
+  defecto de una cuenta creada con Google) quedaba abierta.
 
 ## DEC-B54 — Acceso de red a MongoDB Atlas (DECISION-015)
 
@@ -843,3 +843,32 @@ quedaron **aprobadas por el equipo** el 2026-11-26.
 - Impacto: `scripts/cargar_multimedia.php`, `scripts/multimedia/PlanMultimedia.php` (prueba unitaria),
   `scripts/empaquetar.ps1` y `Dockerfile` (se incluyen en producción), `docs/deployment.md`,
   `docs/checklist-manana.md`.
+
+## DEC-B61 — Login con Google solo para integrantes con cuenta institucional (RF-17)
+
+- Estado: DECIDIDA (equipo, 2026-11-26) · reemplaza a DEC-B53 · resuelve DECISION-011 del spec
+- Contexto: el spec (RF-17) proponía vincular por correo **o crear una cuenta nueva**, lo que obligaba a decidir un rol
+  por defecto (DECISION-011). El equipo prefiere que Google sea solo otra forma de entrar para quien ya es integrante.
+- Decisión:
+  - `POST /api/v1/auth/google` recibe el `id_token` de Google Identity Services y lo verifica con las llaves públicas
+    de Google (JWKS, `firebase/php-jwt`, caché en `storage/cache/google_jwks.json`): firma RS256, `iss` de Google,
+    `aud = GOOGLE_CLIENT_ID` y `exp` vigente (1 minuto de margen). Token inválido → `401 INVALID_GOOGLE_TOKEN`.
+  - Exige `email_verified = true` y `hd` **exactamente** igual a `GOOGLE_DOMINIO_PERMITIDO` (nueva variable, por
+    defecto `uptc.edu.co`; un solo dominio), y que el correo sea de ese dominio. Si no → `403 GOOGLE_DOMAIN_NOT_ALLOWED`.
+  - **Nunca crea cuentas**: busca el correo normalizado en `Credenciales`. Si no existe → `403 NOT_A_MEMBER`, con un
+    mensaje que invita a inscribirse. Si existe, aplica las mismas reglas del login normal (`estado_cuenta`,
+    `Usuarios.estado`: `ACCOUNT_BLOCKED`, `ACCOUNT_PENDING`, `ACCOUNT_INACTIVE`) y emite el mismo JWT de 8 h con su
+    sesión en `Sesiones`; registra el acceso como el login normal.
+  - Rate limiting por IP con los mismos `RATE_LIMIT_LOGIN_*`, en un contador propio (`login_google`).
+  - Si `GOOGLE_CLIENT_ID` está vacío la ruta no se registra (`404`) y el frontend no muestra el botón. El login con
+    correo y contraseña sigue igual para todos.
+  - Si no se pueden obtener las llaves de Google (y no hay copia guardada) → `503 GOOGLE_UNAVAILABLE`.
+  - Sin cambios en colecciones ni campos.
+- Consecuencias: DEC-B08 queda resuelta (no hay cuentas pendientes) y DECISION-011 deja de aplicar (no se crean
+  cuentas, no hace falta rol por defecto).
+- Variables: `GOOGLE_CLIENT_ID`, `GOOGLE_DOMINIO_PERMITIDO` (backend); `VITE_GOOGLE_CLIENT_ID` (frontend).
+- Impacto: `Security/GoogleJwksProvider`, `Security/GoogleTokenVerifier`, `Controllers/GoogleAuthController`,
+  `Validation/GoogleLoginValidator`, `AuthService::loginConGoogle` (comparte `iniciarSesion` con el login local),
+  `Config/Settings`, `Config/Routes`, `Config/Container`, `docs/api.md` (2a), `docs/deployment.md`; frontend
+  `components/GoogleLoginButton.tsx` y `AuthModal.tsx`.
+- Requiere migración: no.

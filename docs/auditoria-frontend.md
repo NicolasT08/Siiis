@@ -56,7 +56,7 @@
 | RF-14 Animación de carga | ✅ | `components/PageLoader.tsx`, `app/layout/AppLayout.tsx` | — |
 | RF-15 Administración mejorada | ✅ | `features/admin/*` | — |
 | RF-16 Móviles | 🟡 | CSS adaptable (`styles/app.css` y los existentes) | Probar en un teléfono real; las tablas del panel tienen desplazamiento horizontal. |
-| RF-17 Login con Google | ⏸️ | — | Fuera de esta entrega (DEC-B53). |
+| RF-17 Login con Google | ✅ | `components/GoogleLoginButton.tsx`, `components/AuthModal.tsx` (`POST /auth/google`, DEC-B61) | Solo aparece si el build tiene `VITE_GOOGLE_CLIENT_ID`; requiere el ID de cliente en Google Cloud (docs/deployment.md). |
 
 ### 2.2 Requisitos no funcionales
 

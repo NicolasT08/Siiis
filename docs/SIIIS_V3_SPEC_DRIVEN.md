@@ -920,8 +920,8 @@ backend emite el mismo JWT propio de 8h que usa el login local
 Reglas de seguridad:
 
 - El backend nunca confía en datos de identidad que mande el frontend sin verificar contra Google.
-- Una cuenta creada por Google no tiene `passwordHash` a menos que el usuario configure una contraseña después.
-- El rol asignado por defecto a una cuenta nueva creada vía Google es `DECISION_REQUIRED` (ver DECISION-011); no debe asumirse un rol con privilegios.
+- ~~Una cuenta creada por Google no tiene `passwordHash`…~~ No aplica desde DEC-B61: Google no crea cuentas; toda cuenta tiene su contraseña y puede entrar también con correo y contraseña.
+- El login con Google nunca crea cuentas (DEC-B61, resuelve DECISION-011): solo vincula por correo con una cuenta local existente del dominio permitido; si no existe, responde `403 NOT_A_MEMBER`.
 
 
 ---
@@ -1606,7 +1606,7 @@ Usar este formato para cada decisión importante:
 | DECISION-008 | Hosting del backend — **Resuelto (23/09/2026):** plan básico sólo ejecuta PHP; backend reescrito en PHP y alojado en Hostinger. Render eliminado | `RESUELTO` | despliegue (ver 17) |
 | DECISION-009 | Librerías concretas de frontend | `DECISION_REQUIRED` | frontend |
 | DECISION-010 | Estados definitivos de contenido/proyectos | `DECISION_REQUIRED` | filtros, workflow y API |
-| DECISION-011 | Rol por defecto para cuentas creadas vía login con Google (RF-17) | `DECISION_REQUIRED` | `AuthController` |
+| DECISION-011 | Rol por defecto para cuentas creadas vía login con Google (RF-17) — **Resuelto (26/11/2026, DEC-B61):** el login con Google nunca crea cuentas (solo entra quien ya tiene cuenta `@uptc.edu.co`), así que no hace falta rol por defecto | `RESUELTO` | `GoogleAuthController` |
 | DECISION-012 | Framework PHP (Slim 4 vs PHP sin framework) y librerías de 7.2 | `PROPUESTA` | estructura del backend |
 | DECISION-013 | SMTP: Gmail vs correo del dominio en Hostinger (según prueba de Fase 0) | `DECISION_REQUIRED` | `MailService` |
 | DECISION-014 | Disponibilidad de SSH/Composer/Git deploy en el plan | `TODO_SPEC` (verificar en Fase 0) | flujo de despliegue |

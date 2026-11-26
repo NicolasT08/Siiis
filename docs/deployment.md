@@ -165,6 +165,58 @@ php scripts/cargar_multimedia.php --carpeta=RUTA --test      # base de pruebas y
 - Usa un cliente de Cloudinary con 10 minutos de espera (un video puede tardar); por eso conviene correrlo desde el
   portátil o por SSH, no desde la web.
 
+## Login con Google (RF-17, DEC-B61)
+
+Opcional: sin `GOOGLE_CLIENT_ID`, `POST /api/v1/auth/google` responde `404` y el frontend no muestra el botón. El login
+con correo y contraseña funciona igual en los dos casos.
+
+### 1. Crear el ID de cliente en Google Cloud
+
+1. Entra a <https://console.cloud.google.com/> con una cuenta del semillero (idealmente `@uptc.edu.co`) y crea un
+   proyecto, p. ej. `SIIIS Web` (*Selector de proyectos → Proyecto nuevo*).
+2. **Pantalla de consentimiento** (*APIs y servicios → Pantalla de consentimiento de OAuth*; en la consola nueva,
+   *Google Auth Platform → Desarrollo de la marca / Público*):
+   - Tipo de usuario: **Interno** si el proyecto pertenece a la organización de Google Workspace de la UPTC (solo
+     entran cuentas `@uptc.edu.co`); si no, **Externo** (el backend igual rechaza cualquier dominio que no sea
+     `GOOGLE_DOMINIO_PERMITIDO`).
+   - Nombre de la app: `SIIIS – Semillero de Investigación`, correo de asistencia y, si quieres, el logo.
+   - Dominios autorizados: `siiis.com.co`. Página principal: `https://siiis.com.co`.
+   - Permisos (scopes): solo `openid`, `email` y `profile`. No son sensibles, así que no hace falta la verificación
+     de Google.
+3. **Publicar la app** (solo si es *Externo*): en *Público*, el estado empieza en **Prueba** y solo entran los
+   "usuarios de prueba" de la lista. Pulsa **Publicar app → En producción**. Con los tres permisos básicos no hay
+   revisión de Google y la publicación es inmediata. Con tipo *Interno* no hace falta publicar.
+4. **Credenciales** (*APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth*):
+   - Tipo de aplicación: **Aplicación web**. Nombre: `SIIIS frontend`.
+   - **Orígenes de JavaScript autorizados** (sin barra final ni rutas):
+     - `https://siiis.com.co` (y `https://www.siiis.com.co` si el sitio también responde con `www`).
+     - `http://localhost:5173` y `http://localhost` (desarrollo con `npm run dev`; Google Identity Services pide los dos).
+   - **URI de redireccionamiento autorizados**: ninguno (el botón usa una ventana emergente y le devuelve el token a la
+     página).
+5. Copia el **ID de cliente** (`…apps.googleusercontent.com`). No es un secreto (va en el JavaScript del sitio). El
+   "secreto del cliente" que muestra Google **no se usa**: no lo copies a ningún archivo.
+
+Los cambios de orígenes pueden tardar desde unos minutos hasta una hora en aplicarse.
+
+### 2. Configurar backend y frontend
+
+- Backend (`siiis-api/.env`): `GOOGLE_CLIENT_ID=<id de cliente>` y `GOOGLE_DOMINIO_PERMITIDO=uptc.edu.co`.
+- Frontend: compilar con `VITE_GOOGLE_CLIENT_ID=<el mismo id>`. Lo más simple es ponerlo en
+  `frontend/.env.production.local` o en `frontend/.env.local` (no se versionan) y correr `npm run build`. El build lo
+  deja escrito en el JavaScript; si se compila sin él, el botón de Google no aparece.
+- El servidor necesita salida HTTPS a `www.googleapis.com`: descarga las llaves públicas de Google y las guarda en
+  `storage/cache/google_jwks.json` el tiempo que Google indica (unas horas). Sin esa salida, el login con Google
+  responde `503 GOOGLE_UNAVAILABLE`.
+
+### 3. Verificar
+
+1. `https://siiis.com.co` → *Iniciar sesión* → aparece "Iniciar sesión con Google".
+2. Con una cuenta `@uptc.edu.co` que **tenga** usuario en el semillero → entra con el mismo menú que con contraseña.
+3. Con una `@uptc.edu.co` **sin** usuario → "no está registrada en el semillero…", con enlace a `/inscripcion`.
+4. Con una `@gmail.com` → "Solo se puede entrar con Google usando una cuenta institucional…".
+5. Si el botón no aparece o Google dice `origin_mismatch` / "The given origin is not allowed": revisa los orígenes del
+   paso 1.4 (exactos, con `https://`).
+
 ## Mantenimiento
 
 - Las sesiones vencidas las borra Atlas con el índice TTL de `Sesiones.fecha_expiracion` (no hace falta cron).

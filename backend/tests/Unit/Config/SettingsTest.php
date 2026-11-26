@@ -216,6 +216,14 @@ final class SettingsTest extends TestCase
                 'CLOUDINARY_CALIDAD',
             ];
         }
+        yield 'dos dominios de Google' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'GOOGLE_DOMINIO_PERMITIDO' => 'uptc.edu.co,gmail.com'],
+            'GOOGLE_DOMINIO_PERMITIDO',
+        ];
+        yield 'dominio de Google vacío' => [
+            ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'GOOGLE_DOMINIO_PERMITIDO' => ''],
+            'GOOGLE_DOMINIO_PERMITIDO',
+        ];
         yield 'debug en producción' => [
             ['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET, 'APP_ENV' => 'production', 'APP_DEBUG' => 'true'],
             'APP_DEBUG=true no está permitido',
@@ -234,6 +242,15 @@ final class SettingsTest extends TestCase
                 'CORS_ORIGIN',
             ];
         }
+    }
+
+    public function testGooglePorDefecto(): void
+    {
+        $s = Settings::fromEnv(['MONGO_URI' => 'mongodb://x', 'JWT_SECRET' => self::SECRET]);
+
+        self::assertSame('', $s->googleClientId);
+        self::assertSame('uptc.edu.co', $s->googleDominioPermitido);
+        self::assertSame('uptc.edu.co', Settings::fromEnv(['MONGO_URI' => 'x', 'JWT_SECRET' => self::SECRET, 'GOOGLE_DOMINIO_PERMITIDO' => ' @UPTC.edu.co '])->googleDominioPermitido);
     }
 
     public function testOrigenCorsSegunEntorno(): void

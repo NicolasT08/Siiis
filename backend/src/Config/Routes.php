@@ -6,6 +6,7 @@ namespace Siiis\Config;
 
 use Siiis\Controllers\AuthController;
 use Siiis\Controllers\DocumentosController;
+use Siiis\Controllers\GoogleAuthController;
 use Siiis\Controllers\HealthController;
 use Siiis\Controllers\HomeController;
 use Siiis\Controllers\InscriptionsController;
@@ -21,7 +22,7 @@ use Slim\Routing\RouteCollectorProxy;
 
 /**
  * Registro de rutas bajo /api/v1 (spec 11). El basePath /api lo fija Application.
- * POST /auth/google queda sin registrar: fuera de las fases 1 y 2.
+ * POST /auth/google solo se registra si GOOGLE_CLIENT_ID está configurado (RF-17, DEC-B61); si no, responde 404.
  * En Slim el último middleware agregado corre primero: AuthMiddleware antes que RoleMiddleware.
  */
 final class Routes
@@ -31,14 +32,20 @@ final class Routes
      */
     public static function register(App $app): void
     {
-        $app->group('/v1', function (RouteCollectorProxy $v1): void {
+        $settings = $app->getContainer()->get(Settings::class);
+        $conGoogle = $settings instanceof Settings && $settings->googleClientId !== '';
+
+        $app->group('/v1', function (RouteCollectorProxy $v1) use ($conGoogle): void {
             $v1->get('/health', HealthController::class);
 
-            $v1->group('/auth', function (RouteCollectorProxy $auth): void {
+            $v1->group('/auth', function (RouteCollectorProxy $auth) use ($conGoogle): void {
                 $auth->post('/register', [AuthController::class, 'register'])
                     ->add(RoleMiddleware::administrativos())
                     ->add(AuthMiddleware::class);
                 $auth->post('/login', [AuthController::class, 'login']);
+                if ($conGoogle) {
+                    $auth->post('/google', GoogleAuthController::class);
+                }
                 $auth->get('/me', [AuthController::class, 'me'])->add(AuthMiddleware::class);
                 $auth->post('/logout', [AuthController::class, 'logout'])->add(AuthMiddleware::class);
                 $auth->post('/forgot-password', [AuthController::class, 'forgotPassword']);

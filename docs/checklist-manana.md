@@ -81,7 +81,9 @@ de este documento: el backend va a Render y el frontend sigue en Hostinger.
     C4 ajusta `BOOTSTRAP_PATH` a esa ruta absoluta. Si faltan las carpetas de `storage`, créalas a mano.
 - [ ] **C2. `.env`.** En `siiis-api/`, copia `.env.produccion.ejemplo` como **`.env`** y edítalo: `MONGO_URI`,
   `JWT_SECRET`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, `CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET`,
-  `CONTACTO_CORREO_DESTINO`. Deja `APP_ENV=production`, `APP_DEBUG=false` y `CORS_ORIGIN` vacío.
+  `CONTACTO_CORREO_DESTINO` y, para el login con Google, `GOOGLE_CLIENT_ID` (el mismo `VITE_GOOGLE_CLIENT_ID` con el
+  que se compiló el frontend en A2) con `GOOGLE_DOMINIO_PERMITIDO=uptc.edu.co`. Deja `APP_ENV=production`,
+  `APP_DEBUG=false` y `CORS_ORIGIN` vacío.
   - Verifica: `APP_DEBUG=false` (con `true` la API no arranca a propósito, DEC-B56). Permisos del `.env`: `600` o
     `640` (clic derecho → *Permisos*).
 - [ ] **C3. Permisos de `storage/`.** `siiis-api/storage` y sus tres carpetas con `755` (Hostinger ejecuta PHP con
@@ -172,6 +174,15 @@ de este documento: el backend va a Render y el frontend sigue en Hostinger.
   (búscala en cualquier "cuál es mi IP"). Anota: `____`.
   - Si aparece siempre la misma IP de Hostinger: configurar `TRUSTED_PROXIES` (`docs/deployment.md`); mientras
     tanto el rate limiting cuenta para todo el sitio.
+- [ ] **E10. Login con Google.** Antes de mañana, en Google Cloud, `https://siiis.com.co` debe estar en los
+  **orígenes de JavaScript autorizados** del ID de cliente y la pantalla de consentimiento, publicada (o de tipo
+  *Interno*); ver `docs/deployment.md`, "Login con Google". En el sitio: *Iniciar sesión* → "Iniciar sesión con
+  Google" con una cuenta `@uptc.edu.co` que tenga usuario → entra. Con una `@gmail.com` → mensaje de cuenta
+  institucional; con una `@uptc.edu.co` sin usuario → mensaje con enlace a la inscripción.
+  - Si el botón no aparece: el build no tenía `VITE_GOOGLE_CLIENT_ID` (repite A2) o el origen no está autorizado
+    (`origin_mismatch` en la ventana de Google).
+  - Si responde `404`: falta `GOOGLE_CLIENT_ID` en el `.env` (C2). `503 GOOGLE_UNAVAILABLE`: el servidor no llega a
+    `www.googleapis.com`. Si no se resuelve, se puede seguir: el login con contraseña funciona igual.
 
 ## F. Cron y frontend
 

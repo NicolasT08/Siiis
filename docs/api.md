@@ -41,6 +41,10 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 | `ACCOUNT_PENDING` | 403 | La cuenta está pendiente de verificación |
 | `ACCOUNT_INACTIVE` | 403 | El usuario está inactivo (p. ej. por deserción) |
 | `INVALID_OR_EXPIRED_TOKEN` | 400 | El enlace de recuperación es inválido, está vencido o ya se usó |
+| `INVALID_GOOGLE_TOKEN` | 401 | El id_token de Google no es válido: firma, emisor, `aud` o vencido (2a) |
+| `GOOGLE_DOMAIN_NOT_ALLOWED` | 403 | La cuenta de Google no es del dominio permitido (`hd`) o su correo no está verificado (2a) |
+| `NOT_A_MEMBER` | 403 | La cuenta de Google es del dominio, pero su correo no tiene cuenta en el semillero (2a) |
+| `GOOGLE_UNAVAILABLE` | 503 | No se pudieron obtener las llaves públicas de Google para verificar el token (2a) |
 | `EMAIL_TAKEN` | 409 | Ya existe una cuenta con ese correo (registro) |
 | `FILE_TOO_LARGE` | 413 | El archivo supera el tamaño máximo |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | El contenido del archivo no es de un formato admitido, o el archivo está dañado y Cloudinary lo rechazó (p. ej. un PDF mal formado; DEC-B59) |
@@ -120,6 +124,37 @@ Público. Rate limit por IP: `RATE_LIMIT_LOGIN_MAX` intentos cada `RATE_LIMIT_LO
 **Errores:** `400 VALIDATION_ERROR`, `400 INVALID_JSON`, `401 INVALID_CREDENTIALS`, `403 ACCOUNT_BLOCKED`, `403 ACCOUNT_PENDING`, `403 ACCOUNT_INACTIVE`, `429 RATE_LIMITED`.
 
 > **"Remember me":** el backend lo ignora; la sesión dura como máximo 8 h en todos los casos (RNF-05). El frontend decide dónde guardar el token: por ejemplo, `localStorage` con "Remember me" marcado y `sessionStorage` sin marcar. Con cualquiera de las dos opciones, el token vence a las 8 h y hay que volver a iniciar sesión.
+
+---
+
+## 2a. `POST /auth/google`
+
+Público. Login con Google (RF-17, DEC-B61). **Solo existe si el backend tiene `GOOGLE_CLIENT_ID`**; si no, responde `404`. Rate limit por IP igual que el login (`RATE_LIMIT_LOGIN_*`, contador propio). El login con correo y contraseña (2) sigue igual.
+
+**Request**
+```json
+{ "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij..." }
+```
+
+`id_token` es la credencial (`response.credential`) que entrega Google Identity Services en el navegador. En el frontend:
+
+```ts
+google.accounts.id.initialize({ client_id: VITE_GOOGLE_CLIENT_ID, hd: uptc.edu.co, callback: (r) => enviar(r.credential) });
+google.accounts.id.renderButton(elemento, { text: signin_with, locale: es });
+```
+
+`hd` en el navegador es solo una sugerencia (Google muestra primero las cuentas de ese dominio); quien decide es el backend.
+
+**Qué verifica el backend:**
+1. La firma, con las llaves públicas de Google (`https://www.googleapis.com/oauth2/v3/certs`, guardadas en `storage/cache/google_jwks.json` el tiempo que indica Google).
+2. `iss` = `accounts.google.com` o `https://accounts.google.com`; `aud` = `GOOGLE_CLIENT_ID`; `exp` vigente (1 minuto de margen).
+3. `email_verified = true` y `hd` **exactamente** igual a `GOOGLE_DOMINIO_PERMITIDO` (por defecto `uptc.edu.co`), y el correo de ese dominio. Las cuentas personales (`@gmail.com`, sin `hd`) y los subdominios no entran.
+4. **Nunca crea cuentas**: busca el correo (en minúsculas) en `Credenciales`. Si no existe → `403 NOT_A_MEMBER` (el frontend invita a inscribirse).
+5. Con la cuenta encontrada aplica las reglas del login normal (`estado_cuenta`, `Usuarios.estado`) y emite el mismo JWT de 8 h con su sesión en `Sesiones`.
+
+**200**: igual que `POST /auth/login` (2): `{"token", "expira_en", "usuario"}`. Cabecera `Cache-Control: no-store`.
+
+**Errores:** `400 VALIDATION_ERROR` (`fields.id_token`: falta o no tiene forma de JWT), `401 INVALID_GOOGLE_TOKEN`, `403 GOOGLE_DOMAIN_NOT_ALLOWED`, `403 NOT_A_MEMBER`, `403 ACCOUNT_BLOCKED`, `403 ACCOUNT_PENDING`, `403 ACCOUNT_INACTIVE`, `429 RATE_LIMITED`, `503 GOOGLE_UNAVAILABLE`, `404 NOT_FOUND` (Google desactivado).
 
 ---
 
@@ -984,6 +1019,5 @@ El contrato de las secciones 9 a 14 está completo y probado de punta a punta co
 
 ## Fuera del backend actual
 
-- `POST /auth/google` (login con Google, RF-17): fuera de esta entrega (DEC-B53); no está registrada y responde `404`.
 - Hero, bloques S-I-I-I-S, llamada a la acción y footer de la página de inicio: contenido estático del frontend (DEC-B12). El botón "Inscríbete" solo navega a la página de inscripción.
 - Borrar solicitudes de inscripción o mensajes de contacto: no hay rutas (el spec no las define; DEC-B52).
