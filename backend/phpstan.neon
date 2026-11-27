@@ -1,0 +1,10 @@
+parameters:
+    level: 6
+    paths:
+        - src
+        - public
+        - scripts
+        - cron
+        - tests
+        - bootstrap.php
+    tmpDir: storage/cache/phpstan

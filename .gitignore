@@ -1,32 +1,32 @@
-# Entorno y secretos
-.venv/
+# Secretos: nunca versionar .env reales (solo .env.example)
 .env
+.env.*
 !.env.example
 
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-build/
-dist/
+# Dependencias
+backend/vendor/
 
-# Herramientas
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
+# Storage del backend (se versionan solo los .gitkeep)
+backend/storage/logs/*
+backend/storage/ratelimit/*
+backend/storage/cache/*
+!backend/storage/logs/.gitkeep
+!backend/storage/ratelimit/.gitkeep
+!backend/storage/cache/.gitkeep
 
-# Datos locales
-storage/
-*.log
+# Herramientas de calidad
+backend/.phpunit.cache/
+backend/.php-cs-fixer.cache
+backend/coverage/
 
-# Editores / SO
-.vscode/
-.idea/
-Thumbs.db
+# Datos locales de seed (si se personalizan)
+backend/scripts/data/multimedia_seed.json
+
+# Sistema / IDE
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
 
-backend/docs/
-
-CLAUDE.md
+# Paquete de despliegue generado por backend/scripts/empaquetar.ps1
+/deploy/
