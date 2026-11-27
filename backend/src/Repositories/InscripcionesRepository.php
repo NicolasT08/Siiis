@@ -29,6 +29,9 @@ class InscripcionesRepository
         'telefono' => 1,
         'programa_academico' => 1,
         'semestre' => 1,
+        // DEC-B63 (opcionales; no existen en las solicitudes anteriores).
+        'codigo_estudiantil' => 1,
+        'areas_interes' => 1,
         'estado_solicitud' => 1,
         'fecha_solicitud' => 1,
     ];

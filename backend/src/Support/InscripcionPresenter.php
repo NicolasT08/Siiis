@@ -30,6 +30,9 @@ final class InscripcionPresenter
             'telefono' => $inscripcion['telefono'] ?? null,
             'programa_academico' => $inscripcion['programa_academico'] ?? null,
             'semestre' => $inscripcion['semestre'] ?? null,
+            // DEC-B63: las solicitudes anteriores no tienen estos campos.
+            'codigo_estudiantil' => $inscripcion['codigo_estudiantil'] ?? null,
+            'areas_interes' => is_array($inscripcion['areas_interes'] ?? null) ? array_values($inscripcion['areas_interes']) : [],
             'estado_solicitud' => $inscripcion['estado_solicitud'] ?? null,
             'fecha_solicitud' => $inscripcion['fecha_solicitud'] ?? null,
         ]);

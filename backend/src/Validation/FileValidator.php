@@ -102,7 +102,7 @@ final class FileValidator
     }
 
     /**
-     * De 1 a `$max` adjuntos en un mismo campo (`documentos[]`, o `documentos` con un solo archivo), con las
+     * De `$min` (1 por defecto; 0 = opcionales) a `$max` adjuntos en un mismo campo (`documentos[]`, o `documentos` con un solo archivo), con las
      * reglas de `adjunto` para cada uno (DEC-B49). Si uno falla, falla toda la petición.
      *
      * @param array<string, mixed> $archivos
@@ -111,7 +111,7 @@ final class FileValidator
      *
      * @throws ApiException 400 VALIDATION_ERROR, 413 FILE_TOO_LARGE, 415 UNSUPPORTED_MEDIA_TYPE
      */
-    public function adjuntos(array $archivos, string $campo, int $max, int $maxBytesImagen, int $maxBytesPdf): array
+    public function adjuntos(array $archivos, string $campo, int $max, int $maxBytesImagen, int $maxBytesPdf, int $min = 1): array
     {
         $valor = $archivos[$campo] ?? null;
         $lista = $valor instanceof UploadedFileInterface ? [$valor] : (is_array($valor) ? $valor : []);
@@ -120,7 +120,7 @@ final class FileValidator
             static fn (mixed $a): bool => !$a instanceof UploadedFileInterface || $a->getError() !== UPLOAD_ERR_NO_FILE,
         ));
 
-        if ($lista === []) {
+        if ($lista === [] && $min > 0) {
             throw ApiException::validation([$campo => sprintf('Adjunta al menos un archivo en el campo "%s".', $campo)]);
         }
         if (count($lista) > $max) {

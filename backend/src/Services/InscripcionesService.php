@@ -42,7 +42,8 @@ class InscripcionesService
      * POST /inscriptions. Orden: duplicado → subidas (con compensación) → MongoDB → correos.
      *
      * @param array{nombre_completo: string, correo: string, telefono: string|null, programa_academico: string,
-     *              semestre: int, carta_motivacion: string}                       $input
+     *              semestre: int, carta_motivacion: string, codigo_estudiantil: string|null,
+     *              areas_interes: list<string>}                                    $input
      * @param list<array{path: string, mime: string, size: int, nombre: string}> $archivos ya validados
      *
      * @return array<string, mixed>
@@ -71,6 +72,9 @@ class InscripcionesService
             'programa_academico' => $input['programa_academico'],
             'semestre' => $input['semestre'],
             'carta_motivacion' => $input['carta_motivacion'],
+            // Campos opcionales nuevos (DEC-B63, PROPUESTA pendiente del equipo de BD).
+            'codigo_estudiantil' => $input['codigo_estudiantil'],
+            'areas_interes' => $input['areas_interes'],
             'documentos_adjuntos' => $documentos,
             'estado_solicitud' => InscripcionesRepository::ESTADO_PENDIENTE,
             'fecha_solicitud' => new UTCDateTime($this->clock->now()),

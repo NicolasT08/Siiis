@@ -193,6 +193,7 @@ final class InteraccionFlowIntegrationTest extends IntegrationTestCase
             'semestre' => '5',
             'carta_motivacion' => str_repeat('Quiero investigar en el semillero. ', 4),
             'acepta_tratamiento_datos' => 'true',
+            'disponibilidad' => 'true',
         ];
 
         // Aspirante: formulario con dos documentos.
@@ -209,7 +210,7 @@ final class InteraccionFlowIntegrationTest extends IntegrationTestCase
         $guardada = $this->mongo()->collection(Collections::INSCRIPCIONES)->findOne(['_id' => new ObjectId($id)]);
         self::assertIsArray($guardada);
         self::assertSame(
-            ['_id', 'nombre_completo', 'correo', 'telefono', 'programa_academico', 'semestre', 'carta_motivacion', 'documentos_adjuntos', 'estado_solicitud', 'fecha_solicitud'],
+            ['_id', 'nombre_completo', 'correo', 'telefono', 'programa_academico', 'semestre', 'carta_motivacion', 'codigo_estudiantil', 'areas_interes', 'documentos_adjuntos', 'estado_solicitud', 'fecha_solicitud'],
             array_keys($guardada),
         );
         self::assertSame([$correo, 5, 'pendiente'], [$guardada['correo'], $guardada['semestre'], $guardada['estado_solicitud']]);

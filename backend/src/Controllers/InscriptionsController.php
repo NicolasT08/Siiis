@@ -52,6 +52,7 @@ final class InscriptionsController
             $s->inscripcionDocumentosMax,
             $s->documentoAdjuntoMaxBytes,
             $s->documentoPdfMaxBytes,
+            0, // Documentos opcionales: de 0 a INSCRIPCION_DOCUMENTOS_MAX (DECISION-005 corregida, DEC-B63).
         );
 
         return JsonResponse::ok([

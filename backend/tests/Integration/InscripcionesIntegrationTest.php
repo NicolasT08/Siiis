@@ -154,6 +154,14 @@ final class InscripcionesIntegrationTest extends IntegrationTestCase
             ['path' => TestImages::pdf(), 'mime' => 'application/pdf', 'size' => 1, 'nombre' => 'carta.pdf'],
         ])['id'];
 
+        // El listado del panel (proyección real de MongoDB) trae los campos de DEC-B63.
+        $fila = array_values(array_filter(
+            $this->repo->paginar(null, 1, 50)['items'],
+            static fn (array $i): bool => (string) $i['_id'] === $id,
+        ))[0] ?? null;
+        self::assertIsArray($fila);
+        self::assertSame(['202110001', ['tic', 'ciencia_datos']], [$fila['codigo_estudiantil'] ?? null, $fila['areas_interes'] ?? null]);
+
         // El mismo correo con una solicitud pendiente: 409 sin subir nada.
         try {
             $this->service->crear($this->datos(), [
@@ -192,7 +200,7 @@ final class InscripcionesIntegrationTest extends IntegrationTestCase
 
     /**
      * @return array{nombre_completo: string, correo: string, telefono: string|null, programa_academico: string,
-     *               semestre: int, carta_motivacion: string}
+     *               semestre: int, carta_motivacion: string, codigo_estudiantil: string|null, areas_interes: list<string>}
      */
     private function datos(): array
     {
@@ -203,6 +211,8 @@ final class InscripcionesIntegrationTest extends IntegrationTestCase
             'programa_academico' => 'Ingeniería de Sistemas',
             'semestre' => 4,
             'carta_motivacion' => str_repeat('Carta de integración. ', 6),
+            'codigo_estudiantil' => '202110001',
+            'areas_interes' => ['tic', 'ciencia_datos'],
         ];
     }
 

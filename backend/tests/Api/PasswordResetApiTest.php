@@ -210,6 +210,23 @@ final class PasswordResetApiTest extends AuthTestCase
         self::assertSame(200, $this->reset($app, $token, 'Nueva-Clave-2026')->getStatusCode());
     }
 
+    public function testResetRechazaLaMismaContrasenaYNoConsumeElToken(): void
+    {
+        [$credId] = $this->db->crearCuenta(self::CORREO, self::PASSWORD);
+        $app = $this->authApp();
+        $this->forgot($app, self::CORREO);
+        $token = $this->mail->ultimoToken();
+
+        $response = $this->reset($app, $token, self::PASSWORD);
+
+        $this->assertError($response, 400, 'VALIDATION_ERROR');
+        self::assertSame('La nueva contraseña debe ser distinta de la actual.', $this->json($response)['error']['fields']['password']);
+        // La contraseña no cambió y el enlace sigue sirviendo para una distinta.
+        self::assertSame(200, $this->login($app, self::CORREO, self::PASSWORD)->getStatusCode());
+        self::assertNotNull($this->db->credenciales[(string) $credId]['token_recuperacion']);
+        self::assertSame(200, $this->reset($app, $token, 'Otra-Clave-2027')->getStatusCode());
+    }
+
     public function testResetConArraysEsRechazado(): void
     {
         $response = $this->authApp()->handle($this->request('POST', '/api/v1/auth/reset-password', [

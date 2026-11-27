@@ -16,6 +16,19 @@ use Siiis\Support\ApiException;
  */
 final class InscripcionValidator
 {
+    /** Áreas de interés admitidas (lista blanca, DEC-B63). */
+    public const AREAS_INTERES = [
+        'desarrollo_software',
+        'transformacion_digital',
+        'tic',
+        'innovacion',
+        'inteligencia_artificial',
+        'ciencia_datos',
+    ];
+
+    /** Código estudiantil: 4 a 20 letras o dígitos (DEC-B63). */
+    private const PATRON_CODIGO = '/^[A-Za-z0-9]{4,20}\z/';
+
     public function __construct(
         private readonly Settings $settings,
         private readonly PerfilValidator $perfil,
@@ -24,7 +37,8 @@ final class InscripcionValidator
 
     /**
      * @return array{nombre_completo: string, correo: string, telefono: string|null, programa_academico: string,
-     *               semestre: int, carta_motivacion: string}
+     *               semestre: int, carta_motivacion: string, codigo_estudiantil: string|null,
+     *               areas_interes: list<string>}
      *
      * @throws ApiException 400 VALIDATION_ERROR
      */
@@ -54,6 +68,24 @@ final class InscripcionValidator
             $errors['carta_motivacion'] = sprintf('Mínimo %d caracteres.', $s->inscripcionCartaMinLength);
         }
 
+        // Opcionales nuevos (DEC-B63, PROPUESTA pendiente del equipo de BD).
+        $codigo = null;
+        $valorCodigo = $body['codigo_estudiantil'] ?? null;
+        if ($valorCodigo !== null && $valorCodigo !== '') {
+            if (!is_string($valorCodigo) || preg_match(self::PATRON_CODIGO, trim($valorCodigo)) !== 1) {
+                $errors['codigo_estudiantil'] = 'Debe tener de 4 a 20 letras o números, sin espacios ni símbolos.';
+            } else {
+                $codigo = strtoupper(trim($valorCodigo));
+            }
+        }
+        $areas = self::areas($body['areas_interes'] ?? null, $errors);
+
+        // Compromiso de disponibilidad: obligatorio, pero no se guarda (como la autorización de datos, DEC-B63).
+        $disponible = $body['disponibilidad'] ?? null;
+        if ($disponible !== true && $disponible !== 'true' && $disponible !== '1') {
+            $errors['disponibilidad'] = 'Debes confirmar tu disponibilidad para las reuniones semanales.';
+        }
+
         // Ley 1581 de 2012: no se guarda (el modelo no tiene el campo), pero es obligatoria (DEC-B51).
         $acepta = $body['acepta_tratamiento_datos'] ?? null;
         if ($acepta !== true && $acepta !== 'true' && $acepta !== '1') {
@@ -77,7 +109,39 @@ final class InscripcionValidator
             'programa_academico' => $programa,
             'semestre' => $semestre,
             'carta_motivacion' => $carta,
+            'codigo_estudiantil' => $codigo,
+            'areas_interes' => $areas,
         ];
+    }
+
+    /**
+     * Lista de áreas (`areas_interes[]` en el formulario o un arreglo JSON) dentro de la lista blanca, sin repetidos.
+     *
+     * @param array<string, string> $errors
+     *
+     * @return list<string>
+     */
+    private static function areas(mixed $valor, array &$errors): array
+    {
+        if ($valor === null || $valor === '' || $valor === []) {
+            return [];
+        }
+        if (!is_array($valor) || !array_is_list($valor)) {
+            $errors['areas_interes'] = 'Envía las áreas de interés como una lista.';
+
+            return [];
+        }
+        $areas = [];
+        foreach ($valor as $area) {
+            if (!is_string($area) || !in_array($area, self::AREAS_INTERES, true)) {
+                $errors['areas_interes'] = sprintf('Valor no válido. Valores permitidos: %s.', implode(', ', self::AREAS_INTERES));
+
+                return [];
+            }
+            $areas[$area] = $area;
+        }
+
+        return array_values($areas);
     }
 
     /**

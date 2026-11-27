@@ -78,10 +78,10 @@ final class InscriptionsApiTest extends AuthTestCase
         self::assertSame([['nombre_archivo' => 'Carta firmada.pdf'], ['nombre_archivo' => 'certificado.png']], $inscripcion['documentos_adjuntos']);
         self::assertStringNotContainsString('cloudinary', (string) $response->getBody());
 
-        // Guardado con los campos exactos del modelo (spec 8.2).
+        // Guardado con los campos del modelo (spec 8.2) más los dos opcionales de DEC-B63 (PROPUESTA para BD).
         $guardada = $this->db->inscripciones[$inscripcion['id']];
         self::assertSame(
-            ['_id', 'nombre_completo', 'correo', 'telefono', 'programa_academico', 'semestre', 'carta_motivacion', 'documentos_adjuntos', 'estado_solicitud', 'fecha_solicitud'],
+            ['_id', 'nombre_completo', 'correo', 'telefono', 'programa_academico', 'semestre', 'carta_motivacion', 'codigo_estudiantil', 'areas_interes', 'documentos_adjuntos', 'estado_solicitud', 'fecha_solicitud'],
             array_keys($guardada),
         );
         self::assertInstanceOf(UTCDateTime::class, $guardada['fecha_solicitud']);
@@ -142,8 +142,8 @@ final class InscriptionsApiTest extends AuthTestCase
             return $datos;
         };
 
-        yield 'vacío' => [[], ['nombre_completo', 'correo', 'programa_academico', 'semestre', 'carta_motivacion', 'acepta_tratamiento_datos']];
-        foreach (['nombre_completo', 'correo', 'programa_academico', 'semestre', 'carta_motivacion', 'acepta_tratamiento_datos'] as $campo) {
+        yield 'vacío' => [[], ['nombre_completo', 'correo', 'programa_academico', 'semestre', 'carta_motivacion', 'disponibilidad', 'acepta_tratamiento_datos']];
+        foreach (['nombre_completo', 'correo', 'programa_academico', 'semestre', 'carta_motivacion', 'acepta_tratamiento_datos', 'disponibilidad'] as $campo) {
             yield 'sin ' . $campo => [$sin($campo), [$campo]];
         }
         yield 'correo de otro dominio' => [['correo' => 'laura@gmail.com'] + self::datos(), ['correo']];
@@ -203,21 +203,80 @@ final class InscriptionsApiTest extends AuthTestCase
         self::assertSame('Usa tu correo institucional (@uptc.edu.co, @gmail.com).', $this->json($response)['error']['fields']['correo']);
     }
 
-    public function testSinDocumentos(): void
+    public function testSinDocumentosSeAcepta(): void
     {
+        // DECISION-005 corregida (DEC-B63): los documentos son opcionales, de 0 a INSCRIPCION_DOCUMENTOS_MAX.
         $response = $this->app->handle($this->peticion(self::datos(), null));
 
-        $this->assertError($response, 400, 'VALIDATION_ERROR');
-        self::assertArrayHasKey('documentos', $this->json($response)['error']['fields']);
-        $this->assertNadaGuardado();
+        self::assertSame(201, $response->getStatusCode(), (string) $response->getBody());
+        self::assertSame([], $this->json($response)['inscripcion']['documentos_adjuntos']);
+        self::assertSame([], $this->cloudinary->subidas);
+        self::assertCount(1, $this->db->inscripciones);
     }
 
     public function testDocumentoVacioEnElFormularioCuentaComoAusente(): void
     {
         $response = $this->enviar(self::datos(), [TestImages::subida(TestImages::png(), UPLOAD_ERR_NO_FILE)]);
 
+        self::assertSame(201, $response->getStatusCode(), (string) $response->getBody());
+        self::assertSame([], $this->cloudinary->subidas);
+    }
+
+    public function testCodigoEstudiantilYAreasDeInteresSeGuardanYSeVenEnElDetalle(): void
+    {
+        $datos = self::datos() + ['codigo_estudiantil' => ' 2021a10045 ', 'areas_interes' => ['tic', 'ciencia_datos', 'tic']];
+
+        $response = $this->enviar($datos, [TestImages::subida(TestImages::pdf())]);
+
+        self::assertSame(201, $response->getStatusCode(), (string) $response->getBody());
+        $guardada = array_values($this->db->inscripciones)[0];
+        self::assertSame('2021A10045', $guardada['codigo_estudiantil']);
+        self::assertSame(['tic', 'ciencia_datos'], $guardada['areas_interes']);
+        // La disponibilidad y la autorización son obligatorias pero no se guardan.
+        self::assertArrayNotHasKey('disponibilidad', $guardada);
+        self::assertArrayNotHasKey('acepta_tratamiento_datos', $guardada);
+
+        [$token] = $this->sesionComo($this->authApp(), 'administrador');
+        $detalle = $this->app->handle($this->request('GET', '/api/v1/inscriptions/' . $guardada['_id'], null, self::bearer($token)));
+        $inscripcion = $this->json($detalle)['inscripcion'];
+        self::assertSame(['2021A10045', ['tic', 'ciencia_datos']], [$inscripcion['codigo_estudiantil'], $inscripcion['areas_interes']]);
+    }
+
+    public function testSinCodigoNiAreasQuedanVacios(): void
+    {
+        $response = $this->enviar(self::datos(), [TestImages::subida(TestImages::pdf())]);
+
+        self::assertSame(201, $response->getStatusCode());
+        $guardada = array_values($this->db->inscripciones)[0];
+        self::assertSame([null, []], [$guardada['codigo_estudiantil'], $guardada['areas_interes']]);
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function opcionalesInvalidos(): iterable
+    {
+        yield 'código corto' => [['codigo_estudiantil' => 'A12'], 'codigo_estudiantil'];
+        yield 'código largo' => [['codigo_estudiantil' => str_repeat('1', 21)], 'codigo_estudiantil'];
+        yield 'código con símbolos' => [['codigo_estudiantil' => '2021-100'], 'codigo_estudiantil'];
+        yield 'código como arreglo' => [['codigo_estudiantil' => ['$ne' => '']], 'codigo_estudiantil'];
+        yield 'área desconocida' => [['areas_interes' => ['tic', 'cocina']], 'areas_interes'];
+        yield 'áreas como texto' => [['areas_interes' => 'tic'], 'areas_interes'];
+        yield 'áreas como objeto' => [['areas_interes' => ['a' => 'tic']], 'areas_interes'];
+        yield 'sin disponibilidad' => [['disponibilidad' => 'false'], 'disponibilidad'];
+    }
+
+    /**
+     * @param array<string, mixed> $cambios
+     */
+    #[DataProvider('opcionalesInvalidos')]
+    public function testCamposOpcionalesInvalidos(array $cambios, string $campo): void
+    {
+        $response = $this->enviar($cambios + self::datos(), [TestImages::subida(TestImages::pdf())]);
+
         $this->assertError($response, 400, 'VALIDATION_ERROR');
-        self::assertArrayHasKey('documentos', $this->json($response)['error']['fields']);
+        self::assertArrayHasKey($campo, $this->json($response)['error']['fields']);
+        $this->assertNadaGuardado();
     }
 
     public function testMasDeTresDocumentos(): void
@@ -416,7 +475,7 @@ final class InscriptionsApiTest extends AuthTestCase
         $body = $this->json($response);
         self::assertSame([(string) $pendiente2, (string) $pendiente1, (string) $aceptada], array_column($body['data'], 'id'));
         self::assertSame(
-            ['id', 'nombre_completo', 'correo', 'telefono', 'programa_academico', 'semestre', 'estado_solicitud', 'fecha_solicitud'],
+            ['id', 'nombre_completo', 'correo', 'telefono', 'programa_academico', 'semestre', 'codigo_estudiantil', 'areas_interes', 'estado_solicitud', 'fecha_solicitud'],
             array_keys($body['data'][0]),
         );
         self::assertSame(['page' => 1, 'per_page' => 20, 'total' => 3, 'total_pages' => 1], $body['meta']);
@@ -607,6 +666,7 @@ final class InscriptionsApiTest extends AuthTestCase
             'semestre' => '4',
             'carta_motivacion' => str_repeat('Quiero aprender investigación. ', 5),
             'acepta_tratamiento_datos' => 'true',
+            'disponibilidad' => 'true',
         ];
     }
 

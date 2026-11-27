@@ -15,6 +15,7 @@ use Siiis\Support\ApiException;
 use Siiis\Support\Clock;
 use Siiis\Support\Logger;
 use Siiis\Support\TokenGenerator;
+use Siiis\Validation\ChangePasswordValidator;
 use Throwable;
 
 /**
@@ -95,6 +96,12 @@ class PasswordResetService
             || !$credencialId instanceof ObjectId
         ) {
             throw self::tokenInvalido();
+        }
+
+        // Igual que change-password: la nueva no puede ser la que ya tenía la cuenta. El token no se consume.
+        $actual = $credencial['password'] ?? null;
+        if (is_string($actual) && $this->hasher->verify($password, $actual)) {
+            throw ApiException::validation(['password' => ChangePasswordValidator::MISMA_PASSWORD]);
         }
 
         $this->credenciales->cambiarPassword($credencialId, $this->hasher->hash($password));

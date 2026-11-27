@@ -220,7 +220,7 @@ Público. La pantalla de restablecimiento lee `token` de la query string y lo en
 { "token": "3f9a...(64 hex)", "password": "Nueva-Clave-2026" }
 ```
 
-- `password`: misma política que en el registro (DEC-B11): mínimo `PASSWORD_MIN_LENGTH` caracteres (por defecto 8), al menos una letra y un número, y máximo 72 bytes. Si no la cumple, responde `400 VALIDATION_ERROR` con `fields.password` = `"La contraseña debe tener al menos una letra y un número."` (o el mensaje de longitud). Una contraseña rechazada no consume el token.
+- `password`: misma política que en el registro (DEC-B11): mínimo `PASSWORD_MIN_LENGTH` caracteres (por defecto 8), al menos una letra y un número, y máximo 72 bytes. Si no la cumple, responde `400 VALIDATION_ERROR` con `fields.password` = `"La contraseña debe tener al menos una letra y un número."` (o el mensaje de longitud). Tampoco se acepta **la misma contraseña que ya tenía la cuenta**: `fields.password` = `"La nueva contraseña debe ser distinta de la actual."` (DEC-B64). Una contraseña rechazada no consume el token.
 
 **200**
 ```json
@@ -940,11 +940,14 @@ const form = new FormData();
 form.append('nombre_completo', nombre);
 form.append('correo', correo);
 form.append('telefono', telefono);              // opcional
+form.append('codigo_estudiantil', codigo);      // opcional (DEC-B63)
 form.append('programa_academico', programa);
 form.append('semestre', String(semestre));
 form.append('carta_motivacion', carta);
 form.append('acepta_tratamiento_datos', 'true'); // casilla obligatoria
-for (const archivo of archivos) form.append('documentos[]', archivo);
+form.append('disponibilidad', 'true');           // casilla obligatoria (DEC-B63)
+for (const area of areas) form.append('areas_interes[]', area); // opcional (DEC-B63)
+for (const archivo of archivos) form.append('documentos[]', archivo); // de 0 a 3 (opcionales)
 await fetch('/api/v1/inscriptions', { method: 'POST', body: form });
 ```
 
@@ -956,10 +959,13 @@ await fetch('/api/v1/inscriptions', { method: 'POST', body: form });
 | `programa_academico` | Obligatorio, hasta 120 caracteres |
 | `semestre` | Obligatorio, entero de 1 a 10 |
 | `carta_motivacion` | Obligatoria, de 100 a 3000 caracteres |
+| `codigo_estudiantil` | Opcional, 4 a 20 letras o dígitos; se guarda en mayúsculas (DEC-B63, campo nuevo pendiente de aprobación de BD) |
+| `areas_interes[]` | Opcional, uno o más de `desarrollo_software`, `transformacion_digital`, `tic`, `innovacion`, `inteligencia_artificial`, `ciencia_datos`; sin repetidos (DEC-B63, campo nuevo pendiente de aprobación de BD) |
+| `disponibilidad` | Obligatorio, `true`: el aspirante confirma disponibilidad para las reuniones semanales. No se guarda (DEC-B63) |
 | `acepta_tratamiento_datos` | Obligatorio, `true` (autorización de tratamiento de datos, Ley 1581 de 2012). No se guarda |
-| `documentos[]` | De 1 a `INSCRIPCION_DOCUMENTOS_MAX` (3) archivos: PDF de hasta 3 MB, o JPEG/PNG/WebP de hasta 5 MB (se reducen a 1600 px de ancho), igual que los adjuntos (11a). Un solo archivo también puede ir en `documentos` |
+| `documentos[]` | **Opcional**: de 0 a `INSCRIPCION_DOCUMENTOS_MAX` (3) archivos: PDF de hasta 3 MB, o JPEG/PNG/WebP de hasta 5 MB (se reducen a 1600 px de ancho), igual que los adjuntos (11a). Un solo archivo también puede ir en `documentos` |
 
-**Documentos que se piden (DECISION-005, DEC-B49):** la **carta de motivación** (obligatoria) y el **certificado de matrícula o de notas** (opcional), en PDF o imagen. El backend no distingue qué archivo es cada uno: muestra en el formulario un campo obligatorio para la carta y uno opcional para el certificado, y envíalos en ese orden en `documentos[]` (carta primero).
+**Documentos (DECISION-005 corregida, DEC-B63):** no hay documentos obligatorios definidos. El formulario ofrece un solo campo "Documentos de apoyo (opcional)" de 0 a 3 archivos; la carta de motivación es el texto `carta_motivacion`.
 
 **Texto legal de la casilla `acepta_tratamiento_datos`** (aprobado por el equipo, 2026-11-26). Muéstralo completo junto a la casilla, que debe ir sin marcar y ser obligatoria; el formulario solo se envía si el aspirante la marca:
 
@@ -979,6 +985,8 @@ await fetch('/api/v1/inscriptions', { method: 'POST', body: form });
     "telefono": "+573105551234",
     "programa_academico": "Ingeniería de Sistemas",
     "semestre": 4,
+    "codigo_estudiantil": "202110045",
+    "areas_interes": ["tic", "ciencia_datos"],
     "estado_solicitud": "pendiente",
     "fecha_solicitud": "2026-11-06T13:11:54Z",
     "documentos_adjuntos": [ { "nombre_archivo": "carta.pdf" } ]
@@ -1003,7 +1011,7 @@ Solo `superadministrador` y `administrador`. Listado paginado, de la más recien
 | `per_page` | entero de 1 a `INSCRIPCIONES_PER_PAGE_MAX` (50); por defecto 20 |
 | `estado_solicitud` | `pendiente`, `aceptada` o `rechazada` |
 
-**200** `{"data": [{"id", "nombre_completo", "correo", "telefono", "programa_academico", "semestre", "estado_solicitud", "fecha_solicitud"}], "meta": {...}}`. Cabecera `Cache-Control: no-store`.
+**200** `{"data": [{"id", "nombre_completo", "correo", "telefono", "programa_academico", "semestre", "codigo_estudiantil", "areas_interes", "estado_solicitud", "fecha_solicitud"}], "meta": {...}}`. Cabecera `Cache-Control: no-store`.
 
 **Errores:** `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `403 FORBIDDEN`.
 
@@ -1081,7 +1089,7 @@ El contrato de las secciones 9 a 14 está completo y probado de punta a punta co
 - Foto de perfil recortada a 400 × 400 en el servidor: si se quiere que el usuario elija el encuadre, recortar en el navegador antes de subir (DEC-B42).
 - Límites de archivos (adjuntos e inscripción): imágenes de 5 MB y PDF de 3 MB; conviene validarlos también en el navegador para avisar antes de subir.
 - Reseñas: avisar al visitante que su reseña se publicará tras revisión; mostrar `resumen.promedio` (12a).
-- Inscripción: casilla de autorización de datos obligatoria con el texto legal de 13a; campo obligatorio para la carta de motivación y opcional para el certificado; aviso de correo `@uptc.edu.co`; manejar `409 INSCRIPTION_PENDING` (13a).
+- Inscripción: casilla de autorización de datos obligatoria con el texto legal de 13a; casilla obligatoria de disponibilidad; "Documentos de apoyo (opcional)" de 0 a 3 archivos; aviso de correo `@uptc.edu.co`; manejar `409 INSCRIPTION_PENDING` (13a).
 - Panel de inscripciones: los enlaces de los documentos vencen en 1 hora (13c); para crear la cuenta de un aceptado se usa `POST /auth/register`.
 
 ## Fuera del backend actual

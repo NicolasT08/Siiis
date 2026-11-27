@@ -37,13 +37,13 @@ de este documento: el backend va a Render y el frontend sigue en Hostinger.
   - Si falla: revisa usuario/contraseña (caracteres especiales en la URI van codificados, p. ej. `@` → `%40`).
 - [ ] **A5. Cloudinary.** En la cuenta de desarrollo ya está activado *Settings → Security → Allow delivery of PDF
   and ZIP files*. Compruébalo en 10 segundos.
-- [ ] **A6. Fotos y videos del inicio.** Arma una carpeta local, p. ej. `C:\siiis-inicio\`, con:
+- [ ] **A6. Fotos y videos del inicio.** Ya está lista en `carga-inicio\` (raíz del repositorio, sin versionar) con las 8 fotos del carrusel anterior, en el mismo orden y con sus textos alternativos. Para agregar más, usa la misma estructura:
   - `slider\`: fotos JPG, PNG o WebP (máx. 10 MB c/u), con prefijo de orden: `01-Inauguracion.jpg`, `02-Laboratorio.jpg`…
   - `videos\`: videos MP4, WebM o MOV (máx. 100 MB c/u): `01-Presentacion.mp4`…
   - `descripciones.json` (opcional, es el texto alternativo): `{"01-Inauguracion.jpg": "Inauguración del semillero 2024"}`.
     Sin él, la descripción sale del nombre del archivo.
 
-  Compruébala sin escribir nada: en `backend/`, `php scripts/cargar_multimedia.php --carpeta=C:\siiis-inicio --simular`
+  Compruébala sin escribir nada: en `backend/`, `php scripts/cargar_multimedia.php --carpeta=..\carga-inicio --simular`
   (con el `.env` local de pruebas basta). Debe listar cada archivo con `SUBIR` y ningún `!`.
   - Si sale `!`: el mensaje dice qué archivo y por qué (formato, tamaño o nombre repetido). Corrígelo y repite.
 
@@ -116,7 +116,7 @@ de este documento: el backend va a Render y el frontend sigue en Hostinger.
   - Al terminar, **vuelve a dejar el `.env` local** como estaba (base de pruebas), si lo cambiaste (después de D4).
 - [ ] **D4. Fotos y videos del inicio (para que la página no arranque vacía).** Después de D2/D3 y antes de E, con
   el mismo `.env` de producción (local o por SSH; en el servidor, sube antes la carpeta de A6):
-  `php scripts/cargar_multimedia.php --carpeta=C:\siiis-inicio` (sin `--test`: base real `siiis`, carpeta
+  `php scripts/cargar_multimedia.php --carpeta=..\carga-inicio` (sin `--test`: base real `siiis`, carpeta
   `siiis/home` de Cloudinary). Muestra el plan y pide escribir `si` antes de subir o escribir.
   - Verifica: termina con `Listo: N subidos, 0 actualizados, 0 con error.` y en Atlas, colección `Multimedia`,
     hay un documento por archivo (`slider_principal` / `video_presentacion`). En E1 se puede comprobar también
@@ -124,7 +124,7 @@ de este documento: el backend va a Render y el frontend sigue en Hostinger.
   - Correrlo dos veces **no duplica**: lo ya cargado sale como `sin cambios`. Para cambiar el orden, renombra el
     prefijo (`02-` → `05-`) y vuelve a correrlo: solo actualiza `orden` y `descripcion`, sin volver a subir.
   - Si un archivo falla (`x …`): los demás quedan cargados; corrige ese archivo y repite (no duplica).
-  - Si no hay tiempo: el sitio funciona igual; el carrusel muestra las fotos de respaldo del frontend y la sección de
+  - Si no hay tiempo: el sitio funciona igual; en lugar del carrusel aparece un aviso discreto ("Pronto compartiremos…") y la sección de
     videos no aparece hasta que haya alguno.
 
 ## E. Verificar la API en producción

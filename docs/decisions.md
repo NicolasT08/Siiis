@@ -612,7 +612,7 @@ fase 4 (aprobado el 2026-11-06 con cuatro cambios del responsable de backend) y 
 
 ## DEC-B49 — Documentos de la inscripción (DECISION-005)
 
-- Estado: DECIDIDA (equipo, 2026-11-26) · resuelve DECISION-005 del spec
+- Estado: DECIDIDA (equipo, 2026-11-26) · resuelve DECISION-005 del spec · **corregida el 2026-11-26 (DEC-B63): documentos opcionales**
 - Fecha: 2026-11-06 · decidida el 2026-11-26
 - Contexto: el spec no dice qué documentos se piden ni sus formatos o tamaños.
 - Decisión: de 1 a `INSCRIPCION_DOCUMENTOS_MAX` (3) archivos en el campo `documentos[]` de un solo
@@ -622,16 +622,11 @@ fase 4 (aprobado el 2026-11-06 con cuatro cambios del responsable de backend) y 
   borran todas.
 - Notas: con 3 archivos la petición puede llegar a unos 15 MB: Hostinger debe permitir `post_max_size` y
   `upload_max_filesize` suficientes (ver `docs/deployment.md`).
-- Decisión del equipo (DECISION-005, 2026-11-26): la inscripción lleva de 1 a 3 archivos PDF o imagen: la
-  **carta de motivación es obligatoria** y el **certificado de matrícula o de notas es opcional**.
-  - Cómo se cumple sin cambiar el contrato ni el modelo: el backend ya exige al menos 1 archivo y como máximo 3,
-    con los formatos y tamaños de arriba. `Inscripciones.documentos_adjuntos` solo guarda `{url, public_id,
-    nombre_archivo}` (sin un "tipo de documento"), así que el backend **no distingue** cuál archivo es la carta y
-    cuál el certificado.
-  - El frontend pide la carta en un campo obligatorio y el certificado en uno opcional, y los envía en ese orden
-    en `documentos[]`; el administrador comprueba el contenido al revisar la solicitud (13c).
-  - Si se quiere guardar qué tipo es cada archivo, hay que pedir un campo nuevo al equipo de BD (cambio de
-    modelo, spec 8.2).
+- **Corrección (2026-11-26, DEC-B63): no hay documentos obligatorios definidos.** El semillero todavía no ha dicho
+  qué documentos pide, así que son **opcionales**: de 0 a `INSCRIPCION_DOCUMENTOS_MAX` (3) archivos en un solo
+  campo "Documentos de apoyo (opcional)", con las mismas reglas de tipo y tamaño. Se deja sin efecto lo anotado
+  antes ("carta obligatoria y certificado opcional"): la carta de motivación es el texto `carta_motivacion`, no un
+  archivo. Cuando el semillero defina documentos obligatorios, se vuelve a exigir un mínimo.
 - Variables: `INSCRIPCION_DOCUMENTOS_MAX`, `CLOUDINARY_INSCRIPCIONES_FOLDER`.
 - Impacto: `InscriptionsController`, `InscripcionesService`, `FileValidator`, `CloudinaryService`.
 - Requiere migración: no.
@@ -907,3 +902,35 @@ quedaron **aprobadas por el equipo** el 2026-11-26.
   `Validation/FileValidator::video`, `Services/CloudinaryService` (`uploadVideo`, `delete` con tipo de recurso),
   `Repositories/MultimediaRepository`, `Config/Routes`, `Config/Settings`; frontend `features/admin/AdminHomeMediaPage`.
 - Requiere migración: no.
+
+## DEC-B63 — Formulario de inscripción: campos del diseño original y documentos opcionales
+
+- Estado: **PROPUESTA (pendiente de aprobación del equipo de bases de datos)** para los dos campos nuevos; el resto,
+  pedido por el equipo para la entrega (2026-11-26).
+- Contexto: el formulario de la versión anterior pedía código estudiantil, áreas de interés y disponibilidad, que
+  no existen en `Inscripciones` (spec 8.2); el formulario de la fase 4 los había quitado y exigía documentos.
+- Decisión:
+  - **Campos opcionales nuevos en `Inscripciones`** (cambio de modelo, requiere aprobación de BD):
+    - `codigo_estudiantil`: texto de 4 a 20 letras o dígitos (se guarda en mayúsculas); `null` si no se envía.
+    - `areas_interes`: lista (sin repetidos) con valores de la lista blanca `desarrollo_software`,
+      `transformacion_digital`, `tic`, `innovacion`, `inteligencia_artificial`, `ciencia_datos`; `[]` si no se envía.
+    - Las solicitudes anteriores no los tienen: la API los devuelve como `null` / `[]`. No se crean índices.
+  - `disponibilidad` (casilla "Cuento con disponibilidad para asistir a las reuniones semanales…"): **obligatoria
+    y no se guarda**, igual que `acepta_tratamiento_datos` (que se conserva con el texto legal de `docs/api.md`).
+  - Documentos: **de 0 a 3**, opcionales (corrige DECISION-005 en DEC-B49).
+  - El panel muestra el código y las áreas en el detalle y el listado de inscripciones.
+- Si el equipo de BD no aprueba los campos nuevos: quitar `codigo_estudiantil` y `areas_interes` de
+  `InscripcionValidator`, `InscripcionesService` e `InscripcionPresenter` (el formulario puede dejar de enviarlos);
+  no requiere migración, porque son opcionales.
+- Impacto: `Validation/InscripcionValidator`, `Services/InscripcionesService`, `Support/InscripcionPresenter`,
+  `Validation/FileValidator::adjuntos` (mínimo configurable), `Controllers/InscriptionsController`, `docs/api.md`
+  (13a); frontend `features/auth/InscripcionPage.tsx`, `features/admin/AdminInscriptionsPage.tsx`.
+- Requiere migración: no.
+
+## DEC-B64 — `reset-password` rechaza la contraseña actual
+
+- Estado: PROPUESTA (backend, 2026-11-26)
+- Decisión: como `change-password` (DEC-B23), restablecer con la misma contraseña que ya tenía la cuenta responde
+  `400 VALIDATION_ERROR` con `fields.password` = "La nueva contraseña debe ser distinta de la actual." El enlace no
+  se consume: se puede usar enseguida con otra contraseña.
+- Impacto: `Services/PasswordResetService`, `docs/api.md` (6).
