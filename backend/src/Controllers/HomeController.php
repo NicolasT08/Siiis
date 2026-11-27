@@ -105,7 +105,7 @@ final class HomeController
             static fn (array $doc): mixed => Serializer::serialize([
                 '_id' => $doc['_id'] ?? null,
                 'tipo' => $doc['tipo'] ?? null,
-                // Imágenes de Cloudinary con f_auto,q_auto (DEC-B42); los videos y otras URL, tal cual.
+                // Imágenes de Cloudinary con f_auto,q_auto (DEC-B42), videos con q_auto; otras URL, tal cual.
                 'url' => is_string($doc['url'] ?? null) ? CloudinaryUrl::entrega($doc['url']) : null,
                 'descripcion' => $doc['descripcion'] ?? null,
                 'orden' => $doc['orden'] ?? null,

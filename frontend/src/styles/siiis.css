@@ -56,8 +56,9 @@
 .btn:focus-visible { outline: 3px solid var(--siiis-gold); outline-offset: 2px; }
 .btn--navy { background: var(--siiis-navy); color: #fff; }
 .btn--navy:hover:not(:disabled) { background: var(--siiis-blue); }
-.btn--bronze { background: var(--siiis-bronze); color: #fff; }
-.btn--bronze:hover:not(:disabled) { background: #96681f; }
+/* Más oscuro que --siiis-bronze para que el texto blanco tenga contraste suficiente (5,2:1; WCAG AA). */
+.btn--bronze { background: #8f6420; color: #fff; }
+.btn--bronze:hover:not(:disabled) { background: #75521a; }
 
 /* Logo + nombre */
 .brand-logo { position: relative; display: inline-flex; align-items: center; gap: 0.7rem; color: #fff; }

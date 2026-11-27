@@ -40,6 +40,8 @@ final class SettingsTest extends TestCase
         self::assertSame(3145728, $settings->documentoPdfMaxBytes);
         self::assertSame(400, $settings->perfilFotoLadoPx);
         self::assertSame(1600, $settings->documentoImagenMaxAnchoPx);
+        self::assertSame(1920, $settings->homeImagenMaxAnchoPx);
+        self::assertSame(1280, $settings->homeVideoMaxAnchoPx);
         self::assertSame('auto', $settings->cloudinaryCalidad);
         // Fase 4: reseñas y contacto (DEC-B43 a DEC-B48).
         self::assertSame(10, $settings->rateLimitReviewsMax);

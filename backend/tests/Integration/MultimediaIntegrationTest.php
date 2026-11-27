@@ -17,7 +17,7 @@ use Siiis\Tests\Support\TestImages;
 
 /**
  * Administración del inicio (DEC-B62) con Cloudinary real (carpeta siiis_test/home) y MONGO_DB_NAME_TEST.
- * Sube una foto grande y un video, comprueba la reducción a 1600 px y que borrar quita el archivo de Cloudinary.
+ * Sube una foto grande y un video, comprueba la reducción a 1920 px y que borrar quita el archivo de Cloudinary.
  */
 final class MultimediaIntegrationTest extends IntegrationTestCase
 {
@@ -88,7 +88,8 @@ final class MultimediaIntegrationTest extends IntegrationTestCase
         self::assertIsArray($docFoto);
         self::assertStringStartsWith(self::FOLDER . '/slider/', (string) $docFoto['public_id']);
         $recurso = self::admin($this->s)->adminApi()->asset((string) $docFoto['public_id']);
-        self::assertSame(1600, $recurso['width'], 'La foto se guarda reducida a 1600 px de ancho.');
+        self::assertSame(1920, $recurso['width'], 'La foto se guarda reducida a HOME_IMAGEN_MAX_ANCHO_PX (1920).');
+        self::assertStringContainsString('/video/upload/q_auto/', $video['url']);
 
         // Aparece en la ruta pública (misma colección) y se puede reordenar.
         $repo = new MultimediaRepository($this->mongo());

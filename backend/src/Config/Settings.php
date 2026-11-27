@@ -114,6 +114,10 @@ final readonly class Settings
         public string $googleDominioPermitido,
         /** Carpeta de Cloudinary de las fotos y videos del inicio (DEC-B62) */
         public string $cloudinaryHomeFolder,
+        /** Ancho máximo al subir una foto del carrusel (c_limit, sin agrandar las pequeñas) */
+        public int $homeImagenMaxAnchoPx,
+        /** Ancho máximo al subir el video de presentación (c_limit, q_auto, vc_auto) */
+        public int $homeVideoMaxAnchoPx,
         /** Tamaño máximo de un video subido por la API (DEC-B62); post_max_size debe ser mayor */
         public int $multimediaVideoMaxBytes,
         public int $multimediaDescripcionMaxLength,
@@ -282,6 +286,8 @@ final readonly class Settings
             googleClientId: self::string($env, 'GOOGLE_CLIENT_ID'),
             googleDominioPermitido: self::dominioGoogle($env),
             cloudinaryHomeFolder: trim(self::string($env, 'CLOUDINARY_HOME_FOLDER', 'siiis/home'), '/'),
+            homeImagenMaxAnchoPx: self::positiveInt($env, 'HOME_IMAGEN_MAX_ANCHO_PX', 1920),
+            homeVideoMaxAnchoPx: self::positiveInt($env, 'HOME_VIDEO_MAX_ANCHO_PX', 1280),
             multimediaVideoMaxBytes: self::positiveInt($env, 'MULTIMEDIA_VIDEO_MAX_BYTES', 52428800),
             multimediaDescripcionMaxLength: self::positiveInt($env, 'MULTIMEDIA_DESCRIPCION_MAX_LENGTH', 200),
             rateLimitMultimediaMax: self::positiveInt($env, 'RATE_LIMIT_MULTIMEDIA_MAX', 60),

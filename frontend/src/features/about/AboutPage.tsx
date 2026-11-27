@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { BookOpenCheck, Code2, Eye, Lightbulb } from 'lucide-react';
 import ProjectsHero from '../projects/components/ProjectsHero';
 import DevelopersCarousel from './DevelopersCarousel';
+import { api } from '../../lib/api';
+import type { DirectorPublico } from '../../lib/api';
+import { iniciales, nombrePersona } from '../../lib/format';
+import { useApi } from '../../lib/useApi';
 import '../projects/projects.css';
 import '../users/users.css';
 import './about.css';
@@ -16,8 +20,13 @@ const VERSION_DEVELOPERS: Record<Version, string[]> = {
 
 const VERSIONS: Version[] = ['1.0', '2.0', '3.0'];
 
+/** Texto fijo de la tarjeta mientras carga, si la API responde 404 (sin DIRECTOR_CORREO) o si falla. */
+const DIRECTOR_FIJO: DirectorPublico = { id: '', nombre: 'Edmundo Arturo', apellido: 'Junco', foto_perfil: null };
+
 export default function AboutPage() {
   const [version, setVersion] = useState<Version>('3.0');
+  const { estado: estadoDirector } = useApi((signal) => api.director(signal).then((r) => r.director), []);
+  const director = estadoDirector.status === 'ready' ? estadoDirector.data : DIRECTOR_FIJO;
   const developers = VERSION_DEVELOPERS[version];
 
   return (
@@ -78,12 +87,12 @@ export default function AboutPage() {
 
         <section className="about-director" aria-labelledby="about-director-title">
           <span className="about-director__avatar" aria-hidden="true">
-            EJ
+            {director.foto_perfil ? <img src={director.foto_perfil.url} alt="" /> : iniciales(director)}
           </span>
           <div>
             <p className="about-eyebrow">Dirección del semillero</p>
             <h2 id="about-director-title">Director</h2>
-            <p className="about-director__name">Edmundo Arturo Junco</p>
+            <p className="about-director__name">{nombrePersona(director)}</p>
           </div>
         </section>
       </section>

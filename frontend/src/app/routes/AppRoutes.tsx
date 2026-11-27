@@ -13,6 +13,8 @@ import InscripcionPage from '../../features/auth/InscripcionPage';
 import LoginPage from '../../features/auth/LoginPage';
 import RestablecerPage from '../../features/auth/RestablecerPage';
 import NotFoundPage from '../../features/NotFoundPage';
+import PrivacidadPage from '../../features/legal/PrivacidadPage';
+import TerminosPage from '../../features/legal/TerminosPage';
 import RequireAuth from '../../components/RequireAuth';
 import { Cargando } from '../../components/ui';
 import { ROLES_ADMINISTRATIVOS, ROLES_REVISORES } from '../../lib/auth';
@@ -76,6 +78,8 @@ export default function AppRoutes() {
         <Route path="/registro" element={<Navigate to="/inscripcion" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/restablecer" element={<RestablecerPage />} />
+        <Route path="/privacidad" element={<PrivacidadPage />} />
+        <Route path="/terminos" element={<TerminosPage />} />
 
         {/* Área del usuario: cualquier rol con sesión */}
         <Route path="/mi-perfil" element={conSesion(<ProfilePage />)} />

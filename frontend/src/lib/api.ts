@@ -22,6 +22,9 @@ export type UsuarioSesion = {
   foto_perfil: Foto;
 };
 
+/** Director del semillero (GET /home/director, 8b): nunca trae el correo. */
+export type DirectorPublico = { id: string; nombre: string; apellido: string; foto_perfil: Foto };
+
 export type LoginResponse = { token: string; expira_en: number; usuario: UsuarioSesion };
 
 /** Vista pública de un integrante (6c). Nunca trae correo, teléfono ni estado. */
@@ -156,7 +159,6 @@ export type InscripcionEntrada = {
   carta_motivacion: string;
   /** Obligatoria, no se guarda (DEC-B63). */
   disponibilidad: boolean;
-  acepta_tratamiento_datos: boolean;
   /** De 0 a 3 documentos de apoyo (opcionales, DECISION-005 corregida). */
   documentos: File[];
 };
@@ -373,17 +375,21 @@ export const api = {
   // 7–8. Inicio
   slider: (signal?: AbortSignal) => request<{ data: MultimediaItem[] }>('/home/slider', { signal }),
   videos: (signal?: AbortSignal) => request<{ data: MultimediaItem[] }>('/home/videos', { signal }),
+  /** 8b. Director del semillero (DEC-B67); 404 si no está configurado. */
+  director: (signal?: AbortSignal) => request<{ director: DirectorPublico }>('/home/director', { signal }),
 
   // 8a. Administración de fotos y videos del inicio (superadministrador y administrador)
   multimedia: (seccion: SeccionInicio, signal?: AbortSignal) =>
     request<{ data: MultimediaAdmin[] }>('/multimedia', { query: { seccion }, signal }),
-  uploadMultimedia: (datos: { seccion: SeccionInicio; descripcion: string; orden?: number | null; archivo: File }) =>
+  /** `reemplaza` (DEC-B69): id del elemento que el backend borra solo si la subida sale bien. */
+  uploadMultimedia: (datos: { seccion: SeccionInicio; descripcion: string; orden?: number | null; archivo: File; reemplaza?: string }) =>
     request<{ multimedia: MultimediaAdmin }>('/multimedia', {
       method: 'POST',
       body: formulario({
         seccion: datos.seccion,
         descripcion: datos.descripcion,
         ...(datos.orden ? { orden: String(datos.orden) } : {}),
+        ...(datos.reemplaza ? { reemplaza: datos.reemplaza } : {}),
         archivo: datos.archivo,
       }),
     }),
@@ -441,7 +447,6 @@ export const api = {
         semestre: String(datos.semestre),
         carta_motivacion: datos.carta_motivacion,
         disponibilidad: datos.disponibilidad ? 'true' : 'false',
-        acepta_tratamiento_datos: datos.acepta_tratamiento_datos ? 'true' : 'false',
         ...(datos.areas_interes.length ? { 'areas_interes[]': datos.areas_interes } : {}),
         ...(datos.documentos.length ? { 'documentos[]': datos.documentos } : {}),
       }),
