@@ -5,6 +5,7 @@ import AppRoutes from './app/routes/AppRoutes';
 import AuthProvider from './components/AuthProvider';
 import './styles/global.css';
 import './styles/siiis.css';
+import './styles/app.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

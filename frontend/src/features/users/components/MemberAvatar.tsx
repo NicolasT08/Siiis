@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Miembro } from '../../../lib/api';
+import type { Miembro } from '../memberUtils';
 import { inicialesMiembro } from '../memberUtils';
 
 /** Foto del integrante o, si no hay (o falla), sus iniciales. */

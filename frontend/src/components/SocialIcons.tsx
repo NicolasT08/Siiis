@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { REDES_SOCIALES } from '../config/sitio';
+import type { RedSocial } from '../config/sitio';
 
 // lucide-react 1.x ya no incluye iconos de marcas: trazos propios con el mismo estilo (24×24, stroke).
 function Svg({ children }: { children: ReactNode }) {
@@ -51,24 +53,36 @@ const Youtube = () => (
   </Svg>
 );
 
-const SOCIAL_NETWORKS = [
-  { name: 'Facebook', Icon: Facebook },
-  { name: 'X', Icon: XLogo },
-  { name: 'Instagram', Icon: Instagram },
-  { name: 'LinkedIn', Icon: Linkedin },
-  { name: 'YouTube', Icon: Youtube },
-];
+const ICONOS: Record<RedSocial, () => ReactNode> = {
+  facebook: Facebook,
+  x: XLogo,
+  instagram: Instagram,
+  linkedin: Linkedin,
+  youtube: Youtube,
+};
 
-// TODO: enlazar a los perfiles oficiales cuando el semillero confirme las URLs.
+/** Redes del semillero. Las URL se configuran en src/config/sitio.ts; sin URL, el icono se muestra sin enlace. */
 export default function SocialLinks() {
   return (
     <ul className="socials" aria-label="Redes sociales">
-      {SOCIAL_NETWORKS.map(({ name, Icon }) => (
-        <li key={name} className="social-badge" title={name}>
-          <Icon />
-          <span className="visually-hidden">{name}</span>
-        </li>
-      ))}
+      {REDES_SOCIALES.map(({ red, nombre, url }) => {
+        const Icono = ICONOS[red];
+        return (
+          <li key={red}>
+            {url ? (
+              <a className="social-badge" href={url} target="_blank" rel="noopener noreferrer" title={nombre}>
+                <Icono />
+                <span className="visually-hidden">{nombre} (se abre en otra pestaña)</span>
+              </a>
+            ) : (
+              <span className="social-badge" title={nombre}>
+                <Icono />
+                <span className="visually-hidden">{nombre}</span>
+              </span>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

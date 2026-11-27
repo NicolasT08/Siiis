@@ -2,42 +2,53 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Mail, Send } from 'lucide-react';
 import ProjectsHero from '../projects/components/ProjectsHero';
-import { api, ApiError } from '../../lib/api';
+import { api } from '../../lib/api';
+import { erroresDeCampo, mensajeError } from '../../lib/errors';
+import { Aviso, ErrorCampo } from '../../components/ui';
 import '../projects/projects.css';
 import './contact.css';
 
+type Campo = 'nombre' | 'correo' | 'asunto' | 'mensaje';
+
 export default function ContactPage() {
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [ok, setOk] = useState('');
+  const [error, setError] = useState('');
+  const [campos, setCampos] = useState<Record<string, string>>({});
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    const formData = new FormData(form);
-    const email = String(formData.get('email') ?? '').trim();
-    const message = String(formData.get('message') ?? '').trim();
-
-    setStatus('sending');
-    setErrorMessage('');
-
+    const datos = new FormData(form);
+    const valor = (c: Campo) => String(datos.get(c) ?? '').trim();
+    setEnviando(true);
+    setOk('');
+    setError('');
+    setCampos({});
     try {
-      const response = await api.contact(email, message);
-      setStatus('sent');
+      const respuesta = await api.contact({ nombre: valor('nombre'), correo: valor('correo'), asunto: valor('asunto'), mensaje: valor('mensaje') });
       form.reset();
-      if (response.mensaje) setErrorMessage('');
-    } catch (error) {
-      setStatus('error');
-      setErrorMessage(error instanceof ApiError ? error.message : 'No se pudo enviar el mensaje.');
+      setOk(respuesta.mensaje);
+    } catch (e) {
+      setError(mensajeError(e));
+      setCampos(erroresDeCampo(e));
+    } finally {
+      setEnviando(false);
     }
   }
 
+  const props = (c: Campo) => ({
+    id: `contact-${c}`,
+    name: c,
+    required: true,
+    disabled: enviando,
+    'aria-invalid': !!campos[c],
+    'aria-describedby': `contact-${c}-e`,
+  });
+
   return (
     <div className="projects-page contact-page">
-      <ProjectsHero
-        compact
-        title="Contacto"
-        subtitle="Escríbenos tus preguntas, propuestas o ideas para conectar con el Semillero SIIIS."
-      />
+      <ProjectsHero compact title="Contacto" subtitle="Escríbenos tus preguntas, propuestas o ideas para conectar con el Semillero SIIIS." />
 
       <main className="container contact-content">
         <section className="contact-card" aria-labelledby="contact-title">
@@ -51,44 +62,29 @@ export default function ContactPage() {
             </div>
           </div>
 
-          <form className="contact-form" onSubmit={handleSubmit}>
-            <label htmlFor="contact-email">Email</label>
-            <input
-              id="contact-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              placeholder="correo@ejemplo.com"
-              required
-              maxLength={320}
-              disabled={status === 'sending'}
-            />
+          <form className="contact-form" onSubmit={(e) => void handleSubmit(e)} noValidate>
+            <label htmlFor="contact-nombre">Nombre</label>
+            <input {...props('nombre')} autoComplete="name" maxLength={80} />
+            <ErrorCampo id="contact-nombre-e" mensaje={campos.nombre} />
 
-            <label htmlFor="contact-message">Mensaje</label>
-            <textarea
-              id="contact-message"
-              name="message"
-              placeholder="Escribe tu mensaje..."
-              rows={7}
-              required
-              maxLength={2000}
-              disabled={status === 'sending'}
-            />
+            <label htmlFor="contact-correo">Correo electrónico</label>
+            <input {...props('correo')} type="email" autoComplete="email" placeholder="correo@ejemplo.com" maxLength={254} />
+            <ErrorCampo id="contact-correo-e" mensaje={campos.correo} />
 
-            {status === 'sent' && (
-              <p className="contact-status contact-status--success" role="status">
-                Tu mensaje fue enviado correctamente.
-              </p>
-            )}
-            {status === 'error' && (
-              <p className="contact-status contact-status--error" role="alert">
-                {errorMessage}
-              </p>
-            )}
+            <label htmlFor="contact-asunto">Asunto</label>
+            <input {...props('asunto')} maxLength={150} />
+            <ErrorCampo id="contact-asunto-e" mensaje={campos.asunto} />
 
-            <button className="btn btn--bronze contact-submit" type="submit" disabled={status === 'sending'}>
+            <label htmlFor="contact-mensaje">Mensaje</label>
+            <textarea {...props('mensaje')} placeholder="Escribe tu mensaje..." rows={7} maxLength={3000} />
+            <ErrorCampo id="contact-mensaje-e" mensaje={campos.mensaje} />
+
+            {ok && <Aviso tipo="ok">{ok}</Aviso>}
+            {error && <Aviso tipo="error">{error}</Aviso>}
+
+            <button className="btn btn--bronze contact-submit" type="submit" disabled={enviando}>
               <Send size={17} aria-hidden="true" />
-              {status === 'sending' ? 'Enviando...' : 'Enviar'}
+              {enviando ? 'Enviando...' : 'Enviar'}
             </button>
           </form>
         </section>

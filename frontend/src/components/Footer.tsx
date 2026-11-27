@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Landmark, Mail, MapPin, Phone, Share2 } from 'lucide-react';
+import { SITIO } from '../config/sitio';
 import BrandLogo from './BrandLogo';
 import SocialLinks from './SocialIcons';
 
@@ -18,12 +19,14 @@ export default function Footer() {
           <ul>
             <li>
               <MapPin size={16} aria-hidden="true" />
-              <span>Avenida Central del Norte 39-115, 150003 Tunja, Boyacá, Colombia</span>
+              <span>
+                {SITIO.universidad}. {SITIO.direccion}
+              </span>
             </li>
             <li>
               <Phone size={16} aria-hidden="true" />
-              <a href="tel:+573138426821" className="footer__link">
-                +57 313 842 6821
+              <a href={SITIO.telefono.href} className="footer__link">
+                {SITIO.telefono.texto}
               </a>
             </li>
           </ul>
@@ -36,6 +39,9 @@ export default function Footer() {
           <Link to="/contacto" className="footer__link footer__link--arrow">
             Ir a Contacto <ArrowRight size={15} aria-hidden="true" />
           </Link>
+          <Link to="/inscripcion" className="footer__link footer__link--arrow">
+            Inscríbete al semillero <ArrowRight size={15} aria-hidden="true" />
+          </Link>
         </div>
 
         <div className="footer__block">
@@ -46,7 +52,7 @@ export default function Footer() {
         </div>
 
         <p className="footer__copy">
-          Copyright © 2025 SIIIS
+          Copyright © {new Date().getFullYear()} {SITIO.nombre}
           <br />
           Todos los derechos reservados
         </p>

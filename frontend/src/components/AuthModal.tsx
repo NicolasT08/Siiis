@@ -1,14 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { api, errorText } from '../lib/api';
+import { Link } from 'react-router-dom';
+import { api, ApiError } from '../lib/api';
+import type { UsuarioSesion } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { mensajeError } from '../lib/errors';
+import GoogleLoginButton from './GoogleLoginButton';
 
 type AuthModalProps = {
-  isOpen: boolean;
   onClose: () => void;
+  /** Tras iniciar sesión (si no se pasa, se llama a onClose). */
+  onSuccess?: (usuario: UsuarioSesion) => void;
+  /** Aviso arriba del formulario (p. ej. "Tu sesión terminó"). */
+  aviso?: string;
 };
 
-export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
+/** Se monta solo mientras está abierto: al cerrarlo, su estado se descarta. */
+export default function AuthModal({ onClose, onSuccess, aviso }: AuthModalProps) {
   const loginFormRef = useRef<HTMLFormElement | null>(null);
   const forgotFormRef = useRef<HTMLFormElement | null>(null);
   const loginInputRef = useRef<HTMLInputElement | null>(null);
@@ -20,11 +28,15 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [forgotMessage, setForgotMessage] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login } = useAuth();
+  const [errorCodigo, setErrorCodigo] = useState('');
+  const { login, loginConGoogle } = useAuth();
+  // El efecto del teclado no se reinicia si el padre pasa una función nueva en cada render.
+  const cerrarRef = useRef(onClose);
+  useEffect(() => {
+    cerrarRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
-    if (!isOpen) return;
-
     lastFocusedRef.current = document.activeElement as HTMLElement | null;
     document.body.style.overflow = 'hidden';
 
@@ -33,7 +45,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        cerrarRef.current();
         return;
       }
 
@@ -69,36 +81,48 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       document.body.style.overflow = '';
       lastFocusedRef.current?.focus();
     };
-  }, [isOpen, mode, onClose]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setShowPassword(false);
-      setMode('login');
-      setForgotMessage('');
-      setError('');
-      setIsSubmitting(false);
-    }
-  }, [isOpen]);
+  }, [mode]);
 
   const handleLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setError('');
+    setErrorCodigo('');
     setIsSubmitting(true);
     try {
-      await login(String(form.get('email') ?? ''), String(form.get('password') ?? ''), form.get('remember') === 'on');
-      onClose();
+      const usuario = await login(
+        String(form.get('email') ?? '').trim(),
+        String(form.get('password') ?? ''),
+        form.get('remember') === 'on',
+      );
+      if (onSuccess) onSuccess(usuario);
+      else onClose();
     } catch (err) {
-      setError(errorText(err));
-    } finally {
+      setError(mensajeError(err));
+      setIsSubmitting(false);
+    }
+  };
+
+  // Login con Google (RF-17): mismo flujo de sesión; "Recordarme" se toma de la casilla del formulario.
+  const handleGoogle = async (idToken: string) => {
+    const remember = loginFormRef.current?.querySelector<HTMLInputElement>('input[name="remember"]')?.checked ?? false;
+    setError('');
+    setErrorCodigo('');
+    setIsSubmitting(true);
+    try {
+      const usuario = await loginConGoogle(idToken, remember);
+      if (onSuccess) onSuccess(usuario);
+      else onClose();
+    } catch (err) {
+      setError(mensajeError(err));
+      setErrorCodigo(err instanceof ApiError ? err.code : '');
       setIsSubmitting(false);
     }
   };
 
   const handleForgotSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const correo = String(new FormData(event.currentTarget).get('email') ?? '');
+    const correo = String(new FormData(event.currentTarget).get('email') ?? '').trim();
     setError('');
     setIsSubmitting(true);
     try {
@@ -106,7 +130,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setForgotMessage(mensaje);
       setMode('success');
     } catch (err) {
-      setError(errorText(err));
+      setError(mensajeError(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -124,13 +148,10 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setMode('login');
   };
 
-  if (!isOpen) return null;
-
   return (
     <>
       <div
-        className={`modal-overlay ${isOpen ? 'is-visible' : ''}`}
-        aria-hidden={!isOpen}
+        className="modal-overlay is-visible"
         onClick={(event) => {
           if (event.target === event.currentTarget) onClose();
         }}
@@ -188,9 +209,23 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             <p className="lead">Usa tu correo institucional para continuar.</p>
 
             <form ref={loginFormRef} id="loginForm" onSubmit={handleLoginSubmit} noValidate>
+              {aviso && !error && (
+                <p className="form__error" role="status">
+                  {aviso}
+                </p>
+              )}
               {mode === 'login' && error && (
                 <p className="form__error" role="alert">
                   {error}
+                  {errorCodigo === 'NOT_A_MEMBER' && (
+                    <>
+                      {' '}
+                      <Link to="/inscripcion" onClick={onClose}>
+                        Envía tu solicitud de inscripción
+                      </Link>
+                      .
+                    </>
+                  )}
                 </p>
               )}
               <div className="field">
@@ -251,9 +286,20 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 {isSubmitting && mode === 'login' ? 'Ingresando…' : 'Ingresar'}
               </button>
 
+              <GoogleLoginButton
+                deshabilitado={isSubmitting}
+                onCredencial={(idToken) => void handleGoogle(idToken)}
+                onError={(mensaje) => {
+                  setErrorCodigo('');
+                  setError(mensaje);
+                }}
+              />
+
               <p className="form__switch">
                 ¿No estás en el Semillero?
-                <a href="https://siiis.com.co/">Inscríbete</a>
+                <Link to="/inscripcion" onClick={onClose}>
+                  Inscríbete
+                </Link>
               </p>
             </form>
           </div>

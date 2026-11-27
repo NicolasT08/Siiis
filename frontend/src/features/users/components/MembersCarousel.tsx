@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight, ChevronLeft, ChevronRight, GraduationCap, Pause, Play } from 'lucide-react';
-import type { Miembro } from '../../../lib/api';
+import type { Miembro } from '../memberUtils';
 import { MIN_CARDS, startArcCarousel } from '../../../lib/arcCarousel';
 import type { ArcCarousel } from '../../../lib/arcCarousel';
 import { detalleAcademico, etiquetaRol, nombreMiembro } from '../memberUtils';

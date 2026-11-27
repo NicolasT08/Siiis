@@ -1,56 +1,26 @@
-import { useState } from 'react';
-import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { errorText } from '../../lib/api';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import AuthModal from '../../components/AuthModal';
 import { useAuth } from '../../lib/auth';
 
+/**
+ * /login: el mismo formulario del menú, abierto sobre la página. Aquí llegan las rutas protegidas sin sesión
+ * (y la sesión vencida, con un aviso); al entrar se vuelve a la página que se pedía.
+ */
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { usuario, cargando, sesionExpirada } = useAuth();
   const navigate = useNavigate();
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const location = useLocation();
+  const desde = (location.state as { from?: string } | null)?.from ?? '/';
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    setError('');
-    setIsSubmitting(true);
-    try {
-      // Sin casilla "Recordarme" en esta página: el token va a sessionStorage.
-      await login(String(form.get('email') ?? ''), String(form.get('password') ?? ''), false);
-      navigate('/', { replace: true });
-    } catch (err) {
-      setError(errorText(err));
-      setIsSubmitting(false);
-    }
-  };
+  if (!cargando && usuario) return <Navigate to={desde} replace />;
 
   return (
-    <section className="auth-page container">
-      <div className="auth-card">
-        <h1>Iniciar sesión</h1>
-        <form onSubmit={handleSubmit} noValidate>
-          {error && (
-            <p className="form__error" role="alert">
-              {error}
-            </p>
-          )}
-          <label>
-            Correo
-            <input type="email" name="email" placeholder="correo@ejemplo.com" autoComplete="email" />
-          </label>
-          <label>
-            Contraseña
-            <input type="password" name="password" placeholder="********" autoComplete="current-password" />
-          </label>
-          <button type="submit" className="primary-btn" disabled={isSubmitting}>
-            {isSubmitting ? 'Entrando…' : 'Entrar'}
-          </button>
-        </form>
-        <p>
-          ¿Quieres postularte al semillero? <a href="/registro">Inscríbete</a>
-        </p>
-      </div>
+    <section className="container app-page" aria-label="Iniciar sesión">
+      <AuthModal
+        aviso={sesionExpirada ? 'Tu sesión terminó. Inicia sesión de nuevo para continuar.' : undefined}
+        onClose={() => navigate('/', { replace: true })}
+        onSuccess={() => navigate(desde, { replace: true })}
+      />
     </section>
   );
 }

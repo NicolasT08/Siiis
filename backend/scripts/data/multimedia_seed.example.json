@@ -1,0 +1,42 @@
+[
+    {
+        "tipo": "imagen",
+        "seccion": "slider_principal",
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+        "public_id": "sample",
+        "descripcion": "Imagen de ejemplo 1 del slider principal",
+        "orden": 1
+    },
+    {
+        "tipo": "imagen",
+        "seccion": "slider_principal",
+        "url": "https://res.cloudinary.com/demo/image/upload/couple.jpg",
+        "public_id": "couple",
+        "descripcion": "Imagen de ejemplo 2 del slider principal",
+        "orden": 2
+    },
+    {
+        "tipo": "imagen",
+        "seccion": "slider_principal",
+        "url": "https://res.cloudinary.com/demo/image/upload/lady.jpg",
+        "public_id": "lady",
+        "descripcion": "Imagen de ejemplo 3 del slider principal",
+        "orden": 3
+    },
+    {
+        "tipo": "video",
+        "seccion": "video_presentacion",
+        "url": "https://res.cloudinary.com/demo/video/upload/dog.mp4",
+        "public_id": "dog",
+        "descripcion": "Video de ejemplo de presentación del semillero",
+        "orden": 1
+    },
+    {
+        "tipo": "video",
+        "seccion": "video_presentacion",
+        "url": "https://res.cloudinary.com/demo/video/upload/elephants.mp4",
+        "public_id": "elephants",
+        "descripcion": "Video de ejemplo 2",
+        "orden": 2
+    }
+]

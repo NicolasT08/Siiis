@@ -1,48 +1,57 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 
-// Respaldo si GET /home/slider falla o no trae imágenes.
-const FALLBACK_IMAGES = [
-  'https://res.cloudinary.com/we3ya7sq/image/upload/w_1600,q_auto:best,f_auto,e_sharpen:50,e_saturation:8/v1789084069/Foto_1.jpg',
-  'https://res.cloudinary.com/we3ya7sq/image/upload/w_1600,q_auto:best,f_auto,e_sharpen:50,e_saturation:8/v1789084067/Foto_2.jpg',
-  'https://res.cloudinary.com/we3ya7sq/image/upload/w_1600,q_auto:best,f_auto,e_sharpen:50,e_saturation:8/v1789084067/Foto_3.jpg',
-  'https://res.cloudinary.com/we3ya7sq/image/upload/w_1600,q_auto:best,f_auto,e_sharpen:50,e_saturation:8/v1789084068/Foto_4.jpg',
-  'https://res.cloudinary.com/we3ya7sq/image/upload/w_1600,q_auto:best,f_auto,e_sharpen:50,e_saturation:8/v1789084068/Foto_5.jpg',
-  'https://res.cloudinary.com/we3ya7sq/image/upload/w_1600,q_auto:best,f_auto,e_sharpen:50,e_saturation:8/v1789084070/Foto_6.jpg',
-  'https://res.cloudinary.com/we3ya7sq/image/upload/w_1600,q_auto:best,f_auto,e_sharpen:50,e_saturation:8/v1789084071/Foto_7.jpg',
-  'https://res.cloudinary.com/we3ya7sq/image/upload/w_1600,q_auto:best,f_auto,e_sharpen:50,e_saturation:8/v1789084073/Foto_8.jpg',
-];
+import { Images } from 'lucide-react';
 
 const AUTO_PLAY_MS = 4000;
 const RESUME_DELAY_MS = 5000;
 const DRAG_THRESHOLD = 60;
 
+type Foto = { url: string; descripcion: string };
+
+/**
+ * Carrusel de la página de inicio con las fotos de `GET /home/slider` (Multimedia, sección slider_principal).
+ * Sin fotos en la base (o si la API falla) muestra un estado vacío discreto: ya no hay imágenes de respaldo fijas;
+ * las fotos se cargan con scripts/cargar_multimedia.php o desde Administración → Inicio (DEC-B60, DEC-B62).
+ */
 export default function ImageCarousel() {
-  const [images, setImages] = useState<string[]>(FALLBACK_IMAGES);
+  const [fotos, setFotos] = useState<Foto[] | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api
+      .slider(controller.signal)
+      .then(({ data }) =>
+        setFotos(data.filter((item) => item.tipo === 'imagen' && item.url).map((item) => ({ url: item.url, descripcion: item.descripcion ?? '' }))),
+      )
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setFotos([]);
+      });
+    return () => controller.abort();
+  }, []);
+
+  if (fotos === null) return <div className="carousel carousel--loading skeleton" aria-label="Cargando fotos" />;
+  if (fotos.length === 0) {
+    return (
+      <div className="carousel-empty" role="status">
+        <Images size={26} aria-hidden="true" />
+        <p>Pronto compartiremos aquí fotos de las actividades del semillero.</p>
+      </div>
+    );
+  }
+  return <Diapositivas fotos={fotos} />;
+}
+
+function Diapositivas({ fotos }: { fotos: Foto[] }) {
+  const images = fotos.map((f) => f.url);
+  const descripciones = Object.fromEntries(fotos.map((f) => [f.url, f.descripcion]));
   const [index, setIndex] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [barKey, setBarKey] = useState(0);
   const dragStartRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    api
-      .slider(controller.signal)
-      .then(({ data }) => {
-        const urls = data.filter((item) => item.tipo === 'imagen' && item.url).map((item) => item.url);
-        if (urls.length) {
-          setImages(urls);
-          setIndex(1);
-          setBarKey((prev) => prev + 1);
-        }
-      })
-      .catch(() => {
-        // Se quedan las imágenes de respaldo.
-      });
-    return () => controller.abort();
-  }, []);
 
   const singleImage = images.length === 1;
   const slides = [images[images.length - 1], ...images, images[0]];
@@ -98,19 +107,11 @@ export default function ImageCarousel() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowRight') {
-        next();
-      }
-      if (event.key === 'ArrowLeft') {
-        prev();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [index]);
+  // Flechas del teclado solo con el foco en el carrusel (antes se escuchaban en toda la página).
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowRight') next();
+    if (event.key === 'ArrowLeft') prev();
+  };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -152,7 +153,7 @@ export default function ImageCarousel() {
       <div className="carousel carousel--single" aria-label="Carrusel de imágenes">
         <div className="carousel-track" style={{ transform: 'translate3d(0%, 0, 0)' }}>
           <div className="carousel-slide">
-            <img src={images[0]} alt="Foto del semillero" draggable={false} />
+            <img src={images[0]} alt={descripciones[images[0]] || 'Foto del semillero'} draggable={false} />
           </div>
         </div>
       </div>
@@ -163,7 +164,11 @@ export default function ImageCarousel() {
     <div
       className="carousel"
       id="carousel"
-      aria-label="Carrusel de imágenes"
+      role="region"
+      aria-roledescription="carrusel"
+      aria-label="Carrusel de imágenes (usa las flechas del teclado)"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => {
         setIsPaused(false);
@@ -181,7 +186,7 @@ export default function ImageCarousel() {
       >
         {slides.map((src, i) => (
           <div className="carousel-slide" key={`${src}-${i}`}>
-            <img src={src} alt={`Foto ${i + 1}`} draggable={false} />
+            <img src={src} alt={descripciones[src] || `Foto ${i + 1} del semillero`} draggable={false} />
           </div>
         ))}
       </div>

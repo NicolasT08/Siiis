@@ -1,0 +1,8 @@
+# Raíz del sitio en Hostinger (docs/deployment.md): /api/ la atiende public_html/api/ (backend PHP); los archivos
+# que existen se sirven tal cual y cualquier otra ruta (p. ej. /restablecer) va a index.html, la SPA de React.
+RewriteEngine On
+RewriteRule ^api/ - [L]
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+RewriteRule ^ index.html [L]

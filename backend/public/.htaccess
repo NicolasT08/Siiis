@@ -1,0 +1,11 @@
+# API SIIIS V3 — en Hostinger se despliega como public_html/api/.htaccess (spec 17.4)
+Options -Indexes
+
+RewriteEngine On
+
+# LiteSpeed/Apache descartan la cabecera Authorization si no se reenvía explícitamente (JWT).
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Todo lo que no sea un archivo existente va al front controller.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]
