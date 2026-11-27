@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BookOpenCheck, Code2, Eye, Lightbulb } from 'lucide-react';
 import ProjectsHero from '../projects/components/ProjectsHero';
 import DevelopersCarousel from './DevelopersCarousel';
+import type { Developer } from './DevelopersCarousel';
 import { api } from '../../lib/api';
 import type { DirectorPublico } from '../../lib/api';
 import { iniciales, nombrePersona } from '../../lib/format';
@@ -12,10 +13,26 @@ import './about.css';
 
 type Version = '1.0' | '2.0' | '3.0';
 
-const VERSION_DEVELOPERS: Record<Version, string[]> = {
-  '1.0': [],
-  '2.0': [],
-  '3.0': ['Luisa Fernanda', 'Rafael Lozano', 'Nicolás Tinjaca', 'Andryw Barrera'],
+const foto = (archivo: string) => `/desarrolladores/${archivo}.webp`;
+
+const VERSION_DEVELOPERS: Record<Version, Developer[]> = {
+  '1.0': [
+    { nombre: 'Esteban Duarte', correo: 'yessidduarte7@gmail.com', foto: foto('esteban-duarte') },
+    { nombre: 'Jimmy Zea', correo: 'jimmy.zea@uptc.edu.co', foto: foto('jimmy-zea') },
+  ],
+  '2.0': [
+    { nombre: 'Pedro Pulido', correo: 'pedro.pulido01@uptc.edu.co', foto: foto('pedro-pulido') },
+    { nombre: 'Julian Diaz', correo: 'julian.diaz09@uptc.edu.co', foto: foto('julian-diaz') },
+    { nombre: 'Jeimmy Valderrama', correo: 'jeimmy.valderrama@uptc.edu.co', foto: foto('jeimmy-valderrama') },
+    { nombre: 'Luis Gonzalez', correo: 'luis.gonzalez13@uptc.edu.co', foto: foto('luis-gonzalez') },
+    { nombre: 'Juan Gonzalez', correo: 'juan.gonzalez38@uptc.edu.co', foto: foto('juan-gonzalez') },
+  ],
+  '3.0': [
+    { nombre: 'Luisa Fernanda' },
+    { nombre: 'Rafael Lozano' },
+    { nombre: 'Nicolás Tinjaca' },
+    { nombre: 'Andryw Barrera' },
+  ],
 };
 
 const VERSIONS: Version[] = ['1.0', '2.0', '3.0'];

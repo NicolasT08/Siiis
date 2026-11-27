@@ -258,7 +258,7 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
     <div className="app-stack">
       <form className="app-card app-form" onSubmit={(e) => void guardar(e)} noValidate>
         <h2>
-          <Pencil size={20} aria-hidden="true" /> {actual ? `Editar ${nombreTipo}` : `Nuevo ${nombreTipo === 'noticia' ? 'noticia' : nombreTipo}`}
+          <Pencil size={20} aria-hidden="true" /> {actual ? `Editar ${nombreTipo}` : `${nombreTipo === 'noticia' ? 'Nueva' : 'Nuevo'} ${nombreTipo}`}
         </h2>
         {!revisor && (
           <p className="app-hint">Queda en revisión y oculto hasta que un revisor (docente director o administrador) lo publique. Puedes editarlo mientras siga en revisión.</p>

@@ -1,12 +1,43 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Code2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Code2, Mail } from 'lucide-react';
 import { startArcCarousel } from '../../lib/arcCarousel';
 import type { ArcCarousel } from '../../lib/arcCarousel';
 
+export type Developer = {
+  nombre: string;
+  correo?: string;
+  foto?: string;
+};
+
 type Props = {
-  developers: string[];
+  developers: Developer[];
   version: string;
 };
+
+/** Foto del desarrollador o, si no hay (o falla), sus iniciales con el estilo de siempre. */
+function DeveloperPhoto({ developer, cardIndex }: { developer: Developer; cardIndex: number }) {
+  const [fallo, setFallo] = useState(false);
+  if (developer.foto && !fallo) {
+    return (
+      <img
+        className="member-card__img"
+        src={developer.foto}
+        alt={developer.nombre}
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+        onError={() => setFallo(true)}
+      />
+    );
+  }
+  return (
+    <span
+      className={`member-card__img member-avatar--initials about-developer-avatar about-developer-avatar--${cardIndex + 1}`}
+    >
+      {initials(developer.nombre)}
+    </span>
+  );
+}
 
 function initials(name: string) {
   return name
@@ -58,7 +89,7 @@ export default function DevelopersCarousel({ developers, version }: Props) {
       <div ref={stageRef} className="members-stage" aria-hidden="true">
         {developers.map((developer, cardIndex) => (
           <div
-            key={`${version}-${developer}`}
+            key={`${version}-${developer.nombre}`}
             ref={(element) => {
               cardRefs.current[cardIndex] = element;
             }}
@@ -67,22 +98,27 @@ export default function DevelopersCarousel({ developers, version }: Props) {
           >
             <article className="member-card about-developer-card">
               <div className="member-card__photo">
-                <span
-                  className={`member-card__img member-avatar--initials about-developer-avatar about-developer-avatar--${cardIndex + 1}`}
-                >
-                  {initials(developer)}
-                </span>
+                <DeveloperPhoto developer={developer} cardIndex={cardIndex} />
                 <span className="member-card__role">Desarrollador/a</span>
               </div>
               <div className="member-card__body">
-                <h3 className="member-card__name">{developer}</h3>
+                <h3 className="member-card__name">{developer.nombre}</h3>
                 <span className="member-card__bar" />
                 <p className="member-card__bio">
                   Parte del equipo desarrollador del Semillero de Investigación SIIIS.
                 </p>
                 <footer className="member-card__foot">
-                  <Code2 size={17} aria-hidden="true" />
-                  <span>SIIIS · Versión {version}</span>
+                  {developer.correo ? (
+                    <>
+                      <Mail size={17} aria-hidden="true" />
+                      <span>{developer.correo}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Code2 size={17} aria-hidden="true" />
+                      <span>SIIIS · Versión {version}</span>
+                    </>
+                  )}
                 </footer>
               </div>
             </article>
@@ -92,7 +128,10 @@ export default function DevelopersCarousel({ developers, version }: Props) {
 
       <ul className="visually-hidden" aria-label={`Desarrolladores de la versión ${version}`}>
         {developers.map((developer) => (
-          <li key={developer}>{developer}</li>
+          <li key={developer.nombre}>
+            {developer.nombre}
+            {developer.correo && <>, {developer.correo}</>}
+          </li>
         ))}
       </ul>
 
