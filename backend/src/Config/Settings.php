@@ -47,6 +47,8 @@ final readonly class Settings
         public string $mailPassword,
         public string $mailFromAddress,
         public string $mailFromName,
+        /** Logo del encabezado de los correos (URL https pública, p. ej. de Cloudinary); vacío = solo texto. */
+        public string $mailLogoUrl,
         public int $perfilNombreMaxLength,
         public int $perfilProgramaMaxLength,
         public int $perfilBiografiaMaxLength,
@@ -207,6 +209,7 @@ final readonly class Settings
             mailPassword: self::string($env, 'MAIL_PASSWORD'),
             mailFromAddress: self::string($env, 'MAIL_FROM_ADDRESS'),
             mailFromName: self::string($env, 'MAIL_FROM_NAME', 'Semillero SIIIS'),
+            mailLogoUrl: self::string($env, 'MAIL_LOGO_URL'),
             // Límites de perfil (DEC-B21, PROPUESTA).
             perfilNombreMaxLength: self::positiveInt($env, 'PERFIL_NOMBRE_MAX_LENGTH', 80),
             perfilProgramaMaxLength: self::positiveInt($env, 'PERFIL_PROGRAMA_MAX_LENGTH', 120),

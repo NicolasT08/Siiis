@@ -934,3 +934,11 @@ quedaron **aprobadas por el equipo** el 2026-11-26.
   `400 VALIDATION_ERROR` con `fields.password` = "La nueva contraseña debe ser distinta de la actual." El enlace no
   se consume: se puede usar enseguida con otra contraseña.
 - Impacto: `Services/PasswordResetService`, `docs/api.md` (6).
+
+## DEC-B65 — Inscripción idéntica al formulario original: sin autorización de datos obligatoria ni mínimo en la carta (equipo, 2026-11-26; reemplaza esa parte de DEC-B51 y DEC-B63: `acepta_tratamiento_datos` ya no se exige, `carta_motivacion` solo es obligatoria, documentos 0 a 3 y el formulario no los ofrece).
+
+## DEC-B66 — `cargar_multimedia.php --existentes=RUTA.json`: registra en Multimedia fotos y videos que ya están en Cloudinary (consulta solo de lectura de cada public_id, verifica imagen/video, sin subir ni modificar nada; confirmación, `--simular` y sin duplicar como DEC-B60) (backend, 2026-11-26).
+
+## DEC-B67 — `GET /home/director`: la tarjeta "Dirección del semillero" de "Acerca de" toma nombre, apellido y foto de la cuenta cuyo correo está en `DIRECTOR_CORREO` (normalizado; vacío por defecto). Público, caché de 5 minutos como el resto de `/home`; responde solo `{id, nombre, apellido, foto_perfil}` y nunca el correo; `404 NOT_FOUND` si la variable está vacía, no hay cuenta o la cuenta o el usuario no están activos (el frontend usa entonces el texto fijo) (equipo, 2026-11-27).
+
+## DEC-B68 — Plantilla institucional única para todos los correos (`Support/CorreoInstitucional`): tablas y estilos en línea (Gmail y Outlook), máximo 600 px y adaptable al celular; encabezado #0B2A4A con logo opcional (`MAIL_LOGO_URL`, solo URL https; vacío = solo texto), saludo "Estimado(a) …:", botón dorado #B7862F con el enlace completo debajo, pie gris con el semillero, la escuela, la UPTC Seccional Sogamoso, https://siiis.com.co y "Este es un correo automático, por favor no lo responda" (salvo el de contacto, que se responde al remitente). Cada correo lleva su versión en texto plano y asunto formal "… - Semillero SIIIS". No cambia cuándo ni a quién se envían (equipo, 2026-11-27).

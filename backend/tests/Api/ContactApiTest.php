@@ -64,7 +64,7 @@ final class ContactApiTest extends AuthTestCase
         $correo = $this->mail->enviados[0];
         self::assertSame(self::DESTINO, $correo['to']);
         self::assertSame(['carlos@example.com', 'Carlos Bcc: victima@example.com'], $correo['reply_to']);
-        self::assertSame('Contacto desde el sitio web: Información sobre el semillero', $correo['subject']);
+        self::assertSame('Mensaje de contacto: Información sobre el semillero - Semillero SIIIS', $correo['subject']);
         self::assertStringContainsString('&lt;b&gt;quiero&lt;/b&gt;', $correo['html']);
         self::assertStringNotContainsString('<b>quiero</b>', $correo['html']);
         self::assertStringContainsString('<b>quiero</b> unirme.', $correo['text']);

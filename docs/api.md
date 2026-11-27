@@ -526,6 +526,12 @@ Público. Videos de presentación (RF-11), de `Multimedia` con `seccion = video_
 
 ---
 
+## 8b. `GET /home/director`
+
+Público (DEC-B67). **200** `{"director": {"id": "…", "nombre": "Edmundo Arturo", "apellido": "Junco", "foto_perfil": {"url": "https://res.cloudinary.com/…/f_auto,q_auto/…"} | null}}` con `Cache-Control: public, max-age=300`; la cuenta se busca por `DIRECTOR_CORREO` y el correo nunca se devuelve. **404 `NOT_FOUND`** si la variable está vacía o no hay cuenta activa con ese correo (el frontend muestra entonces el texto fijo).
+
+---
+
 ## 8a. Administración de fotos y videos del inicio (`/multimedia`)
 
 Solo `superadministrador` y `administrador` (RF-07, RF-11, DEC-B62); los demás roles reciben `403` y sin sesión `401`. Usa la misma colección `Multimedia` que `GET /home/slider` y `GET /home/videos`, que **no cambian** para el público (siguen con su caché de 5 minutos). Todas estas respuestas son `Cache-Control: no-store`, para que el panel vea los cambios al instante.
@@ -958,7 +964,7 @@ await fetch('/api/v1/inscriptions', { method: 'POST', body: form });
 | `telefono` | Opcional; mismas reglas que el perfil (7 a 20 dígitos, admite `+`, espacios y guiones) |
 | `programa_academico` | Obligatorio, hasta 120 caracteres |
 | `semestre` | Obligatorio, entero de 1 a 10 |
-| `carta_motivacion` | Obligatoria, de 100 a 3000 caracteres |
+| `carta_motivacion` | Obligatoria (sin mínimo, hasta 3000 caracteres); `acepta_tratamiento_datos` ya no se exige y los documentos no se piden en el formulario (DEC-B65) |
 | `codigo_estudiantil` | Opcional, 4 a 20 letras o dígitos; se guarda en mayúsculas (DEC-B63, campo nuevo pendiente de aprobación de BD) |
 | `areas_interes[]` | Opcional, uno o más de `desarrollo_software`, `transformacion_digital`, `tic`, `innovacion`, `inteligencia_artificial`, `ciencia_datos`; sin repetidos (DEC-B63, campo nuevo pendiente de aprobación de BD) |
 | `disponibilidad` | Obligatorio, `true`: el aspirante confirma disponibilidad para las reuniones semanales. No se guarda (DEC-B63) |

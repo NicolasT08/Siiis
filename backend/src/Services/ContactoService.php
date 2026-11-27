@@ -10,6 +10,7 @@ use Siiis\Config\Settings;
 use Siiis\Repositories\MensajesContactoRepository;
 use Siiis\Support\ApiException;
 use Siiis\Support\Clock;
+use Siiis\Support\CorreoInstitucional;
 use Siiis\Support\Logger;
 use Siiis\Support\MensajeContactoPresenter;
 use Siiis\Support\ObjectIdValidator;
@@ -51,11 +52,12 @@ class ContactoService
         ]);
 
         try {
+            $correo = self::correo($input, $this->settings->mailLogoUrl);
             $this->mail->send(
                 self::destino($this->settings),
-                'Contacto desde el sitio web: ' . $input['asunto'],
-                self::html($input),
-                self::texto($input),
+                'Mensaje de contacto: ' . $input['asunto'] . ' - Semillero SIIIS',
+                $correo['html'],
+                $correo['text'],
                 [$input['correo'], $input['nombre']],
             );
         } catch (Throwable $e) {
@@ -120,31 +122,27 @@ class ContactoService
     }
 
     /**
+     * Plantilla institucional (DEC-B68). Este correo sí se puede responder: la respuesta le llega al remitente.
+     *
      * @param array{nombre: string, correo: string, asunto: string, mensaje: string} $input
+     *
+     * @return array{html: string, text: string}
      */
-    private static function html(array $input): string
+    private static function correo(array $input, string $logoUrl): array
     {
-        $e = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $mensaje = nl2br($e($input['mensaje']));
-
-        return <<<HTML
-            <p>Se recibió un mensaje desde el formulario de contacto del sitio del Semillero SIIIS.</p>
-            <p><strong>Nombre:</strong> {$e($input['nombre'])}<br>
-            <strong>Correo:</strong> {$e($input['correo'])}<br>
-            <strong>Asunto:</strong> {$e($input['asunto'])}</p>
-            <p>{$mensaje}</p>
-            <p>Para contestar, responde a este correo: la respuesta le llega al remitente.</p>
-            HTML;
-    }
-
-    /**
-     * @param array{nombre: string, correo: string, asunto: string, mensaje: string} $input
-     */
-    private static function texto(array $input): string
-    {
-        return "Mensaje desde el formulario de contacto del Semillero SIIIS.\n\n"
-            . "Nombre: {$input['nombre']}\nCorreo: {$input['correo']}\nAsunto: {$input['asunto']}\n\n"
-            . $input['mensaje'];
+        return CorreoInstitucional::componer(
+            $logoUrl,
+            'Estimado equipo del Semillero SIIIS:',
+            ['Se recibió un nuevo mensaje a través del formulario de contacto del sitio web.'],
+            detalles: [
+                ['Nombre', $input['nombre']],
+                ['Correo', $input['correo']],
+                ['Asunto', $input['asunto']],
+            ],
+            mensaje: $input['mensaje'],
+            respuesta: 'Para contestar, responda este correo: la respuesta le llegará directamente a '
+                . $input['nombre'] . '.',
+        );
     }
 
     private static function noEncontrado(): ApiException

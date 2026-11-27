@@ -11,6 +11,7 @@ use Siiis\Repositories\InscripcionesRepository;
 use Siiis\Support\ApiException;
 use Siiis\Support\Clock;
 use Siiis\Support\CloudinaryUrl;
+use Siiis\Support\CorreoInstitucional;
 use Siiis\Support\InscripcionPresenter;
 use Siiis\Support\Logger;
 use Siiis\Support\ObjectIdValidator;
@@ -291,15 +292,18 @@ class InscripcionesService
      */
     private function correoRecibida(array $inscripcion): void
     {
-        $nombre = self::texto($inscripcion, 'nombre_completo');
         $this->enviar(
             self::texto($inscripcion, 'correo'),
-            'Recibimos tu solicitud de inscripción — Semillero SIIIS',
-            '<p>Hola, ' . self::e($nombre) . ':</p>'
-                . '<p>Recibimos tu solicitud de inscripción al Semillero SIIIS. El equipo la revisará y te '
-                . 'escribirá a este correo con la respuesta.</p>',
-            "Hola, {$nombre}:\n\nRecibimos tu solicitud de inscripción al Semillero SIIIS. El equipo la revisará y "
-                . 'te escribirá a este correo con la respuesta.',
+            'Solicitud de inscripción recibida - Semillero SIIIS',
+            CorreoInstitucional::componer(
+                $this->settings->mailLogoUrl,
+                CorreoInstitucional::saludo(self::texto($inscripcion, 'nombre_completo')),
+                [
+                    'Hemos recibido su solicitud de inscripción al Semillero de Investigación SIIIS. Agradecemos su '
+                        . 'interés en hacer parte de nuestro equipo.',
+                    'El equipo del semillero revisará su solicitud y le comunicará la respuesta a este mismo correo.',
+                ],
+            ),
             $inscripcion,
         );
     }
@@ -318,15 +322,19 @@ class InscripcionesService
 
         $this->enviar(
             $destino,
-            'Nueva solicitud de inscripción: ' . $nombre,
-            '<p>Llegó una nueva solicitud de inscripción al Semillero SIIIS.</p>'
-                . '<p><strong>Nombre:</strong> ' . self::e($nombre) . '<br>'
-                . '<strong>Correo:</strong> ' . self::e(self::texto($inscripcion, 'correo')) . '<br>'
-                . '<strong>Programa:</strong> ' . self::e($programa) . ' (semestre ' . $semestre . ')</p>'
-                . '<p>Revísala en el panel de administración del sitio.</p>',
-            "Nueva solicitud de inscripción al Semillero SIIIS.\n\nNombre: {$nombre}\nCorreo: "
-                . self::texto($inscripcion, 'correo') . "\nPrograma: {$programa} (semestre {$semestre})\n\n"
-                . 'Revísala en el panel de administración del sitio.',
+            'Nueva solicitud de inscripción: ' . $nombre . ' - Semillero SIIIS',
+            CorreoInstitucional::componer(
+                $this->settings->mailLogoUrl,
+                'Estimado equipo del Semillero SIIIS:',
+                ['Se ha recibido una nueva solicitud de inscripción al semillero con los siguientes datos:'],
+                detalles: [
+                    ['Nombre', $nombre],
+                    ['Correo', self::texto($inscripcion, 'correo')],
+                    ['Programa', $programa],
+                    ['Semestre', (string) $semestre],
+                ],
+                avisos: ['Puede revisarla y darle respuesta desde el panel de administración del sitio.'],
+            ),
             $inscripcion,
         );
     }
@@ -336,32 +344,41 @@ class InscripcionesService
      */
     private function correoResuelta(array $inscripcion): void
     {
-        $nombre = self::texto($inscripcion, 'nombre_completo');
         $aceptada = ($inscripcion['estado_solicitud'] ?? null) === InscripcionesRepository::ESTADO_ACEPTADA;
-        $cuerpo = $aceptada
-            ? 'Tu solicitud de inscripción al Semillero SIIIS fue aceptada. El equipo del semillero se pondrá en '
-                . 'contacto contigo para los siguientes pasos.'
-            : 'Revisamos tu solicitud de inscripción al Semillero SIIIS y en esta ocasión no fue aceptada. '
-                . 'Gracias por tu interés.';
+        $parrafos = $aceptada
+            ? [
+                'Nos complace informarle que su solicitud de inscripción al Semillero de Investigación SIIIS fue '
+                    . 'aceptada. ¡Le damos la bienvenida!',
+                'El equipo del semillero se pondrá en contacto con usted para indicarle los siguientes pasos.',
+            ]
+            : [
+                'Agradecemos su interés en el Semillero de Investigación SIIIS. Tras revisar su solicitud de '
+                    . 'inscripción, le informamos que en esta ocasión no fue aceptada.',
+                'Le invitamos a seguir atento(a) a futuras convocatorias del semillero.',
+            ];
 
         $this->enviar(
             self::texto($inscripcion, 'correo'),
             $aceptada
-                ? 'Tu solicitud de inscripción fue aceptada — Semillero SIIIS'
-                : 'Respuesta a tu solicitud de inscripción — Semillero SIIIS',
-            '<p>Hola, ' . self::e($nombre) . ':</p><p>' . self::e($cuerpo) . '</p>',
-            "Hola, {$nombre}:\n\n{$cuerpo}",
+                ? 'Solicitud de inscripción aceptada - Semillero SIIIS'
+                : 'Respuesta a su solicitud de inscripción - Semillero SIIIS',
+            CorreoInstitucional::componer(
+                $this->settings->mailLogoUrl,
+                CorreoInstitucional::saludo(self::texto($inscripcion, 'nombre_completo')),
+                $parrafos,
+            ),
             $inscripcion,
         );
     }
 
     /**
-     * @param array<string, mixed> $inscripcion
+     * @param array{html: string, text: string} $correo
+     * @param array<string, mixed>              $inscripcion
      */
-    private function enviar(string $to, string $subject, string $html, string $text, array $inscripcion): void
+    private function enviar(string $to, string $subject, array $correo, array $inscripcion): void
     {
         try {
-            $this->mail->send($to, $subject, $html, $text);
+            $this->mail->send($to, $subject, $correo['html'], $correo['text']);
         } catch (Throwable $e) {
             $this->logger->error('No se pudo enviar un correo de inscripción', [
                 'inscripcion_id' => (string) ($inscripcion['_id'] ?? ''),
@@ -377,11 +394,6 @@ class InscripcionesService
     private static function texto(array $datos, string $campo): string
     {
         return is_string($datos[$campo] ?? null) ? $datos[$campo] : '';
-    }
-
-    private static function e(string $valor): string
-    {
-        return htmlspecialchars($valor, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
     private static function noEncontrada(): ApiException

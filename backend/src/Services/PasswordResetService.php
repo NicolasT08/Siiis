@@ -13,6 +13,7 @@ use Siiis\Repositories\UsuariosRepository;
 use Siiis\Security\PasswordHasher;
 use Siiis\Support\ApiException;
 use Siiis\Support\Clock;
+use Siiis\Support\CorreoInstitucional;
 use Siiis\Support\Logger;
 use Siiis\Support\TokenGenerator;
 use Siiis\Validation\ChangePasswordValidator;
@@ -59,12 +60,8 @@ class PasswordResetService
         $this->credenciales->guardarTokenRecuperacion($credencialId, TokenGenerator::hash($token), $expiracion);
 
         try {
-            $this->mail->send(
-                $correo,
-                'Restablece tu contraseña — Semillero SIIIS',
-                $this->htmlCorreo($this->enlace($token), is_string($usuario['nombre'] ?? null) ? $usuario['nombre'] : ''),
-                $this->textoCorreo($this->enlace($token)),
-            );
+            $mensaje = $this->correo($this->enlace($token), is_string($usuario['nombre'] ?? null) ? $usuario['nombre'] : '');
+            $this->mail->send($correo, 'Restablecimiento de contraseña - Semillero SIIIS', $mensaje['html'], $mensaje['text']);
         } catch (Throwable $e) {
             // El cliente recibe la respuesta genérica igualmente.
             $this->logger->error('No se pudo enviar el correo de recuperación', [
@@ -117,25 +114,27 @@ class PasswordResetService
         return $base . (str_contains($base, '?') ? '&' : '?') . 'token=' . rawurlencode($token);
     }
 
-    private function htmlCorreo(string $enlace, string $nombre): string
+    /**
+     * @return array{html: string, text: string}
+     */
+    private function correo(string $enlace, string $nombre): array
     {
-        $e = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $saludo = $nombre !== '' ? 'Hola, ' . $e($nombre) . ':' : 'Hola:';
         $minutos = $this->settings->passwordResetTtlMinutes;
 
-        return <<<HTML
-            <p>{$saludo}</p>
-            <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta del Semillero SIIIS.</p>
-            <p><a href="{$e($enlace)}">Restablecer contraseña</a></p>
-            <p>El enlace vence en {$minutos} minutos y solo puede usarse una vez.</p>
-            <p>Si no solicitaste este cambio, ignora este correo; tu contraseña no cambiará.</p>
-            HTML;
-    }
-
-    private function textoCorreo(string $enlace): string
-    {
-        return "Para restablecer tu contraseña del Semillero SIIIS abre este enlace:\n{$enlace}\n\n"
-            . "Vence en {$this->settings->passwordResetTtlMinutes} minutos. Si no lo solicitaste, ignora este correo.";
+        return CorreoInstitucional::componer(
+            $this->settings->mailLogoUrl,
+            CorreoInstitucional::saludo($nombre),
+            [
+                'Recibimos una solicitud para restablecer la contraseña de su cuenta en el sitio del Semillero de '
+                    . 'Investigación SIIIS. Para definir una nueva contraseña, haga clic en el siguiente botón:',
+            ],
+            boton: ['Restablecer contraseña', $enlace],
+            avisos: [
+                "Por seguridad, este enlace vence en {$minutos} minutos y es de un solo uso.",
+                'Si usted no solicitó este cambio, puede ignorar este correo: su contraseña actual seguirá siendo '
+                    . 'la misma.',
+            ],
+        );
     }
 
     private static function tokenInvalido(): ApiException

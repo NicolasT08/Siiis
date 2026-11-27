@@ -78,6 +78,29 @@ final class PasswordResetApiTest extends AuthTestCase
         );
     }
 
+    public function testCorreoDeRecuperacionInstitucional(): void
+    {
+        $this->db->crearCuenta(self::CORREO, self::PASSWORD, [], ['nombre' => 'Nicolás']);
+
+        $this->forgot($this->authApp([
+            'PASSWORD_RESET_TTL_MINUTES' => '30',
+            'MAIL_LOGO_URL' => 'https://res.cloudinary.com/demo/image/upload/logo.png',
+        ]), self::CORREO);
+
+        $correo = $this->mail->enviados[0];
+        $enlace = 'http://localhost:5173/restablecer?token=' . $this->mail->ultimoToken();
+        self::assertSame('Restablecimiento de contraseña - Semillero SIIIS', $correo['subject']);
+        foreach ([$correo['html'], $correo['text']] as $cuerpo) {
+            self::assertStringContainsString('Estimado(a) Nicolás:', $cuerpo);
+            self::assertStringContainsString('Restablecer contraseña', $cuerpo);
+            self::assertStringContainsString($enlace, $cuerpo);
+            self::assertStringContainsString('vence en 30 minutos y es de un solo uso', $cuerpo);
+            self::assertStringContainsString('puede ignorar este correo', $cuerpo);
+            self::assertStringContainsString('por favor no lo responda', $cuerpo);
+        }
+        self::assertStringContainsString('<img src="https://res.cloudinary.com/demo/image/upload/logo.png"', $correo['html']);
+    }
+
     public function testForgotNoEnviaACuentasNoActivas(): void
     {
         $this->db->crearCuenta('bloqueada@uptc.edu.co', self::PASSWORD, ['estado_cuenta' => 'bloqueada']);
