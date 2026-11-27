@@ -115,6 +115,8 @@ final readonly class Settings
         public int $multimediaDescripcionMaxLength,
         public int $rateLimitMultimediaMax,
         public int $rateLimitMultimediaWindowSeconds,
+        /** Correo de la cuenta del director del semillero (GET /home/director); vacío = sin director. */
+        public string $directorCorreo,
         public string $storagePath,
     ) {
     }
@@ -278,6 +280,7 @@ final readonly class Settings
             multimediaDescripcionMaxLength: self::positiveInt($env, 'MULTIMEDIA_DESCRIPCION_MAX_LENGTH', 200),
             rateLimitMultimediaMax: self::positiveInt($env, 'RATE_LIMIT_MULTIMEDIA_MAX', 60),
             rateLimitMultimediaWindowSeconds: self::positiveInt($env, 'RATE_LIMIT_MULTIMEDIA_WINDOW_SECONDS', 3600),
+            directorCorreo: mb_strtolower(self::string($env, 'DIRECTOR_CORREO')),
             storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
         );
     }

@@ -30,7 +30,7 @@ final class PlanMultimediaTest extends TestCase
             array_map('unlink', glob($this->carpeta . "/$sub/*") ?: []);
             @rmdir($this->carpeta . "/$sub");
         }
-        @unlink($this->carpeta . '/descripciones.json');
+        array_map('unlink', glob($this->carpeta . '/*.json') ?: []);
         @rmdir($this->carpeta);
         TestImages::limpiar();
     }
@@ -61,6 +61,49 @@ final class PlanMultimediaTest extends TestCase
         $videos = array_values(array_filter($plan['items'], static fn (array $i): bool => $i['seccion'] === 'video_presentacion'));
         self::assertCount(1, $videos);
         self::assertSame(['video', 'siiis/home/videos/presentacion', 1], [$videos[0]['tipo'], $videos[0]['public_id'], $videos[0]['orden']]);
+    }
+
+    public function testExistentesDesdeJson(): void
+    {
+        $this->poner('existentes.json', (string) json_encode([
+            'slider' => [
+                ['public_id' => 'siiis/Foto_1', 'descripcion' => "Integrantes\n junto al mural"],
+                ['public_id' => 'siiis/Foto_2', 'descripcion' => 'Charla', 'orden' => 5],
+            ],
+            'videos' => [['public_id' => 'siiis/presentacion', 'descripcion' => 'Video del semillero']],
+        ]), false);
+
+        $plan = PlanMultimedia::desdeJson($this->carpeta . '/existentes.json');
+
+        self::assertSame([], $plan['errores']);
+        self::assertSame([
+            ['seccion' => 'slider_principal', 'tipo' => 'imagen', 'public_id' => 'siiis/Foto_1', 'orden' => 1, 'descripcion' => 'Integrantes junto al mural'],
+            ['seccion' => 'slider_principal', 'tipo' => 'imagen', 'public_id' => 'siiis/Foto_2', 'orden' => 5, 'descripcion' => 'Charla'],
+            ['seccion' => 'video_presentacion', 'tipo' => 'video', 'public_id' => 'siiis/presentacion', 'orden' => 1, 'descripcion' => 'Video del semillero'],
+        ], $plan['items']);
+    }
+
+    public function testExistentesRechazaElementosInvalidos(): void
+    {
+        $this->poner('malo.json', (string) json_encode([
+            'slider' => [
+                ['public_id' => 'siiis/ok', 'descripcion' => 'Bien'],
+                ['public_id' => '', 'descripcion' => 'Sin id'],
+                ['public_id' => '../fuera', 'descripcion' => 'Ruta rara'],
+                ['public_id' => 'siiis/sin-descripcion'],
+                ['public_id' => 'siiis/ok', 'descripcion' => 'Repetido'],
+                ['public_id' => 'siiis/orden-malo', 'descripcion' => 'x', 'orden' => '2'],
+            ],
+            'galeria' => [],
+        ]), false);
+
+        $plan = PlanMultimedia::desdeJson($this->carpeta . '/malo.json');
+
+        self::assertSame(['siiis/ok'], array_column($plan['items'], 'public_id'));
+        self::assertCount(6, $plan['errores']);
+        self::assertNotSame([], PlanMultimedia::desdeJson($this->carpeta . '/no-existe.json')['errores']);
+        $this->poner('vacio.json', '{"slider": [], "videos": []}', false);
+        self::assertNotSame([], PlanMultimedia::desdeJson($this->carpeta . '/vacio.json')['errores']);
     }
 
     public function testRenombrarElPrefijoNoCambiaElPublicId(): void

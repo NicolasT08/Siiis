@@ -72,6 +72,7 @@ final class Routes
             $v1->group('/home', function (RouteCollectorProxy $home): void {
                 $home->get('/slider', [HomeController::class, 'slider']);
                 $home->get('/videos', [HomeController::class, 'videos']);
+                $home->get('/director', [HomeController::class, 'director']);
             });
 
             // Administración de las fotos y videos del inicio (DEC-B62): solo superadministrador y administrador.

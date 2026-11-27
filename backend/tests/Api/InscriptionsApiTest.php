@@ -142,15 +142,15 @@ final class InscriptionsApiTest extends AuthTestCase
             return $datos;
         };
 
-        yield 'vacío' => [[], ['nombre_completo', 'correo', 'programa_academico', 'semestre', 'carta_motivacion', 'disponibilidad', 'acepta_tratamiento_datos']];
-        foreach (['nombre_completo', 'correo', 'programa_academico', 'semestre', 'carta_motivacion', 'acepta_tratamiento_datos', 'disponibilidad'] as $campo) {
+        yield 'vacío' => [[], ['nombre_completo', 'correo', 'programa_academico', 'semestre', 'carta_motivacion', 'disponibilidad']];
+        foreach (['nombre_completo', 'correo', 'programa_academico', 'semestre', 'carta_motivacion', 'disponibilidad'] as $campo) {
             yield 'sin ' . $campo => [$sin($campo), [$campo]];
         }
         yield 'correo de otro dominio' => [['correo' => 'laura@gmail.com'] + self::datos(), ['correo']];
         yield 'correo de subdominio parecido' => [['correo' => 'laura@uptc.edu.co.evil.com'] + self::datos(), ['correo']];
         yield 'correo inválido' => [['correo' => 'laura'] + self::datos(), ['correo']];
         yield 'nombre largo' => [['nombre_completo' => str_repeat('a', 121)] + self::datos(), ['nombre_completo']];
-        yield 'carta corta' => [['carta_motivacion' => str_repeat('a', 99)] + self::datos(), ['carta_motivacion']];
+        yield 'carta en blanco' => [['carta_motivacion' => '   '] + self::datos(), ['carta_motivacion']];
         yield 'carta larga' => [['carta_motivacion' => str_repeat('ñ', 3001)] + self::datos(), ['carta_motivacion']];
         yield 'semestre 0' => [['semestre' => '0'] + self::datos(), ['semestre']];
         yield 'semestre 11' => [['semestre' => '11'] + self::datos(), ['semestre']];
@@ -158,8 +158,6 @@ final class InscriptionsApiTest extends AuthTestCase
         yield 'semestre decimal' => [['semestre' => '4.5'] + self::datos(), ['semestre']];
         yield 'teléfono inválido' => [['telefono' => '12ab'] + self::datos(), ['telefono']];
         yield 'programa largo' => [['programa_academico' => str_repeat('p', 121)] + self::datos(), ['programa_academico']];
-        yield 'no acepta tratamiento' => [['acepta_tratamiento_datos' => 'false'] + self::datos(), ['acepta_tratamiento_datos']];
-        yield 'acepta como "si"' => [['acepta_tratamiento_datos' => 'si'] + self::datos(), ['acepta_tratamiento_datos']];
         yield 'inyección en correo' => [['correo' => ['$ne' => '']] + self::datos(), ['correo']];
         yield 'inyección en nombre' => [['nombre_completo' => ['$gt' => '']] + self::datos(), ['nombre_completo']];
         yield 'inyección en semestre' => [['semestre' => ['$gt' => 0]] + self::datos(), ['semestre']];
@@ -201,6 +199,18 @@ final class InscriptionsApiTest extends AuthTestCase
         $response = $varios->handle($this->peticion(['correo' => 'otra@hotmail.com'] + self::datos(), [TestImages::subida(TestImages::pdf())]));
         $this->assertError($response, 400, 'VALIDATION_ERROR');
         self::assertSame('Usa tu correo institucional (@uptc.edu.co, @gmail.com).', $this->json($response)['error']['fields']['correo']);
+    }
+
+    public function testCartaCortaYSinAutorizacionSeAceptan(): void
+    {
+        // DEC-B65: la carta solo es obligatoria (sin mínimo) y la autorización de datos ya no se exige.
+        $datos = ['carta_motivacion' => 'Quiero aprender.'] + self::datos();
+        unset($datos['acepta_tratamiento_datos']);
+
+        $response = $this->app->handle($this->peticion($datos, null));
+
+        self::assertSame(201, $response->getStatusCode(), (string) $response->getBody());
+        self::assertSame('Quiero aprender.', array_values($this->db->inscripciones)[0]['carta_motivacion']);
     }
 
     public function testSinDocumentosSeAcepta(): void

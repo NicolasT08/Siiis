@@ -130,6 +130,76 @@ final class PlanMultimedia
         return ['items' => $items, 'errores' => $errores];
     }
 
+    /**
+     * Recursos que ya están en Cloudinary (`--existentes=RUTA`). JSON:
+     *
+     *   {"slider": [{"public_id": "siiis/Foto_1", "descripcion": "…", "orden": 1}, …],
+     *    "videos": [{"public_id": "siiis/presentacion", "descripcion": "…"}]}
+     *
+     * `orden` es opcional: sin él, la posición en la lista (1, 2, 3…). Nada se sube ni se toca en Cloudinary.
+     *
+     * @return array{
+     *     items: list<array{seccion: string, tipo: string, public_id: string, orden: int, descripcion: string}>,
+     *     errores: list<string>
+     * }
+     */
+    public static function desdeJson(string $ruta): array
+    {
+        $datos = is_file($ruta) ? json_decode((string) file_get_contents($ruta), true) : null;
+        if (!is_array($datos)) {
+            return ['items' => [], 'errores' => ["$ruta no existe o no es un JSON válido con las listas \"slider\" y \"videos\"."]];
+        }
+
+        $items = [];
+        $errores = [];
+        foreach (array_diff(array_keys($datos), array_keys(self::SUBCARPETAS)) as $clave) {
+            $errores[] = sprintf('Clave desconocida "%s": solo se admiten "slider" y "videos".', (string) $clave);
+        }
+        foreach (self::SUBCARPETAS as $clave => $regla) {
+            $lista = $datos[$clave] ?? [];
+            if (!is_array($lista) || !array_is_list($lista)) {
+                $errores[] = "\"$clave\" debe ser una lista.";
+                continue;
+            }
+            $vistos = [];
+            foreach ($lista as $i => $elemento) {
+                $donde = sprintf('%s[%d]', $clave, $i);
+                $publicId = is_array($elemento) ? ($elemento['public_id'] ?? null) : null;
+                $descripcion = is_array($elemento) ? ($elemento['descripcion'] ?? null) : null;
+                $orden = is_array($elemento) ? ($elemento['orden'] ?? $i + 1) : null;
+                if (!is_string($publicId) || preg_match('#^[A-Za-z0-9_][A-Za-z0-9_./ -]{0,254}\z#', $publicId) !== 1 || str_contains($publicId, '..')) {
+                    $errores[] = "$donde: public_id falta o no es válido.";
+                    continue;
+                }
+                if (!is_string($descripcion) || trim($descripcion) === '' || mb_strlen($descripcion) > 200) {
+                    $errores[] = "$donde: la descripción (texto alternativo) es obligatoria, de hasta 200 caracteres.";
+                    continue;
+                }
+                if (!is_int($orden) || $orden < 1 || $orden > 1000) {
+                    $errores[] = "$donde: orden debe ser un entero de 1 a 1000.";
+                    continue;
+                }
+                if (isset($vistos[$publicId])) {
+                    $errores[] = "$donde: public_id repetido ($publicId).";
+                    continue;
+                }
+                $vistos[$publicId] = true;
+                $items[] = [
+                    'seccion' => $regla['seccion'],
+                    'tipo' => $regla['tipo'],
+                    'public_id' => $publicId,
+                    'orden' => $orden,
+                    'descripcion' => trim((string) preg_replace('/\s+/u', ' ', $descripcion)),
+                ];
+            }
+        }
+        if ($items === [] && $errores === []) {
+            $errores[] = 'El JSON no trae elementos en "slider" ni en "videos".';
+        }
+
+        return ['items' => $items, 'errores' => $errores];
+    }
+
     /** Nombre sin prefijo numérico ni extensión: "01-Laboratorio de Redes.jpg" → "Laboratorio de Redes". */
     public static function base(string $nombre): string
     {

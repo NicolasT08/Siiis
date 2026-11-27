@@ -63,10 +63,8 @@ final class InscripcionValidator
             }
         }
 
+        // Obligatoria, sin mínimo de caracteres (DEC-B65).
         $carta = InputReader::texto($body, 'carta_motivacion', $s->inscripcionCartaMaxLength, $errors);
-        if (!isset($errors['carta_motivacion']) && mb_strlen($carta) < $s->inscripcionCartaMinLength) {
-            $errors['carta_motivacion'] = sprintf('Mínimo %d caracteres.', $s->inscripcionCartaMinLength);
-        }
 
         // Opcionales nuevos (DEC-B63, PROPUESTA pendiente del equipo de BD).
         $codigo = null;
@@ -86,11 +84,7 @@ final class InscripcionValidator
             $errors['disponibilidad'] = 'Debes confirmar tu disponibilidad para las reuniones semanales.';
         }
 
-        // Ley 1581 de 2012: no se guarda (el modelo no tiene el campo), pero es obligatoria (DEC-B51).
-        $acepta = $body['acepta_tratamiento_datos'] ?? null;
-        if ($acepta !== true && $acepta !== 'true' && $acepta !== '1') {
-            $errors['acepta_tratamiento_datos'] = 'Debes autorizar el tratamiento de tus datos personales.';
-        }
+        // La autorización de datos ya no se exige (DEC-B65): el formulario solo informa el uso de los datos.
 
         if ($errors !== []) {
             throw ApiException::validation($errors);
