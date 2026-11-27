@@ -34,7 +34,7 @@ final class MultimediaValidatorTest extends TestCase
     public function testCrearConOrdenComoTextoDelFormulario(): void
     {
         self::assertSame(
-            ['seccion' => 'video_presentacion', 'descripcion' => 'Video del semillero', 'orden' => 3],
+            ['seccion' => 'video_presentacion', 'descripcion' => 'Video del semillero', 'orden' => 3, 'reemplaza' => null],
             $this->v()->crear(['seccion' => 'video_presentacion', 'descripcion' => " Video del\r\nsemillero ", 'orden' => '3']),
         );
         self::assertNull($this->v()->crear(['seccion' => 'slider_principal', 'descripcion' => 'x', 'orden' => ''])['orden']);

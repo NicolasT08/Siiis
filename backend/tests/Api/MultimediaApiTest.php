@@ -101,6 +101,7 @@ final class MultimediaApiTest extends AuthTestCase
 
     public function testSubirVideoYOrdenPorDefectoAlFinal(): void
     {
+        $this->app = $this->authApp(['CLOUDINARY_HOME_FOLDER' => 'siiis_test/home', 'HOME_MAX_VIDEOS' => '2']);
         $token = $this->admin('superadministrador');
         $this->item('video_presentacion', 4, 'video');
 
@@ -152,6 +153,54 @@ final class MultimediaApiTest extends AuthTestCase
         }
 
         $this->assertError($this->subir($token, ['seccion' => 'slider_principal', 'descripcion' => 'x'], TestImages::subida(TestImages::png())), 409, 'MULTIMEDIA_LIMIT');
+        self::assertSame([], $this->cloudinary->subidas);
+    }
+
+    public function testSoloUnVideoDePresentacionPorDefecto(): void
+    {
+        $token = $this->admin();
+        $this->item('video_presentacion', 1, 'video');
+
+        $response = $this->subir($token, ['seccion' => 'video_presentacion', 'descripcion' => 'Otro'], TestImages::subida(TestImages::mp4()));
+
+        $this->assertError($response, 409, 'VIDEO_LIMIT');
+        self::assertStringContainsString('Reemplazar video', $this->json($response)['error']['message']);
+        self::assertSame([], $this->cloudinary->subidas, 'No se gasta una subida si ya hay video.');
+        self::assertCount(1, $this->multimedia->items);
+    }
+
+    public function testReemplazarVideoBorraElAnteriorSoloSiLaSubidaSaleBien(): void
+    {
+        $token = $this->admin();
+        $anterior = $this->item('video_presentacion', 3, 'video', 'siiis_test/home/videos/viejo');
+        $campos = ['seccion' => 'video_presentacion', 'descripcion' => 'Nuevo', 'reemplaza' => (string) $anterior];
+
+        // Si la subida falla, el video anterior sigue intacto.
+        $this->cloudinary->fallarSubida = true;
+        $this->assertError($this->subir($token, $campos, TestImages::subida(TestImages::mp4())), 502, 'CLOUDINARY_UNAVAILABLE');
+        $this->cloudinary->fallarSubida = false;
+        self::assertArrayHasKey((string) $anterior, $this->multimedia->items);
+        self::assertSame([], $this->cloudinary->borrados);
+
+        $response = $this->subir($token, $campos, TestImages::subida(TestImages::mp4()));
+
+        self::assertSame(201, $response->getStatusCode(), (string) $response->getBody());
+        $nuevo = $this->json($response)['multimedia'];
+        self::assertSame(['Nuevo', 3], [$nuevo['descripcion'], $nuevo['orden']], 'Toma el lugar del anterior.');
+        self::assertSame([$nuevo['id']], array_keys($this->multimedia->items));
+        self::assertSame(['siiis_test/home/videos/viejo'], $this->cloudinary->borradosVideo);
+    }
+
+    public function testReemplazaDebeSerUnElementoDeLaMismaSeccion(): void
+    {
+        $token = $this->admin();
+        $foto = $this->item('slider_principal', 1);
+        $mp4 = static fn (): UploadedFile => TestImages::subida(TestImages::mp4());
+
+        $this->assertError($this->subir($token, ['seccion' => 'video_presentacion', 'descripcion' => 'x', 'reemplaza' => 'abc'], $mp4()), 400, 'VALIDATION_ERROR');
+        $this->assertError($this->subir($token, ['seccion' => 'video_presentacion', 'descripcion' => 'x', 'reemplaza' => (string) new ObjectId()], $mp4()), 404, 'NOT_FOUND');
+        $this->assertError($this->subir($token, ['seccion' => 'video_presentacion', 'descripcion' => 'x', 'reemplaza' => (string) $foto], $mp4()), 404, 'NOT_FOUND');
+        self::assertArrayHasKey((string) $foto, $this->multimedia->items);
         self::assertSame([], $this->cloudinary->subidas);
     }
 

@@ -52,6 +52,7 @@ Documento para Front-End (React + TypeScript). Fuente de verdad: `docs/SIIIS_V3_
 | `LAST_SUPERADMIN` | 409 | Se intentó quitar el rol o desactivar al último superadministrador activo |
 | `ATTACHMENT_LIMIT` | 409 | El documento ya tiene el máximo de archivos adjuntos (`DOCUMENTO_ADJUNTOS_MAX`, 10) |
 | `MULTIMEDIA_LIMIT` | 409 | La sección del inicio ya tiene el máximo de elementos (`HOME_MAX_ITEMS`, 20) (8a) |
+| `VIDEO_LIMIT` | 409 | Ya hay el máximo de videos de presentación (`HOME_MAX_VIDEOS`, 1); se cambia con `reemplaza` (8a, DEC-B69) |
 | `INSCRIPTION_PENDING` | 409 | Ya hay una solicitud de inscripción pendiente con ese correo (13a) |
 | `INSCRIPTION_CLOSED` | 409 | La solicitud de inscripción ya fue aceptada o rechazada (13d) |
 | `NOT_FOUND` | 404 | La ruta o el recurso no existe (p. ej. un usuario en `GET /users/{id}`) |
@@ -583,6 +584,8 @@ await fetch('/api/v1/multimedia', { method: 'POST', headers: { Authorization: `B
 **201** `{"multimedia": {...}}`.
 
 **Errores:** `400 VALIDATION_ERROR` (`fields`: `seccion`, `descripcion`, `orden`, `archivo`; primero se validan los datos y después el archivo), `401`, `403`, `409 MULTIMEDIA_LIMIT`, `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE` (formato no admitido, una foto en la sección de videos o al revés, o un archivo dañado que Cloudinary rechaza), `429 RATE_LIMITED`, `502 CLOUDINARY_UNAVAILABLE`. Si MongoDB falla después de subir, el archivo se borra de Cloudinary.
+
+**Un solo video (DEC-B69):** con `HOME_MAX_VIDEOS` (1) videos ya cargados, subir otro a `video_presentacion` responde `409 VIDEO_LIMIT`. Para cambiarlo se envía además el campo `reemplaza` con el `id` del elemento actual (de la misma sección; si no, `404`): no cuenta para el límite, el nuevo toma su `orden` y el anterior (registro y archivo) se borra solo si la subida y el registro del nuevo salieron bien.
 
 ### 8a.3 `PATCH /multimedia/{id}`
 

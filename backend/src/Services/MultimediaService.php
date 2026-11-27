@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Siiis\Services;
 
+use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\UTCDateTime;
 use Siiis\Config\Settings;
 use Siiis\Repositories\MultimediaRepository;
@@ -48,25 +49,29 @@ class MultimediaService
     /**
      * Sube el archivo a Cloudinary y lo registra. Si MongoDB falla, se borra lo subido (compensación).
      *
-     * @param array{seccion: string, descripcion: string, orden: int|null} $datos
-     * @param array{path: string, mime: string, size: int}                $archivo validado por FileValidator
+     * Con `reemplaza` (DEC-B69), el elemento anterior no cuenta para el límite y se borra solo si la subida y el
+     * registro del nuevo salieron bien.
+     *
+     * @param array{seccion: string, descripcion: string, orden: int|null, reemplaza?: ObjectId|null} $datos
+     * @param array{path: string, mime: string, size: int}                                              $archivo validado por FileValidator
      *
      * @return array<string, mixed>
      *
-     * @throws ApiException 409 MULTIMEDIA_LIMIT, 415 UNSUPPORTED_MEDIA_TYPE, 502 CLOUDINARY_UNAVAILABLE
+     * @throws ApiException 404 NOT_FOUND, 409 MULTIMEDIA_LIMIT o VIDEO_LIMIT, 415 UNSUPPORTED_MEDIA_TYPE,
+     *                      502 CLOUDINARY_UNAVAILABLE
      */
     public function crear(array $datos, array $archivo): array
     {
         $seccion = $datos['seccion'];
         $tipo = MultimediaValidator::SECCIONES[$seccion];
-        // Antes de subir: no se gasta una subida si la sección ya está llena (GET /home/* muestra HOME_MAX_ITEMS).
-        if ($this->multimedia->contar($seccion) >= $this->settings->homeMaxItems) {
-            throw new ApiException(
-                409,
-                'MULTIMEDIA_LIMIT',
-                sprintf('La sección ya tiene el máximo de %d elementos. Borra uno antes de subir otro.', $this->settings->homeMaxItems),
-            );
+        $anterior = null;
+        if (($datos['reemplaza'] ?? null) !== null) {
+            $anterior = $this->multimedia->findById($datos['reemplaza']);
+            if ($anterior === null || ($anterior['seccion'] ?? null) !== $seccion) {
+                throw self::noEncontrado();
+            }
         }
+        $this->exigirEspacio($seccion, $anterior === null ? 0 : 1);
 
         $folder = $this->settings->cloudinaryHomeFolder . '/' . self::SUBCARPETA[$seccion];
         try {
@@ -101,7 +106,8 @@ class MultimediaService
             'public_id' => $subido['public_id'],
             'seccion' => $seccion,
             'descripcion' => $datos['descripcion'],
-            'orden' => $datos['orden'] ?? $this->multimedia->maxOrden($seccion) + 1,
+            // Al reemplazar, el nuevo toma el lugar del anterior.
+            'orden' => $datos['orden'] ?? (is_int($anterior['orden'] ?? null) ? $anterior['orden'] : $this->multimedia->maxOrden($seccion) + 1),
             'fecha_subida' => new UTCDateTime($this->clock->now()),
         ];
         try {
@@ -112,7 +118,44 @@ class MultimediaService
             throw $e;
         }
 
+        // El nuevo ya quedó guardado: ahora sí se borra el anterior (registro y archivo).
+        if ($anterior !== null && $anterior['_id'] instanceof ObjectId) {
+            $borrado = $this->multimedia->eliminar($anterior['_id']);
+            $publicId = $borrado['public_id'] ?? null;
+            if (is_string($publicId) && $publicId !== '') {
+                $this->borrarArchivo($publicId, (string) ($borrado['tipo'] ?? $tipo), 'reemplazado desde la administración');
+            }
+        }
+
         return self::presentar(['_id' => $id] + $item);
+    }
+
+    /**
+     * Antes de subir: no se gasta una subida si la sección ya está llena. Los videos tienen su propio máximo
+     * (HOME_MAX_VIDEOS, DEC-B69); las fotos, HOME_MAX_ITEMS (lo que muestra GET /home/*).
+     *
+     * @throws ApiException 409 VIDEO_LIMIT o MULTIMEDIA_LIMIT
+     */
+    private function exigirEspacio(string $seccion, int $liberados): void
+    {
+        $ocupados = $this->multimedia->contar($seccion) - $liberados;
+        if ($seccion === MultimediaRepository::SECCION_VIDEOS) {
+            $max = $this->settings->homeMaxVideos;
+            if ($ocupados >= $max) {
+                throw new ApiException(409, 'VIDEO_LIMIT', $max === 1
+                    ? 'Ya hay un video de presentación. Usa "Reemplazar video" para cambiarlo.'
+                    : sprintf('Ya hay %d videos de presentación, el máximo. Reemplaza o borra uno antes de subir otro.', $max));
+            }
+
+            return;
+        }
+        if ($ocupados >= $this->settings->homeMaxItems) {
+            throw new ApiException(
+                409,
+                'MULTIMEDIA_LIMIT',
+                sprintf('La sección ya tiene el máximo de %d elementos. Borra uno antes de subir otro.', $this->settings->homeMaxItems),
+            );
+        }
     }
 
     /**

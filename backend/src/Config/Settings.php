@@ -41,6 +41,8 @@ final readonly class Settings
         public int $rateLimitChangePasswordMax,
         public int $rateLimitChangePasswordWindowSeconds,
         public int $homeMaxItems,
+        /** Máximo de videos de presentación (DEC-B69); el resto de secciones usa homeMaxItems. */
+        public int $homeMaxVideos,
         public string $mailHost,
         public int $mailPort,
         public string $mailUsername,
@@ -203,6 +205,7 @@ final readonly class Settings
             rateLimitChangePasswordMax: self::positiveInt($env, 'RATE_LIMIT_CHANGE_PASSWORD_MAX', 10),
             rateLimitChangePasswordWindowSeconds: self::positiveInt($env, 'RATE_LIMIT_CHANGE_PASSWORD_WINDOW_SECONDS', 900),
             homeMaxItems: self::positiveInt($env, 'HOME_MAX_ITEMS', 20),
+            homeMaxVideos: self::positiveInt($env, 'HOME_MAX_VIDEOS', 1),
             mailHost: self::string($env, 'MAIL_HOST', 'smtp.gmail.com'),
             mailPort: self::positiveInt($env, 'MAIL_PORT', 587),
             mailUsername: self::string($env, 'MAIL_USERNAME'),

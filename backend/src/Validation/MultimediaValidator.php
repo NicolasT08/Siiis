@@ -30,7 +30,9 @@ final class MultimediaValidator
     /**
      * Campos del formulario de subida (multipart: todo llega como texto).
      *
-     * @return array{seccion: string, descripcion: string, orden: int|null}
+     * `reemplaza` (opcional, DEC-B69): id del elemento de la misma sección que se borra si la subida sale bien.
+     *
+     * @return array{seccion: string, descripcion: string, orden: int|null, reemplaza: ObjectId|null}
      *
      * @throws ApiException 400 VALIDATION_ERROR
      */
@@ -44,11 +46,20 @@ final class MultimediaValidator
         if ($valor !== null && $valor !== '') {
             $orden = self::orden($valor, $errors);
         }
+        $reemplaza = null;
+        $valor = is_array($body) ? ($body['reemplaza'] ?? null) : null;
+        if ($valor !== null && $valor !== '') {
+            // Solo texto: un array u objeto no llega al filtro de MongoDB.
+            $reemplaza = is_string($valor) ? ObjectIdValidator::toObjectId($valor) : null;
+            if ($reemplaza === null) {
+                $errors['reemplaza'] = 'Identificador no válido.';
+            }
+        }
         if ($errors !== []) {
             throw ApiException::validation($errors);
         }
 
-        return ['seccion' => $seccion, 'descripcion' => $descripcion, 'orden' => $orden];
+        return ['seccion' => $seccion, 'descripcion' => $descripcion, 'orden' => $orden, 'reemplaza' => $reemplaza];
     }
 
     /**
