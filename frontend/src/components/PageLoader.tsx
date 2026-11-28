@@ -1,8 +1,11 @@
+import { imagenCloudinary, LOGO_AZUL } from '../lib/cloudinary';
+
 type PageLoaderProps = {
   visible: boolean;
 };
 
-const LOGO_URL = 'https://res.cloudinary.com/we3ya7sq/image/upload/v1788989589/Logo_Azul.png';
+// Logo de hasta 110 px (--loader-logo-size): se pide a 2x.
+const LOGO_URL = imagenCloudinary(LOGO_AZUL, 240);
 
 export default function PageLoader({ visible }: PageLoaderProps) {
   return (

@@ -9,6 +9,7 @@ import { fecha } from '../../lib/format';
 import { useApi } from '../../lib/useApi';
 import { Aviso, Cargando, ErrorCampo, ErrorCarga, Vacio } from '../../components/ui';
 import SelectorArchivos from '../../components/SelectorArchivos';
+import { imagenCloudinary } from '../../lib/cloudinary';
 
 type Resultado = { tipo: 'ok' | 'error'; texto: string } | null;
 
@@ -75,7 +76,7 @@ function Elemento({
         {esVideo ? (
           <video src={item.url} controls preload="metadata" aria-label={item.descripcion ?? 'Video'} />
         ) : (
-          <img src={item.url} alt={item.descripcion ?? ''} loading="lazy" />
+          <img src={imagenCloudinary(item.url, 640)} alt={item.descripcion ?? ''} loading="lazy" decoding="async" />
         )}
         <span className="app-tag">#{item.orden}</span>
       </div>

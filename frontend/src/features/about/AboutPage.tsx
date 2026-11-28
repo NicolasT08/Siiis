@@ -10,6 +10,7 @@ import { useApi } from '../../lib/useApi';
 import '../projects/projects.css';
 import '../users/users.css';
 import './about.css';
+import { imagenCloudinary } from '../../lib/cloudinary';
 
 type Version = '1.0' | '2.0' | '3.0';
 
@@ -104,7 +105,7 @@ export default function AboutPage() {
 
         <section className="about-director" aria-labelledby="about-director-title">
           <span className="about-director__avatar" aria-hidden="true">
-            {director.foto_perfil ? <img src={director.foto_perfil.url} alt="" /> : iniciales(director)}
+            {director.foto_perfil ? <img src={imagenCloudinary(director.foto_perfil.url, 160)} alt="" loading="lazy" decoding="async" /> : iniciales(director)}
           </span>
           <div>
             <p className="about-eyebrow">Dirección del semillero</p>

@@ -1,0 +1,9 @@
+# Sitio del Semillero SIIIS (UPTC). Las áreas privadas y la API no se indexan.
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /mi-perfil
+Disallow: /mis-contenidos
+Disallow: /api/
+
+Sitemap: https://siiis.com.co/sitemap.xml

@@ -6,6 +6,7 @@ import type { DocumentoResumen, EstadoDocumento, PersonaDocumento } from '../../
 import { ETIQUETA_CATEGORIA, ETIQUETA_ESTADO, fecha, iniciales, moduloDeCategoria, nombrePersona, rutaDocumento } from '../../lib/format';
 import { abrirVistaPrevia } from './vistaPrevia';
 import '../projects/projects.css';
+import { imagenCloudinary } from '../../lib/cloudinary';
 
 const ESTILO_ESTADO: Record<EstadoDocumento, { clase: string; Icono: LucideIcon }> = {
   en_revision: { clase: 'pendiente', Icono: Clock },
@@ -46,7 +47,7 @@ export function CategoriaChip({ categoria }: { categoria: DocumentoResumen['cate
 export function PersonaAvatar({ persona, className = 'avatar' }: { persona: PersonaDocumento | null; className?: string }) {
   const [fallo, setFallo] = useState(false);
   const url = persona?.foto_perfil?.url;
-  if (url && !fallo) return <img className={className} src={url} alt="" loading="lazy" onError={() => setFallo(true)} />;
+  if (url && !fallo) return <img className={className} src={imagenCloudinary(url, 96)} alt="" loading="lazy" decoding="async" onError={() => setFallo(true)} />;
   return (
     <span className={`${className} avatar--initials`} aria-hidden="true">
       {iniciales(persona)}

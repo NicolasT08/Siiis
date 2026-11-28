@@ -1,5 +1,7 @@
-// Logo oficial (Cloudinary del proyecto). No sustituir por recortes del mockup.
-const LOGO_URL = 'https://res.cloudinary.com/we3ya7sq/image/upload/v1789264275/Logo_Png_Blanco.png';
+import { imagenCloudinary, LOGO_BLANCO } from '../lib/cloudinary';
+
+// Logo oficial (Cloudinary del proyecto). No sustituir por recortes del mockup. Se pide a 2x de los 44 px en que se ve.
+const LOGO_URL = imagenCloudinary(LOGO_BLANCO, 96);
 
 export default function BrandLogo({
   size = 'md',
@@ -10,7 +12,7 @@ export default function BrandLogo({
 }) {
   return (
     <span className={`brand-logo brand-logo--${size}`}>
-      <img className="brand-logo__mark" src={LOGO_URL} alt="" width="44" height="44" />
+      <img className="brand-logo__mark" src={LOGO_URL} alt="" width="44" height="44" fetchPriority="high" decoding="async" />
       <span className="brand-logo__text">
         <small>Semillero</small>
         <strong>SIIIS</strong>

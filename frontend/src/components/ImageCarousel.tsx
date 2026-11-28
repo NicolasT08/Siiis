@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
+import { imagenCloudinary, srcsetCloudinary } from '../lib/cloudinary';
 
 import { Images } from 'lucide-react';
 
@@ -8,6 +9,27 @@ const RESUME_DELAY_MS = 5000;
 const DRAG_THRESHOLD = 60;
 
 type Foto = { url: string; descripcion: string };
+
+/**
+ * Anchos que se piden a Cloudinary (c_limit): el carrusel mide como máximo 1060 px (.gallery-box de 1100 px menos
+ * 20 px de margen a cada lado), así la foto original de 4000 px nunca se descarga completa.
+ */
+const ANCHOS = [480, 768, 1080, 1440, 2120];
+const SIZES = '(max-width: 1100px) calc(100vw - 40px), 1060px';
+
+function FotoCarrusel({ src, alt, cargar }: { src: string; alt: string; cargar: 'eager' | 'lazy' }) {
+  return (
+    <img
+      src={imagenCloudinary(src, 1080)}
+      srcSet={srcsetCloudinary(src, ANCHOS) || undefined}
+      sizes={SIZES}
+      alt={alt}
+      loading={cargar}
+      decoding="async"
+      draggable={false}
+    />
+  );
+}
 
 /**
  * Carrusel de la página de inicio con las fotos de `GET /home/slider` (Multimedia, sección slider_principal).
@@ -153,7 +175,7 @@ function Diapositivas({ fotos }: { fotos: Foto[] }) {
       <div className="carousel carousel--single" aria-label="Carrusel de imágenes">
         <div className="carousel-track" style={{ transform: 'translate3d(0%, 0, 0)' }}>
           <div className="carousel-slide">
-            <img src={images[0]} alt={descripciones[images[0]] || 'Foto del semillero'} draggable={false} />
+            <FotoCarrusel src={images[0]} alt={descripciones[images[0]] || 'Foto del semillero'} cargar="eager" />
           </div>
         </div>
       </div>
@@ -186,7 +208,12 @@ function Diapositivas({ fotos }: { fotos: Foto[] }) {
       >
         {slides.map((src, i) => (
           <div className="carousel-slide" key={`${src}-${i}`}>
-            <img src={src} alt={descripciones[src] || `Foto ${i + 1} del semillero`} draggable={false} />
+            {/* Solo la diapositiva visible y sus vecinas se descargan de inmediato; el resto, al acercarse. */}
+            <FotoCarrusel
+              src={src}
+              alt={descripciones[src] || `Foto ${i + 1} del semillero`}
+              cargar={Math.abs(i - index) <= 1 ? 'eager' : 'lazy'}
+            />
           </div>
         ))}
       </div>

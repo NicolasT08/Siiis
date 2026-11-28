@@ -12,6 +12,7 @@ import { Aviso, Cargando, ErrorCampo, ErrorCarga } from '../../components/ui';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { problemaPassword } from '../auth/passwordRules';
 import { leerPerfil } from './perfil';
+import { imagenCloudinary } from '../../lib/cloudinary';
 
 export type Resultado = { tipo: 'ok' | 'error'; texto: string } | null;
 
@@ -117,7 +118,7 @@ export function FotoPerfil({ usuario, onCambio }: { usuario: UsuarioAdmin; onCam
   return (
     <div className="app-profile__photo">
       {usuario.foto_perfil ? (
-        <img src={usuario.foto_perfil.url} alt={`Foto de ${nombreCompleto(usuario)}`} />
+        <img src={imagenCloudinary(usuario.foto_perfil.url, 320)} decoding="async" alt={`Foto de ${nombreCompleto(usuario)}`} />
       ) : (
         <span className="avatar--initials" aria-hidden="true">
           {iniciales(usuario)}

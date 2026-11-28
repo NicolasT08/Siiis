@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { imagenCloudinary } from '../lib/cloudinary';
 
 /**
  * Contenido Markdown de proyectos y artículos (DEC-B37) mostrado de forma segura:
@@ -23,7 +24,7 @@ export default function Markdown({ texto }: { texto: string }) {
               </a>
             );
           },
-          img: ({ src, alt }) => <img src={typeof src === 'string' ? src : undefined} alt={alt ?? ''} loading="lazy" />,
+          img: ({ src, alt }) => <img src={typeof src === 'string' ? imagenCloudinary(src, 1600) : undefined} alt={alt ?? ''} loading="lazy" decoding="async" />,
         }}
       >
         {texto}
