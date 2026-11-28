@@ -4,20 +4,21 @@ import { api } from '../../lib/api';
 import type { DocumentoEntrada, DocumentoResumen, Modulo } from '../../lib/api';
 import { mensajeError } from '../../lib/errors';
 import { Aviso } from '../../components/ui';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 type Props = {
   modulo: Modulo;
   documento: DocumentoResumen;
-  /** Si es false, no se muestran los botones de publicar (solo borrar). */
+  /** Si es false, no se muestran los botones de publicar (solo eliminar). */
   puedePublicar: boolean;
   puedeBorrar: boolean;
   onCambio: (documento: DocumentoResumen | null) => void;
 };
 
 /**
- * Publicar, ocultar, devolver a revisión y borrar (DEC-B33 a DEC-B35). Lo usan el detalle de un documento (según
- * `permisos`) y el panel de contenido. Para publicar: proyectos → `ejecucion` + visible; artículos → `publicado` +
- * visible (docs/api.md 9d y 10).
+ * Publicar, ocultar, devolver a revisión y eliminar (DEC-B33 a DEC-B35); eliminar pide confirmación con ConfirmDialog.
+ * Lo usan el detalle de un documento (según `permisos`) y el panel de contenido. Para publicar: proyectos →
+ * `ejecucion` + visible; artículos → `publicado` + visible (docs/api.md 9d y 10).
  */
 export default function AccionesRevision({ modulo, documento, puedePublicar, puedeBorrar, onCambio }: Props) {
   const [ocupado, setOcupado] = useState(false);
@@ -36,15 +37,18 @@ export default function AccionesRevision({ modulo, documento, puedePublicar, pue
     }
   };
 
-  const borrar = async () => {
-    if (!window.confirm(`¿Borrar "${documento.titulo}"? Se elimina para siempre, con sus archivos adjuntos.`)) return;
+  // El backend borra también sus archivos de Cloudinary (DEC-B35).
+  const [confirmando, setConfirmando] = useState(false);
+  const [errorBorrar, setErrorBorrar] = useState('');
+  const eliminar = async () => {
     setOcupado(true);
-    setError('');
+    setErrorBorrar('');
     try {
       await api.deleteDocument(modulo, documento.id);
+      setConfirmando(false);
       onCambio(null);
     } catch (e) {
-      setError(mensajeError(e));
+      setErrorBorrar(mensajeError(e));
       setOcupado(false);
     }
   };
@@ -80,11 +84,34 @@ export default function AccionesRevision({ modulo, documento, puedePublicar, pue
         </button>
       )}
       {puedeBorrar && (
-        <button type="button" className="btn btn--danger" disabled={ocupado} onClick={() => void borrar()}>
-          <Trash2 size={16} aria-hidden="true" /> Borrar
+        <button
+          type="button"
+          className="btn btn--danger"
+          disabled={ocupado}
+          onClick={() => {
+            setErrorBorrar('');
+            setConfirmando(true);
+          }}
+        >
+          <Trash2 size={16} aria-hidden="true" /> Eliminar
         </button>
       )}
       {error && <Aviso tipo="error">{error}</Aviso>}
+      {confirmando && (
+        <ConfirmDialog
+          titulo={`¿Eliminar ${modulo === 'projects' ? 'este proyecto' : documento.categoria === 'noticia' ? 'esta noticia' : 'este artículo'}?`}
+          confirmar="Eliminar"
+          ocupado={ocupado}
+          error={errorBorrar}
+          onConfirmar={() => void eliminar()}
+          onCancelar={() => setConfirmando(false)}
+        >
+          <p>
+            <strong>«{documento.titulo}»</strong>
+          </p>
+          <p>Se elimina para siempre, junto con sus archivos adjuntos. No se puede deshacer.</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

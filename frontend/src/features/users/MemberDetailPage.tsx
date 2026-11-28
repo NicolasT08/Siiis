@@ -27,7 +27,7 @@ async function publicaciones(id: string, signal: AbortSignal): Promise<Documento
 
 export default function MemberDetailPage() {
   const { id = '' } = useParams();
-  const perfil = useApi((signal) => api.user(id, signal), [id]);
+  const perfil = useApi((signal) => api.member(id, signal), [id]);
   const docs = useApi((signal) => publicaciones(id, signal), [id]);
   const miembro = perfil.estado.status === 'ready' ? perfil.estado.data.usuario : null;
 

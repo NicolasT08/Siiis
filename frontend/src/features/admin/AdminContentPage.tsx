@@ -33,7 +33,7 @@ export default function AdminContentPage() {
       <div className="app-panel-head">
         <div>
           <h1>Contenido</h1>
-          <p>Publica lo que está en revisión, oculta lo publicado sin borrarlo o bórralo definitivamente.</p>
+          <p>Publica lo que está en revisión, oculta lo publicado sin borrarlo o elimínalo definitivamente.</p>
         </div>
       </div>
       <div className="app-filters">

@@ -10,6 +10,7 @@ import { pdfPrincipal, validarPdfDocumento } from '../../lib/documentoPdf';
 import { erroresDeCampo, mensajeError } from '../../lib/errors';
 import { ETIQUETA_CATEGORIA, ETIQUETA_ESTADO, nombrePersona, rutaDocumento } from '../../lib/format';
 import { useApi } from '../../lib/useApi';
+import MarkdownEditor from '../../components/MarkdownEditor';
 import SelectorArchivos from '../../components/SelectorArchivos';
 import { Aviso, Cargando, ErrorCampo, ErrorCarga } from '../../components/ui';
 import type { Resultado } from './ProfilePage';
@@ -17,8 +18,14 @@ import type { Resultado } from './ProfilePage';
 /** Límite de adjuntos del backend; incluye el documento PDF principal. */
 const MAX_ADJUNTOS = 10;
 
+/** DOCUMENTO_CONTENIDO_MAX_LENGTH del backend (DEC-B37). */
+const MAX_CONTENIDO = 50000;
+
+/** Mensaje de DEC-B70: el documento necesita texto, PDF o ambos. */
+const SIN_TEXTO_NI_PDF = 'Escribe el contenido o sube un PDF: el documento necesita al menos uno de los dos.';
+
 /** Estado que se pasa al pasar de "crear" a "editar". */
-type EstadoCreacion = { creado?: boolean; errorPdf?: string } | null;
+type EstadoCreacion = { creado?: boolean; errorPdf?: string; errorPublicar?: string } | null;
 
 /** Todos los integrantes activos (GET /users es paginado; máximo 50 por página). */
 async function todosLosIntegrantes(signal: AbortSignal): Promise<UsuarioPublico[]> {
@@ -165,11 +172,13 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
   const revisor = esRevisor(usuario?.rol);
   const [actual, setActual] = useState<Documento | null>(documento);
   const [pdf, setPdf] = useState<File[]>([]);
+  const [contenido, setContenido] = useState(documento?.contenido ?? '');
   const [integrantes, setIntegrantes] = useState<string[]>(documento?.integrantes.map((i) => i.id) ?? []);
   const [guardando, setGuardando] = useState(false);
   const llegada = useLocation().state as EstadoCreacion;
   const [resultado, setResultado] = useState<Resultado>(() => {
     if (llegada?.errorPdf) return { tipo: 'error', texto: `Se creó el documento, pero no se pudo subir el PDF: ${llegada.errorPdf} Elige el PDF de nuevo y guarda para reintentar.` };
+    if (llegada?.errorPublicar) return { tipo: 'error', texto: `Se creó el documento con su PDF, pero quedó en revisión y oculto: ${llegada.errorPublicar}` };
     if (llegada?.creado) return { tipo: 'ok', texto: 'Guardado. Si quieres, agrega imágenes adjuntas.' };
     return null;
   });
@@ -197,6 +206,27 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
     }
   };
 
+  /** Quita el PDF principal. El backend lo rechaza si el documento guardado se quedaría sin texto (DEC-B70). */
+  const quitarPdf = async () => {
+    if (!actual || !principal) return;
+    if (!actual.contenido?.trim()) {
+      setCampos((c) => ({ ...c, pdf: 'Para quitar el PDF, primero escribe el contenido y guarda los cambios.' }));
+      return;
+    }
+    if (!window.confirm(`¿Quitar "${principal.nombre_archivo}"?`)) return;
+    setGuardando(true);
+    setResultado(null);
+    try {
+      const { documento: nuevo } = await api.deleteAttachment(modulo, actual.id, principal.archivo);
+      setActual(nuevo);
+      setResultado({ tipo: 'ok', texto: 'Se quitó el PDF.' });
+    } catch (e) {
+      setResultado({ tipo: 'error', texto: mensajeError(e) });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const guardar = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const datos = new FormData(event.currentTarget);
@@ -204,27 +234,27 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
     const entrada: DocumentoEntrada = {
       titulo: texto('titulo'),
       descripcion: texto('descripcion'),
+      // Texto y PDF son opcionales, pero hace falta al menos uno (DEC-B70).
+      contenido: contenido.trim() || null,
       integrantes,
     };
-    // El contenido principal es el PDF; contenido queda vacío al crear (en edición no se envía, para no borrar el de
-    // documentos anteriores).
-    if (!actual) entrada.contenido = null;
     if (modulo === 'articles') entrada.categoria = texto('categoria') as CategoriaDocumento;
     // Solo los revisores cambian estado y visibilidad (DEC-B33); un no revisor recibiría 403.
+    const publicacion: Pick<DocumentoEntrada, 'estado' | 'visible'> = {};
     if (revisor) {
-      entrada.estado = texto('estado') as EstadoDocumento;
-      entrada.visible = datos.get('visible') === 'on';
+      publicacion.estado = texto('estado') as EstadoDocumento;
+      publicacion.visible = datos.get('visible') === 'on';
     }
     const errores: Record<string, string> = {};
     if (!entrada.titulo) errores.titulo = 'Este campo es obligatorio.';
     if (!entrada.descripcion) errores.descripcion = 'Este campo es obligatorio.';
+    if (contenido.length > MAX_CONTENIDO) errores.contenido = `Máximo ${MAX_CONTENIDO.toLocaleString('es-CO')} caracteres.`;
     const archivo = pdf[0];
     if (archivo) {
       const problema = validarPdfDocumento(archivo);
       if (problema) errores.pdf = problema;
-    } else if (!principal) {
-      errores.pdf = 'Elige el documento PDF.';
     }
+    if (!entrada.contenido && !archivo && !principal) errores.contenido = SIN_TEXTO_NI_PDF;
     setCampos(errores);
     setResultado(null);
     if (Object.keys(errores).length) return;
@@ -232,15 +262,32 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
     setGuardando(true);
     try {
       if (actual) {
-        const { documento: nuevo } = await api.updateDocument(modulo, actual.id, entrada);
+        // Primero el PDF: así se puede cambiar de "solo texto" a "solo PDF" sin que el documento quede vacío.
+        const error = archivo ? await subirPdf(actual, archivo) : null;
+        if (error) {
+          setResultado({ tipo: 'error', texto: `No se guardaron los cambios porque falló el PDF: ${error}` });
+          return;
+        }
+        const { documento: nuevo } = await api.updateDocument(modulo, actual.id, { ...entrada, ...publicacion });
         setActual(nuevo);
-        const error = archivo ? await subirPdf(nuevo, archivo) : null;
-        setResultado(error ? { tipo: 'error', texto: `Los datos se guardaron, pero hubo un problema con el PDF: ${error}` } : { tipo: 'ok', texto: 'Cambios guardados.' });
+        setResultado({ tipo: 'ok', texto: 'Cambios guardados.' });
       } else {
-        const { documento: nuevo } = await api.createDocument(modulo, entrada);
+        // Con PDF se crea como borrador, se sube el PDF y después se publica: el backend no deja publicar sin
+        // texto ni PDF, y el PDF solo se puede subir a un documento que ya existe.
+        const publicaDeEntrada = !archivo || !!entrada.contenido;
+        let { documento: nuevo } = await api.createDocument(modulo, publicaDeEntrada ? { ...entrada, ...publicacion } : entrada);
         const error = archivo ? await subirPdf(nuevo, archivo) : null;
+        let errorPublicar: string | null = null;
+        const quierePublicar = publicacion.estado !== undefined && (publicacion.estado !== 'en_revision' || publicacion.visible);
+        if (!publicaDeEntrada && !error && quierePublicar) {
+          try {
+            ({ documento: nuevo } = await api.updateDocument(modulo, nuevo.id, publicacion));
+          } catch (e) {
+            errorPublicar = mensajeError(e);
+          }
+        }
         // Se pasa a la edición: ahí se reintenta el PDF si falló y se agregan imágenes.
-        const estado: EstadoCreacion = error ? { errorPdf: error } : { creado: true };
+        const estado: EstadoCreacion = error ? { errorPdf: error } : errorPublicar ? { errorPublicar } : { creado: true };
         navigate(`/mis-contenidos/${modulo}/${encodeURIComponent(nuevo.id)}/editar`, { replace: true, state: estado });
       }
     } catch (e) {
@@ -303,15 +350,39 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
             </>
           )}
 
+          <div className="app-field--wide">
+            <Aviso tipo="info">El documento necesita al menos uno de los dos: el contenido escrito o un PDF. Puedes usar ambos.</Aviso>
+          </div>
+
           <div className="app-field app-field--wide">
-            <span>Documento PDF{principal ? '' : ' (obligatorio)'}</span>
+            <label htmlFor="doc-contenido">Contenido (opcional)</label>
+            <MarkdownEditor
+              id="doc-contenido"
+              valor={contenido}
+              onChange={(valor) => {
+                setContenido(valor);
+                if (campos.contenido) setCampos((c) => ({ ...c, contenido: '' }));
+              }}
+              maxLength={MAX_CONTENIDO}
+              disabled={guardando}
+              invalido={!!campos.contenido}
+              describedBy="doc-contenido-e"
+            />
+            <ErrorCampo id="doc-contenido-e" mensaje={campos.contenido} />
+          </div>
+
+          <div className="app-field app-field--wide">
+            <span>Documento PDF (opcional)</span>
             {principal && (
               <p className="app-hint">
                 Actual:{' '}
                 <a href={principal.url} target="_blank" rel="noopener noreferrer">
                   {principal.nombre_archivo}
                 </a>
-                . Elige otro solo si quieres reemplazarlo.
+                . Elige otro solo si quieres reemplazarlo.{' '}
+                <button type="button" className="btn btn--danger btn--sm" disabled={guardando} onClick={() => void quitarPdf()}>
+                  <Trash2 size={14} aria-hidden="true" /> Quitar PDF
+                </button>
               </p>
             )}
             <SelectorArchivos
@@ -320,7 +391,7 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
                 setPdf(lista);
                 // Se valida al elegir para avisar antes de guardar.
                 const problema = lista[0] ? validarPdfDocumento(lista[0]) : null;
-                setCampos((c) => ({ ...c, pdf: problema ?? '' }));
+                setCampos((c) => ({ ...c, pdf: problema ?? '', ...(lista[0] && c.contenido === SIN_TEXTO_NI_PDF ? { contenido: '' } : {}) }));
               }}
               accept="application/pdf,.pdf"
               etiqueta={pdf.length ? 'Cambiar PDF' : principal ? 'Reemplazar PDF' : 'Elegir PDF'}

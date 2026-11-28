@@ -131,6 +131,25 @@ fieldset.app-field { margin: 0; padding: 0; border: 0; }
 .app-markdown table { width: 100%; border-collapse: collapse; }
 .app-markdown th, .app-markdown td { padding: 0.45rem 0.6rem; border: 1px solid #dfe4ea; text-align: left; }
 .app-markdown blockquote { margin: 1rem 0; padding: 0.3rem 1rem; border-left: 4px solid var(--siiis-gold); color: var(--siiis-ink-muted); }
+
+/* Editor de Markdown del formulario de documentos (DEC-B70): reutiliza .app-tabs, .btn y los campos de .app-field. */
+.md-editor { letter-spacing: normal; text-transform: none; }
+.md-editor__tabs { margin-bottom: 0.6rem; }
+.md-editor__toolbar { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
+.md-editor__toolbar .btn { min-width: 36px; padding: 0 0.55rem; }
+.md-editor textarea { min-height: 260px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.9rem; letter-spacing: normal; text-transform: none; }
+/* Diálogo de confirmación (ConfirmDialog) sobre el fondo .modal-overlay del inicio de sesión. */
+.app-dialog {
+  width: 100%; max-width: 440px; max-height: 92vh; overflow-y: auto; padding: 1.6rem;
+  background: #fff; border-radius: 20px; box-shadow: 0 40px 90px rgba(0, 10, 20, 0.45); font: 500 0.95rem/1.5 var(--font-body);
+}
+.app-dialog__icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 0.8rem; border-radius: 50%; background: #fdecea; color: #9c2a1f; }
+.app-dialog h2 { margin: 0 0 0.5rem; color: var(--siiis-navy); font: 700 1.3rem/1.25 var(--font-heading); }
+.app-dialog__body p { margin: 0 0 0.5rem; color: #3b4a59; }
+.app-dialog__body strong { color: var(--siiis-navy); overflow-wrap: anywhere; }
+.app-dialog .app-alert { margin: 0.8rem 0 0; }
+.app-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.6rem; margin-top: 1.2rem; }
+.md-editor__preview { min-height: 260px; padding: 0.8rem 1rem; border: 1px solid #e3d8c2; border-radius: 10px; background: #fff; letter-spacing: normal; text-transform: none; }
 .app-people { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
 .app-people a:not(.btn), .app-people span.app-person {
   display: inline-flex; align-items: center; gap: 0.5rem;

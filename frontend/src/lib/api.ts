@@ -366,6 +366,14 @@ export const api = {
     request<Paginado<UsuarioPublico | UsuarioAdmin>>('/users', { query, signal }),
   user: (id: string, signal?: AbortSignal) =>
     request<{ usuario: UsuarioPublico | UsuarioAdmin }>(`/users/${enc(id)}`, { signal }),
+  /**
+   * Sección pública "Integrantes": sin token, para recibir siempre la vista pública (solo activos, DEC-B20 y
+   * DEC-B72) aunque quien mira tenga sesión de administrador.
+   */
+  members: (query: { page?: number; per_page?: number; rol?: Rol | '' } = {}, signal?: AbortSignal) =>
+    request<Paginado<UsuarioPublico>>('/users', { query, signal, auth: false }),
+  member: (id: string, signal?: AbortSignal) =>
+    request<{ usuario: UsuarioPublico }>(`/users/${enc(id)}`, { signal, auth: false }),
   updateUser: (id: string, datos: PerfilEntrada) =>
     request<{ usuario: UsuarioAdmin }>(`/users/${enc(id)}`, { method: 'PATCH', body: datos }),
   deactivateUser: (id: string) => request<{ usuario: UsuarioAdmin }>(`/users/${enc(id)}`, { method: 'DELETE' }),

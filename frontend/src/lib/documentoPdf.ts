@@ -2,8 +2,8 @@ import type { Adjunto } from './api';
 import { tamano } from './format';
 import { MAX_PDF } from './archivos';
 
-// El contenido principal de proyectos, artículos y noticias es un PDF que se guarda como un adjunto más (11a).
-// El documento principal es el primer adjunto PDF; los demás adjuntos son extras (sobre todo imágenes).
+// El contenido de proyectos, artículos y noticias es texto Markdown, un PDF o ambos (DEC-B70). El PDF se guarda como
+// un adjunto más (11a): el PDF principal es el primer adjunto PDF; los demás adjuntos son extras (sobre todo imágenes).
 
 export const esAdjuntoPdf = (a: Adjunto): boolean => /\.pdf$/i.test(a.archivo) || /\.pdf$/i.test(a.nombre_archivo) || /\.pdf(\?|$)/i.test(a.url);
 

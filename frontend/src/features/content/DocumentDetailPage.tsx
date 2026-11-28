@@ -8,6 +8,7 @@ import { fecha, nombrePersona } from '../../lib/format';
 import { useApi } from '../../lib/useApi';
 import { useAuth } from '../../lib/auth';
 import { esAdjuntoPdf, pdfPrincipal, urlDescarga } from '../../lib/documentoPdf';
+import Markdown from '../../components/Markdown';
 import { ErrorCarga, Vacio } from '../../components/ui';
 import AccionesRevision from './AccionesRevision';
 import { CategoriaChip, EstadoBadge, PersonaAvatar } from './DocumentCard';
@@ -22,7 +23,9 @@ export default function DocumentDetailPage({ modulo }: { modulo: Modulo }) {
   const listado = modulo === 'projects' ? '/proyectos' : '/articulos';
   const { estado, recargar } = useApi((signal) => api.document(modulo, id, signal), [modulo, id, usuario?.id]);
   const doc = estado.status === 'ready' ? estado.data.documento : null;
-  // El contenido principal es el primer PDF adjunto; debajo van las imágenes y, si hay, otros archivos.
+  // DEC-B70: el contenido es el texto Markdown, el PDF principal (primer PDF adjunto) o ambos; se muestra primero
+  // el texto y después el PDF, cada uno solo si existe. Debajo van las imágenes y, si hay, otros archivos.
+  const texto = doc?.contenido?.trim() ? doc.contenido : null;
   const pdf = doc ? pdfPrincipal(doc.archivos_adjuntos) : null;
   const extras = doc ? doc.archivos_adjuntos.filter((a) => a.archivo !== pdf?.archivo) : [];
   const imagenes = extras.filter((a) => !esAdjuntoPdf(a) && esImagen(a.url));
@@ -83,6 +86,12 @@ export default function DocumentDetailPage({ modulo }: { modulo: Modulo }) {
               )}
 
               <p className="project-detail__summary">{doc.descripcion}</p>
+
+              {texto && (
+                <section className="app-section" aria-label="Contenido">
+                  <Markdown texto={texto} />
+                </section>
+              )}
 
               {pdf && (
                 <section className="app-section doc-pdf" aria-labelledby="pdf-titulo">

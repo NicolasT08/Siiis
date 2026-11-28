@@ -115,6 +115,11 @@ class DocumentosService
             throw self::soloRevisores();
         }
 
+        // DEC-B70: el borrador puede nacer vacío (el PDF se sube después); creado ya publicado necesita texto.
+        if (!self::esBorrador($estado, $visible) && !self::tieneTexto($input['campos']['contenido'] ?? null)) {
+            throw self::sinTextoNiPdf();
+        }
+
         /** @var list<ObjectId> $integrantes */
         $integrantes = $input['campos']['integrantes'] ?? [];
         $this->validarIntegrantes($integrantes, []);
@@ -176,6 +181,16 @@ class DocumentosService
         }
 
         $set = $input['campos'];
+        // DEC-B70: la edición no puede dejar sin texto ni PDF un documento que tenía alguno, ni publicarlo vacío.
+        $visibleActual = ($documento['visible'] ?? null) === true;
+        $tieneAlgoAntes = self::tieneTextoOPdf($documento);
+        $tieneAlgoDespues = self::tieneTextoOPdf(array_key_exists('contenido', $set) ? ['contenido' => $set['contenido']] + $documento : $documento);
+        $sePublica = self::esBorrador($estadoActual, $visibleActual)
+            && !self::esBorrador($estadoFinal, $nuevoVisible ?? $visibleActual);
+        if (!$tieneAlgoDespues && ($tieneAlgoAntes || $sePublica)) {
+            throw self::sinTextoNiPdf();
+        }
+
         if (array_key_exists('integrantes', $set)) {
             /** @var list<ObjectId> $integrantes */
             $integrantes = $set['integrantes'];
@@ -322,6 +337,14 @@ class DocumentosService
         }
         if ($publicId === null) {
             throw self::archivoNoEncontrado();
+        }
+        // DEC-B70: se puede quitar el último PDF solo si el documento conserva texto.
+        $restantes = array_values(array_filter(
+            is_array($documento['archivos_adjuntos'] ?? null) ? $documento['archivos_adjuntos'] : [],
+            static fn (mixed $a): bool => !is_array($a) || ($a['public_id'] ?? null) !== $publicId,
+        ));
+        if (self::tieneTextoOPdf($documento) && !self::tieneTextoOPdf(['archivos_adjuntos' => $restantes] + $documento)) {
+            throw self::sinTextoNiPdf();
         }
 
         /** @var ObjectId $objectId */
@@ -491,6 +514,57 @@ class DocumentosService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * DEC-B70: el contenido de un documento es su texto Markdown, su PDF o ambos.
+     *
+     * @param array<string, mixed> $documento
+     */
+    private static function tieneTextoOPdf(array $documento): bool
+    {
+        return self::tieneTexto($documento['contenido'] ?? null) || self::tienePdf($documento);
+    }
+
+    private static function tieneTexto(mixed $contenido): bool
+    {
+        return is_string($contenido) && trim($contenido) !== '';
+    }
+
+    /**
+     * Algún adjunto es PDF. Se reconoce por la extensión de la URL de Cloudinary (los PDF se guardan con su
+     * formato, DEC-B42) o del nombre del archivo, igual que el frontend.
+     *
+     * @param array<string, mixed> $documento
+     */
+    private static function tienePdf(array $documento): bool
+    {
+        foreach (is_array($documento['archivos_adjuntos'] ?? null) ? $documento['archivos_adjuntos'] : [] as $adjunto) {
+            if (!is_array($adjunto)) {
+                continue;
+            }
+            $url = is_string($adjunto['url'] ?? null) ? (string) parse_url($adjunto['url'], PHP_URL_PATH) : '';
+            $nombre = is_string($adjunto['nombre_archivo'] ?? null) ? $adjunto['nombre_archivo'] : '';
+            if (preg_match('/\.pdf$/i', $url) === 1 || preg_match('/\.pdf$/i', $nombre) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Borrador: en revisión y oculto. Cualquier otro estado o visibilidad cuenta como publicar (DEC-B70). */
+    private static function esBorrador(string $estado, bool $visible): bool
+    {
+        return $estado === ModuloDocumentos::ESTADO_EN_REVISION && !$visible;
+    }
+
+    private static function sinTextoNiPdf(): ApiException
+    {
+        return ApiException::validation(
+            ['contenido' => 'Escribe el contenido o sube un PDF: el documento necesita al menos uno de los dos.'],
+            'El documento necesita texto, un PDF o ambos.',
+        );
     }
 
     /**
