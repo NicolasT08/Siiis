@@ -49,3 +49,11 @@ export function validarVideo(archivo: File): string | null {
   if (archivo.size > MAX_VIDEO) return `El video pesa ${tamano(archivo.size)}; el máximo es 50 MB.`;
   return null;
 }
+
+/** Hoja de vida de la inscripción (RF-11): solo PDF ≤ 3 MB, opcional. */
+export function validarHojaDeVida(archivo: File): string | null {
+  if (archivo.size === 0) return 'El archivo está vacío.';
+  if (!esPdf(archivo)) return 'La hoja de vida debe ser un PDF.';
+  if (archivo.size > MAX_PDF) return `El PDF pesa ${tamano(archivo.size)}; el máximo es 3 MB.`;
+  return null;
+}

@@ -36,7 +36,7 @@ if ($useTestDb && $dbName === $settings->mongoDbName) {
     exit(1);
 }
 
-$mongo = new Mongo($settings->mongoUri, $dbName);
+$mongo = Mongo::desde($settings, $dbName);
 fwrite(STDOUT, sprintf('Base de datos: %s%s', $dbName, PHP_EOL));
 
 return [$settings, $mongo];

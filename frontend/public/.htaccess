@@ -1,8 +1,42 @@
 # Raíz del sitio en Hostinger (docs/deployment.md): /api/ la atiende public_html/api/ (backend PHP); los archivos
 # que existen se sirven tal cual y cualquier otra ruta (p. ej. /restablecer) va a index.html, la SPA de React.
 RewriteEngine On
+
+# Marca las peticiones HTTPS para la cabecera HSTS de más abajo (directo o detrás del proxy de Hostinger). Va antes
+# de las demás reglas porque esas terminan con [L]. Tras la reescritura a index.html, Apache/LiteSpeed renombran
+# la variable a REDIRECT_SIIIS_HTTPS: abajo se aceptan las dos.
+RewriteCond %{HTTPS} =on [OR]
+RewriteCond %{HTTP:X-Forwarded-Proto} =https
+RewriteRule ^ - [E=SIIIS_HTTPS:1]
+
 RewriteRule ^api/ - [L]
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 RewriteRule ^ index.html [L]
+
+# --- Cabeceras de seguridad (auditoría A-03) ---------------------------------------------------------------------
+# Directivas compatibles con LiteSpeed (sin <If>). Cada bloque va en <IfModule>: si el módulo no existe, se ignora
+# y el sitio sigue funcionando sin la cabecera.
+#
+# La API (public_html/api/) envía sus propias cabeceras, más estrictas, desde PHP (SecurityHeadersMiddleware):
+# SIIIS_API las deja intactas. Si mod_setenvif no existe, SIIIS_API no se define y estas cabeceras también se
+# aplican a la API (sin riesgo: son las mismas o más permisivas solo en X-Frame-Options y Referrer-Policy).
+<IfModule mod_setenvif.c>
+  SetEnvIf Request_URI "^/api/" SIIIS_API
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff" env=!SIIIS_API
+  Header always set X-Frame-Options "SAMEORIGIN" env=!SIIIS_API
+  Header always set Referrer-Policy "strict-origin-when-cross-origin" env=!SIIIS_API
+  # HSTS solo si la petición llegó por HTTPS (SIIIS_HTTPS, ver arriba).
+  Header always set Strict-Transport-Security "max-age=15552000" env=SIIIS_HTTPS
+  Header always set Strict-Transport-Security "max-age=15552000" env=REDIRECT_SIIIS_HTTPS
+
+  # index.html nunca se reutiliza sin revalidar: tras un despliegue, el navegador recibe enseguida el que apunta
+  # a los archivos nuevos de /assets (los viejos ya no existen). Cubre también las rutas de la SPA reescritas.
+  <FilesMatch "^index\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>

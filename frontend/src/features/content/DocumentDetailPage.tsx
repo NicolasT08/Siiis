@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Download, FileSearch, FileText, Image as ImageIcon, Pencil, User } from 'lucide-react';
+import { ArrowLeft, Calendar, FileSearch, FileText, Image as ImageIcon, Pencil, User } from 'lucide-react';
 import ProjectsHero from '../projects/components/ProjectsHero';
 import { api } from '../../lib/api';
 import type { Modulo } from '../../lib/api';
@@ -7,10 +7,10 @@ import { esNoEncontrado } from '../../lib/errors';
 import { fecha, nombrePersona } from '../../lib/format';
 import { useApi } from '../../lib/useApi';
 import { useAuth } from '../../lib/auth';
-import { esAdjuntoPdf, pdfPrincipal, urlDescarga } from '../../lib/documentoPdf';
-import Markdown from '../../components/Markdown';
+import { esAdjuntoPdf, pdfPrincipal } from '../../lib/documentoPdf';
 import { ErrorCarga, Vacio } from '../../components/ui';
 import AccionesRevision from './AccionesRevision';
+import DocumentoContenido from './DocumentoContenido';
 import { CategoriaChip, EstadoBadge, PersonaAvatar } from './DocumentCard';
 import '../projects/projects.css';
 
@@ -25,7 +25,6 @@ export default function DocumentDetailPage({ modulo }: { modulo: Modulo }) {
   const doc = estado.status === 'ready' ? estado.data.documento : null;
   // DEC-B70: el contenido es el texto Markdown, el PDF principal (primer PDF adjunto) o ambos; se muestra primero
   // el texto y después el PDF, cada uno solo si existe. Debajo van las imágenes y, si hay, otros archivos.
-  const texto = doc?.contenido?.trim() ? doc.contenido : null;
   const pdf = doc ? pdfPrincipal(doc.archivos_adjuntos) : null;
   const extras = doc ? doc.archivos_adjuntos.filter((a) => a.archivo !== pdf?.archivo) : [];
   const imagenes = extras.filter((a) => !esAdjuntoPdf(a) && esImagen(a.url));
@@ -87,33 +86,7 @@ export default function DocumentDetailPage({ modulo }: { modulo: Modulo }) {
 
               <p className="project-detail__summary">{doc.descripcion}</p>
 
-              {texto && (
-                <section className="app-section" aria-label="Contenido">
-                  <Markdown texto={texto} />
-                </section>
-              )}
-
-              {pdf && (
-                <section className="app-section doc-pdf" aria-labelledby="pdf-titulo">
-                  <div className="doc-pdf__header">
-                    <h3 id="pdf-titulo">
-                      <FileText size={18} aria-hidden="true" /> {pdf.nombre_archivo}
-                    </h3>
-                    <a className="btn btn--bronze btn--sm" href={urlDescarga(pdf.url)} download={pdf.nombre_archivo} target="_blank" rel="noopener noreferrer">
-                      <Download size={16} aria-hidden="true" /> Descargar PDF
-                    </a>
-                  </div>
-                  <object className="doc-pdf__viewer" data={pdf.url} type="application/pdf" aria-label={`Documento: ${pdf.nombre_archivo}`}>
-                    <p className="app-hint">
-                      Tu navegador no puede mostrar el PDF aquí.{' '}
-                      <a href={pdf.url} target="_blank" rel="noopener noreferrer">
-                        Ábrelo en otra pestaña
-                      </a>
-                      .
-                    </p>
-                  </object>
-                </section>
-              )}
+              <DocumentoContenido documento={doc} />
 
               {doc.integrantes.length > 0 && (
                 <section className="app-section" aria-labelledby="integrantes-titulo">

@@ -113,7 +113,7 @@ Copy-Item -LiteralPath (Join-Path $Backend 'cron') -Destination $Api -Recurse
 # Scripts que se usan en produccion (docs/deployment.md, paso 8). Los de desarrollo no se copian.
 $Scripts = Join-Path $Api 'scripts'
 New-Item -ItemType Directory -Path (Join-Path $Scripts 'data') -Force | Out-Null
-foreach ($script in @('cli.php', 'crear_indices.php', 'crear_superadmin.php', 'seed_multimedia.php', 'cargar_multimedia.php')) {
+foreach ($script in @('cli.php', 'crear_indices.php', 'crear_superadmin.php', 'seed_multimedia.php', 'cargar_multimedia.php', 'respaldar_base.php')) {
     Copy-Item -LiteralPath (Join-Path $Backend "scripts\$script") -Destination $Scripts
 }
 Copy-Item -LiteralPath (Join-Path $Backend 'scripts\data\multimedia_seed.example.json') -Destination (Join-Path $Scripts 'data')
@@ -292,6 +292,7 @@ if ($LASTEXITCODE -ne 0) { $Problemas.Add('El autoload de produccion no carga Si
 if (-not (Test-Path (Join-Path $Scripts 'cargar_multimedia.php')) -or -not (Test-Path (Join-Path $Scripts 'multimedia\PlanMultimedia.php'))) {
     $Problemas.Add('Falta scripts/cargar_multimedia.php o scripts/multimedia/.')
 }
+if (-not (Test-Path (Join-Path $Scripts 'respaldar_base.php'))) { $Problemas.Add('Falta scripts/respaldar_base.php (respaldos, A-01).') }
 # El frontend no piso la API.
 if ((Read-Archivo (Join-Path $PublicHtml 'api\index.php')) -notmatch [regex]::Escape($LineaHostinger)) {
     $Problemas.Add('public_html/api/index.php no es el del backend.')

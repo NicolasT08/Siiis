@@ -6,6 +6,8 @@ import { AREAS_INTERES as AREAS, SITIO } from '../../config/sitio';
 import { api } from '../../lib/api';
 import { erroresDeCampo, mensajeError } from '../../lib/errors';
 import { Aviso, ErrorCampo } from '../../components/ui';
+import SelectorArchivos from '../../components/SelectorArchivos';
+import { validarHojaDeVida } from '../../lib/archivos';
 import '../projects/projects.css';
 import './registration.css';
 
@@ -16,6 +18,8 @@ export default function InscripcionPage() {
   const [ok, setOk] = useState('');
   const [error, setError] = useState('');
   const [campos, setCampos] = useState<Record<string, string>>({});
+  // RF-11: hoja de vida opcional, un PDF; viaja en documentos[] (DEC-B49, DEC-B63).
+  const [hojaDeVida, setHojaDeVida] = useState<File[]>([]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,6 +39,8 @@ export default function InscripcionPage() {
     if (!Number.isInteger(semestre) || semestre < 1 || semestre > 10) errores.semestre = 'Elige un semestre entre 1 y 10.';
     const cartaTexto = texto('motivacion');
     if (!cartaTexto) errores.carta_motivacion = 'Este campo es obligatorio.';
+    const problemaHoja = hojaDeVida[0] ? validarHojaDeVida(hojaDeVida[0]) : null;
+    if (problemaHoja) errores.documentos = problemaHoja;
     if (datos.get('disponibilidad') !== 'on') errores.disponibilidad = 'Confirma tu disponibilidad para las reuniones semanales.';
 
     setOk('');
@@ -57,9 +63,10 @@ export default function InscripcionPage() {
         areas_interes: datos.getAll('areas_interes').map(String),
         carta_motivacion: cartaTexto,
         disponibilidad: true,
-        documentos: [],
+        documentos: hojaDeVida,
       });
       form.reset();
+      setHojaDeVida([]);
       setOk(respuesta.mensaje);
     } catch (e) {
       setCampos(erroresDeCampo(e));
@@ -193,6 +200,23 @@ export default function InscripcionPage() {
               />
               <ErrorCampo id="ins-carta_motivacion-e" mensaje={campos.carta_motivacion} />
             </label>
+
+            <fieldset className="registration-areas registration-cv">
+              <legend>Hoja de vida (PDF)</legend>
+              <SelectorArchivos
+                archivos={hojaDeVida}
+                onChange={(archivos) => {
+                  setHojaDeVida(archivos);
+                  setCampos((c) => ({ ...c, documentos: '' }));
+                }}
+                accept="application/pdf,.pdf"
+                ayuda="Opcional. PDF de hasta 3 MB"
+                disabled={enviando}
+                invalido={!!campos.documentos}
+                errorId="ins-documentos-e"
+              />
+              <ErrorCampo id="ins-documentos-e" mensaje={campos.documentos} />
+            </fieldset>
 
             <label className="registration-commitment">
               <input type="checkbox" name="disponibilidad" required disabled={enviando} {...invalido('disponibilidad')} />

@@ -1,6 +1,7 @@
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import AuthModal from '../../components/AuthModal';
 import { useAuth } from '../../lib/auth';
+import { MENSAJE_SESION_EXPIRADA } from '../../lib/sesion';
 
 /**
  * /login: el mismo formulario del menú, abierto sobre la página. Aquí llegan las rutas protegidas sin sesión
@@ -17,7 +18,7 @@ export default function LoginPage() {
   return (
     <section className="container app-page" aria-label="Iniciar sesión">
       <AuthModal
-        aviso={sesionExpirada ? 'Tu sesión terminó. Inicia sesión de nuevo para continuar.' : undefined}
+        aviso={sesionExpirada ? MENSAJE_SESION_EXPIRADA : undefined}
         onClose={() => navigate('/', { replace: true })}
         onSuccess={() => navigate(desde, { replace: true })}
       />

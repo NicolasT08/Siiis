@@ -48,7 +48,7 @@ abstract class IntegrationTestCase extends TestCase
         self::$settings = Settings::fromEnv(['MONGO_DB_NAME' => $testDb, 'APP_ENV' => 'testing'] + $env + [
             'JWT_SECRET' => str_repeat('x', 32),
         ], $storage);
-        self::$mongo = new Mongo(self::$settings->mongoUri, $testDb);
+        self::$mongo = Mongo::desde(self::$settings, $testDb);
 
         if (!self::$mongo->ping()) {
             self::$settings = null;

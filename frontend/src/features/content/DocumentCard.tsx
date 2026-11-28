@@ -4,6 +4,7 @@ import { ArrowUpRight, Calendar, CircleCheck, Clock, EyeOff, FileText, FolderKan
 import type { LucideIcon } from 'lucide-react';
 import type { DocumentoResumen, EstadoDocumento, PersonaDocumento } from '../../lib/api';
 import { ETIQUETA_CATEGORIA, ETIQUETA_ESTADO, fecha, iniciales, moduloDeCategoria, nombrePersona, rutaDocumento } from '../../lib/format';
+import { abrirVistaPrevia } from './vistaPrevia';
 import '../projects/projects.css';
 
 const ESTILO_ESTADO: Record<EstadoDocumento, { clase: string; Icono: LucideIcon }> = {
@@ -53,8 +54,20 @@ export function PersonaAvatar({ persona, className = 'avatar' }: { persona: Pers
   );
 }
 
-/** Tarjeta de un proyecto, artículo o noticia (resumen de los listados). */
-export default function DocumentCard({ documento, mostrarEstado = true }: { documento: DocumentoResumen; mostrarEstado?: boolean }) {
+/**
+ * Tarjeta de un proyecto, artículo o noticia (resumen de los listados). Con `onPrevisualizar`, un clic abre la
+ * vista previa en la misma pantalla (RF-05); el enlace se conserva para abrir en otra pestaña (Ctrl/Cmd + clic o
+ * clic central) y para quien no usa JavaScript.
+ */
+export default function DocumentCard({
+  documento,
+  mostrarEstado = true,
+  onPrevisualizar,
+}: {
+  documento: DocumentoResumen;
+  mostrarEstado?: boolean;
+  onPrevisualizar?: (documento: DocumentoResumen) => void;
+}) {
   const to = rutaDocumento(moduloDeCategoria(documento.categoria), documento.id);
   const cuando = fecha(documento.fecha_creacion);
   return (
@@ -63,11 +76,11 @@ export default function DocumentCard({ documento, mostrarEstado = true }: { docu
         <div className="project-card__top">
           <CategoriaChip categoria={documento.categoria} />
           <span className="project-card__open" aria-hidden="true">
-            Abrir <ArrowUpRight size={14} />
+            {onPrevisualizar ? 'Vista previa' : 'Abrir'} <ArrowUpRight size={14} />
           </span>
         </div>
         <h3 className="project-card__title">
-          <Link to={to} className="project-card__link">
+          <Link to={to} className="project-card__link" onClick={onPrevisualizar ? (e) => abrirVistaPrevia(e, () => onPrevisualizar(documento)) : undefined}>
             {documento.titulo}
           </Link>
         </h3>

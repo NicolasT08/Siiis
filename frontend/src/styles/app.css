@@ -290,3 +290,21 @@ fieldset.app-field { margin: 0; padding: 0; border: 0; }
 .doc-pdf__header h3 { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .doc-pdf__viewer { display: block; width: 100%; height: min(80vh, 900px); margin-top: 0.8rem; border: 1px solid #e3d8c2; border-radius: 10px; background: #eef1f4; }
 @media (max-width: 640px) { .doc-pdf__viewer { height: 70vh; } }
+
+/* Error global (ErrorBoundary, auditoría A-02): aviso centrado aunque no se haya dibujado el menú ni el pie. */
+.app-fatal { display: grid; place-items: center; min-height: 100vh; padding: 1.5rem 1rem; background: var(--siiis-cream, #f7f3ea); }
+.app-fatal .app-empty { width: min(100%, 560px); box-shadow: var(--siiis-shadow); }
+.app-fatal .app-actions { justify-content: center; margin-top: 0.4rem; }
+
+/* Vista previa de una publicación (RF-05) sobre el mismo fondo de los diálogos. */
+.app-dialog--preview { max-width: 880px; text-align: left; }
+.app-dialog--preview .project-detail__meta { margin: 0 0 0.8rem; }
+.app-dialog--preview .doc-pdf__viewer { height: min(65vh, 720px); }
+.app-dialog--preview .app-dialog__actions { position: sticky; bottom: -1.6rem; margin: 1.2rem -1.6rem -1.6rem; padding: 0.9rem 1.6rem; background: #fff; border-top: 1px solid #edf0f3; }
+.doc-preview__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.6rem; }
+.doc-preview__close { flex: none; min-width: 40px; padding: 0; justify-content: center; }
+@media (max-width: 640px) {
+  .app-dialog--preview { padding: 1.2rem; }
+  .app-dialog--preview .app-dialog__actions { bottom: -1.2rem; margin: 1rem -1.2rem -1.2rem; padding: 0.8rem 1.2rem; }
+  .app-dialog--preview .doc-pdf__viewer { height: 60vh; }
+}

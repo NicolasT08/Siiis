@@ -82,6 +82,7 @@ abstract class AuthTestCase extends ApiTestCase
             'JWT_SECRET' => \Siiis\Tests\Support\TestSettings::JWT_SECRET,
             'RATE_LIMIT_LOGIN_MAX' => '100',
             'RATE_LIMIT_FORGOT_MAX' => '100',
+            'RATE_LIMIT_RESET_MAX' => '100',
             'RATE_LIMIT_CHANGE_PASSWORD_MAX' => '100',
             'RATE_LIMIT_REVIEWS_MAX' => '100',
             'RATE_LIMIT_CONTACT_MAX' => '100',

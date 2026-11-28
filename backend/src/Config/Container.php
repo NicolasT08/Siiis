@@ -33,7 +33,7 @@ final class Container
         $builder->addDefinitions([
             Settings::class => $settings,
             Logger::class => factory(static fn (Settings $s): Logger => new Logger($s->storagePath . '/logs')),
-            Mongo::class => factory(static fn (Settings $s): Mongo => new Mongo($s->mongoUri, $s->mongoDbName)),
+            Mongo::class => factory(static fn (Settings $s): Mongo => Mongo::desde($s)),
             Clock::class => get(SystemClock::class),
             JwtService::class => factory(
                 static fn (Settings $s, Clock $clock): JwtService => new JwtService($s->jwtSecret, $s->jwtTtlSeconds, $clock),

@@ -1,5 +1,7 @@
 // Cliente único de la API SIIIS. Contrato: docs/api.md (rutas en inglés, campos exactos).
 
+import { calcularVencimiento, leerVencimiento } from './sesion';
+
 /** VITE_API_URL si se define; si no, el backend local en desarrollo y la ruta relativa en producción. */
 const API_POR_DEFECTO = import.meta.env.DEV ? 'http://localhost:8000/api/v1' : '/api/v1';
 export const API_URL = (import.meta.env.VITE_API_URL || API_POR_DEFECTO).replace(/\/+$/, '');
@@ -225,8 +227,13 @@ const NETWORK_MESSAGE = 'No se pudo conectar con el servidor. Revisa tu conexió
 // Token y sesión vencida
 // ---------------------------------------------------------------------------------------------------
 
-// Token: localStorage con "Recordarme", sessionStorage sin él (api.md, POST /auth/login).
+// Token: localStorage con "Recordarme", sessionStorage sin él (api.md, POST /auth/login). Junto al token se guarda
+// el instante en que vence (RNF-05, `expira_en`), en el mismo almacenamiento.
 const TOKEN_KEY = 'siiis_token';
+const VENCE_KEY = 'siiis_token_vence';
+
+/** Copia en memoria por si el almacenamiento no está disponible (modo privado): dura hasta recargar. */
+let venceEnMemoria: number | null = null;
 
 export const tokenStorage = {
   get(): string | null {
@@ -236,18 +243,35 @@ export const tokenStorage = {
       return null;
     }
   },
-  save(token: string, remember: boolean) {
-    tokenStorage.clear();
+  /** Instante (ms desde epoch) en que vence el token guardado; null si no se conoce. */
+  vencimiento(): number | null {
     try {
-      (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
+      const guardado = localStorage.getItem(TOKEN_KEY) !== null ? localStorage.getItem(VENCE_KEY) : sessionStorage.getItem(VENCE_KEY);
+      return leerVencimiento(guardado) ?? venceEnMemoria;
+    } catch {
+      return venceEnMemoria;
+    }
+  },
+  /** `expiraEn`: segundos de validez que devolvió el login. */
+  save(token: string, remember: boolean, expiraEn: number) {
+    tokenStorage.clear();
+    const vence = calcularVencimiento(expiraEn, Date.now());
+    venceEnMemoria = vence;
+    try {
+      const almacen = remember ? localStorage : sessionStorage;
+      almacen.setItem(TOKEN_KEY, token);
+      almacen.setItem(VENCE_KEY, String(vence));
     } catch {
       // Almacenamiento no disponible (modo privado): la sesión dura hasta recargar.
     }
   },
   clear() {
+    venceEnMemoria = null;
     try {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(VENCE_KEY);
       sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(VENCE_KEY);
     } catch {
       // Nada que limpiar.
     }
