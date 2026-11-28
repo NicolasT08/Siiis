@@ -48,9 +48,9 @@ export default function SelectorArchivos({ archivos, onChange, accept, max = 1, 
         aria-describedby={[`${id}-ayuda`, errorId].filter(Boolean).join(' ')}
         onChange={(e) => elegir(e.target.files)}
       />
-      <label htmlFor={id} className={`btn btn--navy file-picker__button${disabled || lleno ? ' is-disabled' : ''}`}>
+      <label htmlFor={id} className={`btn btn--navy btn-archivo file-picker__button${disabled || lleno ? ' is-disabled' : ''}`}>
         <Paperclip size={16} aria-hidden="true" />
-        {etiqueta ?? (max > 1 ? 'Elegir archivos' : archivos.length ? 'Cambiar archivo' : 'Elegir archivo')}
+        {etiqueta ?? (max > 1 ? 'Seleccionar archivos' : archivos.length ? 'Cambiar archivo' : 'Seleccionar archivo')}
       </label>
       <span id={`${id}-ayuda`} className="file-picker__hint">
         {ayuda}

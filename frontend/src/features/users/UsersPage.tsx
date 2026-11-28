@@ -22,8 +22,8 @@ export default function UsersPage() {
   const rol = (ROLES as readonly string[]).includes(rolParam) ? (rolParam as Rol) : '';
 
   // El carrusel presenta a las primeras personas; el directorio se pagina en la API (GET /users).
-  const destacados = useApi((signal) => api.users({ per_page: 12 }, signal), []);
-  const directorio = useApi((signal) => api.users({ page, per_page: POR_PAGINA, rol }, signal), [page, rol]);
+  const destacados = useApi((signal) => api.members({ per_page: 12 }, signal), []);
+  const directorio = useApi((signal) => api.members({ page, per_page: POR_PAGINA, rol }, signal), [page, rol]);
 
   const cambiar = (cambio: { page?: number; rol?: string }) => {
     const next = new URLSearchParams(params);

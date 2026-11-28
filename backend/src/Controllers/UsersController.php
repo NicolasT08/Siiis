@@ -21,8 +21,11 @@ use Siiis\Validation\UsersQueryValidator;
  */
 final class UsersController
 {
-    /** Respuesta pública cacheable un minuto; con sesión no se guarda (DEC-B26). */
-    private const CACHE_PUBLICA = 'public, max-age=60';
+    /**
+     * Respuesta pública: se puede guardar, pero hay que revalidarla siempre (DEC-B72, antes `max-age=60` por
+     * DEC-B26). Así, desactivar a alguien se ve al instante en "Integrantes". Con sesión no se guarda.
+     */
+    private const CACHE_PUBLICA = 'public, no-cache';
 
     public function __construct(
         private readonly UsersService $users,
@@ -113,6 +116,18 @@ final class UsersController
             (string) $request->getAttribute(AuthMiddleware::ATTR_ROL),
             $imagen['path'],
         );
+
+        return JsonResponse::ok(['usuario' => $usuario])->withHeader('Cache-Control', 'no-store');
+    }
+
+    /**
+     * DELETE /api/v1/users/{id}/photo — el usuario autenticado quita su propia foto (RF-06, DEC-B74).
+     *
+     * @param array{id: string} $args
+     */
+    public function removePhoto(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $usuario = $this->users->quitarFoto($args['id'], (string) $request->getAttribute(AuthMiddleware::ATTR_USUARIO_ID));
 
         return JsonResponse::ok(['usuario' => $usuario])->withHeader('Cache-Control', 'no-store');
     }

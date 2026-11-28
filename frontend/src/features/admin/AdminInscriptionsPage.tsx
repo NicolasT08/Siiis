@@ -171,9 +171,9 @@ export function AdminInscriptionDetailPage() {
           </div>
 
           <div className="app-card">
-            <h2>Documentos</h2>
+            <h2>Documentos (hoja de vida)</h2>
             <p className="app-hint">Los enlaces son privados y vencen en 1 hora; si vencen, recarga la página para obtener unos nuevos.</p>
-            {ins.documentos_adjuntos.length === 0 && <p className="app-hint">El aspirante no adjuntó documentos (son opcionales).</p>}
+            {ins.documentos_adjuntos.length === 0 && <p className="app-hint">El aspirante no adjuntó la hoja de vida ni otros documentos (son opcionales).</p>}
             <ul className="app-files">
               {ins.documentos_adjuntos.map((d, i) => (
                 <li key={`${d.nombre_archivo}-${i}`}>

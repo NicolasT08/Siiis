@@ -61,9 +61,9 @@ final class FakeCloudinaryService extends CloudinaryService
     /** @var list<string> public_id borrados como video */
     public array $borradosVideo = [];
 
-    public function uploadVideo(string $path, string $folder): array
+    public function uploadVideo(string $path, string $folder, array $transformacion = []): array
     {
-        $subido = $this->registrar($path, $folder, self::FORMATOS_VIDEO, [], false);
+        $subido = $this->registrar($path, $folder, self::FORMATOS_VIDEO, $transformacion, false);
         $this->videosSubidos[] = $subido['public_id'];
 
         return ['url' => str_replace('/image/', '/video/', $subido['url']), 'public_id' => $subido['public_id']];

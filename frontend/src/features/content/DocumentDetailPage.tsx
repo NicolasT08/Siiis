@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, FileSearch, FileText, Paperclip, Pencil, User } from 'lucide-react';
+import { ArrowLeft, Calendar, FileSearch, FileText, Image as ImageIcon, Pencil, User } from 'lucide-react';
 import ProjectsHero from '../projects/components/ProjectsHero';
 import { api } from '../../lib/api';
 import type { Modulo } from '../../lib/api';
@@ -7,9 +7,10 @@ import { esNoEncontrado } from '../../lib/errors';
 import { fecha, nombrePersona } from '../../lib/format';
 import { useApi } from '../../lib/useApi';
 import { useAuth } from '../../lib/auth';
-import Markdown from '../../components/Markdown';
+import { esAdjuntoPdf, pdfPrincipal } from '../../lib/documentoPdf';
 import { ErrorCarga, Vacio } from '../../components/ui';
 import AccionesRevision from './AccionesRevision';
+import DocumentoContenido from './DocumentoContenido';
 import { CategoriaChip, EstadoBadge, PersonaAvatar } from './DocumentCard';
 import '../projects/projects.css';
 
@@ -22,6 +23,12 @@ export default function DocumentDetailPage({ modulo }: { modulo: Modulo }) {
   const listado = modulo === 'projects' ? '/proyectos' : '/articulos';
   const { estado, recargar } = useApi((signal) => api.document(modulo, id, signal), [modulo, id, usuario?.id]);
   const doc = estado.status === 'ready' ? estado.data.documento : null;
+  // DEC-B70: el contenido es el texto Markdown, el PDF principal (primer PDF adjunto) o ambos; se muestra primero
+  // el texto y después el PDF, cada uno solo si existe. Debajo van las imágenes y, si hay, otros archivos.
+  const pdf = doc ? pdfPrincipal(doc.archivos_adjuntos) : null;
+  const extras = doc ? doc.archivos_adjuntos.filter((a) => a.archivo !== pdf?.archivo) : [];
+  const imagenes = extras.filter((a) => !esAdjuntoPdf(a) && esImagen(a.url));
+  const otros = extras.filter((a) => !imagenes.includes(a));
 
   return (
     <div className="projects-page">
@@ -78,7 +85,8 @@ export default function DocumentDetailPage({ modulo }: { modulo: Modulo }) {
               )}
 
               <p className="project-detail__summary">{doc.descripcion}</p>
-              {doc.contenido ? <Markdown texto={doc.contenido} /> : null}
+
+              <DocumentoContenido documento={doc} />
 
               {doc.integrantes.length > 0 && (
                 <section className="app-section" aria-labelledby="integrantes-titulo">
@@ -96,21 +104,32 @@ export default function DocumentDetailPage({ modulo }: { modulo: Modulo }) {
                 </section>
               )}
 
-              {doc.archivos_adjuntos.length > 0 && (
-                <section className="app-section" aria-labelledby="adjuntos-titulo">
-                  <h3 id="adjuntos-titulo">
-                    <Paperclip size={18} aria-hidden="true" /> Archivos adjuntos
+              {imagenes.length > 0 && (
+                <section className="app-section" aria-labelledby="imagenes-titulo">
+                  <h3 id="imagenes-titulo">
+                    <ImageIcon size={18} aria-hidden="true" /> Imágenes
                   </h3>
                   <ul className="app-files">
-                    {doc.archivos_adjuntos.map((a) => (
+                    {imagenes.map((a) => (
                       <li key={a.archivo}>
                         <a href={a.url} target="_blank" rel="noopener noreferrer">
-                          {esImagen(a.url) ? (
-                            <img src={a.url} alt="" loading="lazy" />
-                          ) : (
-                            // Miniatura de la primera página del PDF (api.md 11a: cambiar .pdf por .jpg).
-                            <img src={a.url.replace(/\.pdf(\?|$)/i, '.jpg$1')} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                          )}
+                          <img src={a.url} alt={a.nombre_archivo} loading="lazy" />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {otros.length > 0 && (
+                <section className="app-section" aria-labelledby="otros-titulo">
+                  <h3 id="otros-titulo">
+                    <FileText size={18} aria-hidden="true" /> Otros archivos
+                  </h3>
+                  <ul className="app-files">
+                    {otros.map((a) => (
+                      <li key={a.archivo}>
+                        <a href={a.url} target="_blank" rel="noopener noreferrer">
                           <span>
                             <FileText size={16} aria-hidden="true" /> {a.nombre_archivo}
                           </span>

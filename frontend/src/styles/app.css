@@ -62,8 +62,24 @@ fieldset.app-field { margin: 0; padding: 0; border: 0; }
 
 /* Selector de archivos propio (SelectorArchivos): botón como los del sitio en lugar del control nativo. */
 .file-picker { display: grid; justify-items: start; gap: 0.5rem; font-size: 0.85rem; font-weight: 500; }
-.file-picker__button { cursor: pointer; }
-.file-picker input:focus-visible + .file-picker__button { outline: 3px solid var(--siiis-gold); outline-offset: 2px; }
+/* Botón que abre el selector de archivos (.btn-archivo): es un <label> con el <input type="file"> oculto, así que
+   las reglas de etiquetas de los formularios (.registration-form label, .app-field…) le cambiaban el color, la
+   tipografía y las mayúsculas: texto azul sobre fondo azul. Con label.btn.btn-archivo (0,2,1) ninguna regla de
+   "form label" (0,1,1) lo pisa. Lo usan SelectorArchivos (inscripción, PDF de documentos, fotos y video del panel),
+   la foto de perfil y las imágenes adjuntas del editor. */
+label.btn.btn-archivo {
+  margin: 0;
+  font: 600 0.9rem/1 var(--font-body);
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+}
+label.btn-archivo.btn--navy, label.btn-archivo.btn--navy:hover { color: #fff; }
+label.btn-archivo.btn--navy:hover:not(.is-disabled) { background: var(--siiis-blue); }
+label.btn-archivo.is-disabled, label.btn-archivo.is-disabled:hover { background: var(--siiis-navy); cursor: not-allowed; }
+/* El foco lo recibe el input oculto: se dibuja en el botón (input hermano o input dentro del label). */
+.file-picker input:focus-visible + .btn-archivo,
+label.btn-archivo:has(input:focus-visible) { outline: 3px solid var(--siiis-gold); outline-offset: 2px; }
 .file-picker__hint, .file-picker__empty { margin: 0; color: var(--siiis-ink-muted); font-size: 0.8rem; }
 .file-picker__list { display: grid; gap: 0.4rem; width: 100%; margin: 0; padding: 0; list-style: none; }
 .file-picker__list li {
@@ -131,8 +147,27 @@ fieldset.app-field { margin: 0; padding: 0; border: 0; }
 .app-markdown table { width: 100%; border-collapse: collapse; }
 .app-markdown th, .app-markdown td { padding: 0.45rem 0.6rem; border: 1px solid #dfe4ea; text-align: left; }
 .app-markdown blockquote { margin: 1rem 0; padding: 0.3rem 1rem; border-left: 4px solid var(--siiis-gold); color: var(--siiis-ink-muted); }
+
+/* Editor de Markdown del formulario de documentos (DEC-B70): reutiliza .app-tabs, .btn y los campos de .app-field. */
+.md-editor { letter-spacing: normal; text-transform: none; }
+.md-editor__tabs { margin-bottom: 0.6rem; }
+.md-editor__toolbar { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
+.md-editor__toolbar .btn { min-width: 36px; padding: 0 0.55rem; }
+.md-editor textarea { min-height: 260px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.9rem; letter-spacing: normal; text-transform: none; }
+/* Diálogo de confirmación (ConfirmDialog) sobre el fondo .modal-overlay del inicio de sesión. */
+.app-dialog {
+  width: 100%; max-width: 440px; max-height: 92vh; overflow-y: auto; padding: 1.6rem;
+  background: #fff; border-radius: 20px; box-shadow: 0 40px 90px rgba(0, 10, 20, 0.45); font: 500 0.95rem/1.5 var(--font-body);
+}
+.app-dialog__icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 0.8rem; border-radius: 50%; background: #fdecea; color: #9c2a1f; }
+.app-dialog h2 { margin: 0 0 0.5rem; color: var(--siiis-navy); font: 700 1.3rem/1.25 var(--font-heading); }
+.app-dialog__body p { margin: 0 0 0.5rem; color: #3b4a59; }
+.app-dialog__body strong { color: var(--siiis-navy); overflow-wrap: anywhere; }
+.app-dialog .app-alert { margin: 0.8rem 0 0; }
+.app-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.6rem; margin-top: 1.2rem; }
+.md-editor__preview { min-height: 260px; padding: 0.8rem 1rem; border: 1px solid #e3d8c2; border-radius: 10px; background: #fff; letter-spacing: normal; text-transform: none; }
 .app-people { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
-.app-people a, .app-people span.app-person {
+.app-people a:not(.btn), .app-people span.app-person {
   display: inline-flex; align-items: center; gap: 0.5rem;
   padding: 0.35rem 0.75rem 0.35rem 0.35rem; border-radius: 999px;
   background: #f1f4f8; color: var(--siiis-navy); font-size: 0.88rem; text-decoration: none;
@@ -140,7 +175,7 @@ fieldset.app-field { margin: 0; padding: 0; border: 0; }
 .app-people button { border: 0; background: none; color: #b3261e; cursor: pointer; font-size: 1rem; line-height: 1; }
 .app-files { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.8rem; margin: 0; padding: 0; list-style: none; }
 .app-files li { display: grid; gap: 0.4rem; }
-.app-files a { display: grid; gap: 0.4rem; color: var(--siiis-navy); font-size: 0.85rem; text-decoration: none; overflow-wrap: anywhere; }
+.app-files a:not(.btn) { display: grid; gap: 0.4rem; color: var(--siiis-navy); font-size: 0.85rem; text-decoration: none; overflow-wrap: anywhere; }
 .app-files img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; background: #eef1f4; }
 .app-files a span { display: inline-flex; align-items: center; gap: 0.35rem; }
 
@@ -193,7 +228,7 @@ fieldset.app-field { margin: 0; padding: 0; border: 0; }
 .app-table th, .app-table td { padding: 0.75rem 0.9rem; border-bottom: 1px solid #edf0f3; text-align: left; vertical-align: top; }
 .app-table th { background: #f6f8fa; color: var(--siiis-ink-muted); font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .app-table tr:last-child td { border-bottom: 0; }
-.app-table td a { color: var(--siiis-navy); font-weight: 600; }
+.app-table td a:not(.btn) { color: var(--siiis-navy); font-weight: 600; }
 .app-table .app-actions { gap: 0.4rem; }
 .app-table tr.is-unread td { background: #fffaf0; font-weight: 600; }
 .app-tag { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 999px; background: #eef1f4; color: var(--siiis-navy); font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
@@ -201,7 +236,7 @@ fieldset.app-field { margin: 0; padding: 0; border: 0; }
 .app-tag--warn { background: #fff4d6; color: #7a5600; }
 .app-tag--bad { background: #fdecea; color: #9c2a1f; }
 .app-dash { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
-.app-dash a {
+.app-dash a:not(.btn) {
   display: grid; gap: 0.4rem; padding: 1.25rem; border-radius: var(--siiis-radius);
   background: #fff; box-shadow: var(--siiis-shadow); color: var(--siiis-navy); text-decoration: none;
 }
@@ -256,3 +291,37 @@ fieldset.app-field { margin: 0; padding: 0; border: 0; }
 }
 .carousel-empty > svg { color: var(--siiis-bronze); }
 .carousel-empty p { margin: 0; }
+
+/* Páginas legales (/privacidad y /terminos) */
+.legal { max-width: 820px; margin: 0 auto; color: var(--siiis-ink); line-height: 1.7; }
+.legal h2 { margin: 1.6rem 0 0.5rem; color: var(--siiis-navy); font: 700 1.2rem/1.3 var(--font-heading); }
+.legal p, .legal ul { margin: 0 0 0.8rem; }
+.legal ul { padding-left: 1.2rem; }
+.legal li { margin-bottom: 0.35rem; }
+.legal a:not(.btn) { color: var(--siiis-navy); font-weight: 600; }
+.footer__legal { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
+
+/* Documento PDF principal incrustado en el detalle de proyectos, artículos y noticias. */
+.doc-pdf__header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.doc-pdf__header h3 { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.doc-pdf__viewer { display: block; width: 100%; height: min(80vh, 900px); margin-top: 0.8rem; border: 1px solid #e3d8c2; border-radius: 10px; background: #eef1f4; }
+@media (max-width: 640px) { .doc-pdf__viewer { height: 70vh; } }
+
+/* Error global (ErrorBoundary, auditoría A-02): aviso centrado aunque no se haya dibujado el menú ni el pie. */
+.app-fatal { display: grid; place-items: center; min-height: 100vh; padding: 1.5rem 1rem; background: var(--siiis-cream, #f7f3ea); }
+.app-fatal .app-empty { width: min(100%, 560px); box-shadow: var(--siiis-shadow); }
+.app-fatal .app-actions { justify-content: center; margin-top: 0.4rem; }
+
+/* Vista previa de una publicación (RF-05) sobre el mismo fondo de los diálogos. */
+.app-dialog--preview { max-width: 880px; text-align: left; }
+.app-dialog--preview .project-detail__meta { margin: 0 0 0.8rem; }
+.app-dialog--preview .doc-pdf__viewer { height: min(65vh, 720px); }
+.app-dialog--preview .app-dialog__actions { position: sticky; bottom: -1.6rem; margin: 1.2rem -1.6rem -1.6rem; padding: 0.9rem 1.6rem; background: #fff; border-top: 1px solid #edf0f3; }
+.doc-preview__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.6rem; }
+.doc-preview__close { flex: none; min-width: 40px; padding: 0; justify-content: center; }
+@media (max-width: 640px) {
+  .app-dialog--preview { padding: 1.2rem; }
+  .app-dialog--preview .app-dialog__actions { bottom: -1.2rem; margin: 1rem -1.2rem -1.2rem; padding: 0.8rem 1.2rem; }
+  .app-dialog--preview .doc-pdf__viewer { height: 60vh; }
+}
+.app-profile__photo-actions { justify-content: center; }

@@ -71,8 +71,8 @@ final class HomeApiTest extends ApiTestCase
         $data = $this->json($response)['data'];
         self::assertSame([1, 2], array_column($data, 'orden'));
         self::assertSame(['video', 'video'], array_column($data, 'tipo'));
-        // Los videos no llevan f_auto,q_auto (DEC-B42).
-        self::assertSame('https://res.cloudinary.com/demo/video/upload/video_presentacion-1', $data[0]['url']);
+        // Los videos se entregan con q_auto (sin f_auto).
+        self::assertSame('https://res.cloudinary.com/demo/video/upload/q_auto/video_presentacion-1', $data[0]['url']);
     }
 
     public function testLasImagenesSeEntreganConFormatoYCalidadAutomaticos(): void

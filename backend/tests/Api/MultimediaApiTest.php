@@ -78,7 +78,7 @@ final class MultimediaApiTest extends AuthTestCase
         return $id;
     }
 
-    public function testSubirFotoConLasReglasDeLasImagenesAdjuntas(): void
+    public function testSubirFotoConAnchoMaximoDelInicio(): void
     {
         $token = $this->admin();
 
@@ -91,7 +91,8 @@ final class MultimediaApiTest extends AuthTestCase
         self::assertStringContainsString('/image/upload/f_auto,q_auto/', $item['url']);
         self::assertArrayNotHasKey('public_id', $item);
         self::assertSame('siiis_test/home/slider', $this->cloudinary->subidas[0]['folder']);
-        self::assertSame(['width' => 1600, 'crop' => 'limit', 'quality' => 'auto'], $this->cloudinary->subidas[0]['transformacion']);
+        // HOME_IMAGEN_MAX_ANCHO_PX (1920 por defecto), sin agrandar las pequeñas, con CLOUDINARY_CALIDAD.
+        self::assertSame(['width' => 1920, 'crop' => 'limit', 'quality' => 'auto'], $this->cloudinary->subidas[0]['transformacion']);
         // Queda en Multimedia con los campos del modelo y se ve en la ruta pública.
         $doc = array_values($this->multimedia->items)[0];
         self::assertSame(['_id', 'tipo', 'url', 'public_id', 'seccion', 'descripcion', 'orden', 'fecha_subida'], array_keys($doc));
@@ -113,6 +114,62 @@ final class MultimediaApiTest extends AuthTestCase
         self::assertStringContainsString('/video/', $item['url']);
         self::assertSame('siiis_test/home/videos', $this->cloudinary->subidas[0]['folder']);
         self::assertCount(1, $this->cloudinary->videosSubidos);
+        self::assertStringContainsString('/video/upload/q_auto/', $item['url'], 'El video se entrega con q_auto.');
+    }
+
+    public function testTransformacionAlSubirConfigurableDesdeElEnv(): void
+    {
+        $this->app = $this->authApp([
+            'CLOUDINARY_HOME_FOLDER' => 'siiis_test/home',
+            'HOME_IMAGEN_MAX_ANCHO_PX' => '1440',
+            'HOME_VIDEO_MAX_ANCHO_PX' => '960',
+            'CLOUDINARY_CALIDAD' => 'auto:good',
+        ]);
+        $token = $this->admin();
+
+        self::assertSame(201, $this->subir($token, ['seccion' => 'slider_principal', 'descripcion' => 'Foto'], TestImages::subida(TestImages::png()))->getStatusCode());
+        self::assertSame(201, $this->subir($token, ['seccion' => 'video_presentacion', 'descripcion' => 'Video'], TestImages::subida(TestImages::mp4()))->getStatusCode());
+
+        self::assertSame(['width' => 1440, 'crop' => 'limit', 'quality' => 'auto:good'], $this->cloudinary->subidas[0]['transformacion']);
+        // El video siempre con q_auto y códec automático (vc_auto); CLOUDINARY_CALIDAD es solo para imágenes.
+        self::assertSame(
+            ['width' => 960, 'crop' => 'limit', 'quality' => 'auto', 'video_codec' => 'auto'],
+            $this->cloudinary->subidas[1]['transformacion'],
+        );
+    }
+
+    public function testRecursosPreexistentesNuncaSeBorranDeCloudinary(): void
+    {
+        $logs = $this->storage . '/logs-preexistentes';
+        $this->extraOverrides[Logger::class] = new Logger($logs);
+        $this->app = $this->authApp(['CLOUDINARY_HOME_FOLDER' => 'siiis_test/home', 'HOME_MAX_ITEMS' => '3']);
+        $token = $this->admin();
+        // Registrados con cargar_multimedia.php --existentes: public_id fuera de CLOUDINARY_HOME_FOLDER.
+        $foto = $this->item('slider_principal', 1, 'imagen', 'Foto_1');
+        $otraFoto = $this->item('slider_principal', 2, 'imagen', 'Foto_2');
+        $video = $this->item('video_presentacion', 1, 'video', 'video_home');
+        // Una carpeta que solo empieza igual tampoco es de la aplicación.
+        $parecida = $this->item('slider_principal', 3, 'imagen', 'siiis_test/homeX/foto');
+
+        // Quitar del slider y "Reemplazar video": se borra el registro, no el archivo.
+        self::assertSame(204, $this->app->handle($this->request('DELETE', "/api/v1/multimedia/$foto", null, self::bearer($token)))->getStatusCode());
+        self::assertSame(204, $this->app->handle($this->request('DELETE', "/api/v1/multimedia/$parecida", null, self::bearer($token)))->getStatusCode());
+        $reemplazo = $this->subir($token, ['seccion' => 'video_presentacion', 'descripcion' => 'Nuevo', 'reemplaza' => (string) $video], TestImages::subida(TestImages::mp4()));
+        self::assertSame(201, $reemplazo->getStatusCode(), (string) $reemplazo->getBody());
+        $reemplazoFoto = $this->subir($token, ['seccion' => 'slider_principal', 'descripcion' => 'Nueva', 'reemplaza' => (string) $otraFoto], TestImages::subida(TestImages::png()));
+        self::assertSame(201, $reemplazoFoto->getStatusCode(), (string) $reemplazoFoto->getBody());
+
+        self::assertArrayNotHasKey((string) $foto, $this->multimedia->items);
+        self::assertArrayNotHasKey((string) $video, $this->multimedia->items);
+        self::assertArrayNotHasKey((string) $otraFoto, $this->multimedia->items);
+        self::assertSame([], $this->cloudinary->borrados, 'Foto_1, Foto_2 y video_home siguen en Cloudinary.');
+        $log = implode('', array_map('file_get_contents', glob($logs . '/*') ?: []));
+        self::assertStringContainsString('video_home', $log);
+
+        // Lo que subió la aplicación (dentro de la carpeta) sí se borra.
+        $nuevo = $this->json($reemplazo)['multimedia']['id'];
+        self::assertSame(204, $this->app->handle($this->request('DELETE', "/api/v1/multimedia/$nuevo", null, self::bearer($token)))->getStatusCode());
+        self::assertSame([$this->cloudinary->videosSubidos[0]], $this->cloudinary->borradosVideo);
     }
 
     public function testValidacionesDeLaSubida(): void
@@ -273,7 +330,7 @@ final class MultimediaApiTest extends AuthTestCase
     {
         $logs = $this->storage . '/logs-multimedia';
         $this->extraOverrides[Logger::class] = new Logger($logs);
-        $this->app = $this->authApp();
+        $this->app = $this->authApp(['CLOUDINARY_HOME_FOLDER' => 'siiis_test/home']);
         $token = $this->admin();
         $foto = $this->item('slider_principal', 1, 'imagen', 'siiis_test/home/slider/huerfana');
         $this->cloudinary->fallarBorrado = true;

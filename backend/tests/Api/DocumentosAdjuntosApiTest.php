@@ -373,6 +373,40 @@ final class DocumentosAdjuntosApiTest extends DocumentosTestCase
         self::assertSame([], $this->db->documentos);
     }
 
+    /**
+     * @return iterable<string, array{string, string, string}>
+     */
+    public static function administrativosYModulos(): iterable
+    {
+        foreach (['superadministrador', 'administrador'] as $rol) {
+            foreach ([['projects', 'proyecto', 'ejecucion'], ['articles', 'articulo', 'publicado'], ['articles', 'noticia', 'publicado']] as [$modulo, $categoria, $estado]) {
+                yield $rol . ' ' . $categoria => [$rol, $modulo, $categoria . '|' . $estado];
+            }
+        }
+    }
+
+    /** DEC-B35: los administrativos ven el botón (permisos.borrar) y borran cualquier documento con sus archivos. */
+    #[DataProvider('administrativosYModulos')]
+    public function testAdministrativosEliminanCualquierDocumentoConSusArchivos(string $rol, string $modulo, string $tipo): void
+    {
+        [$categoria, $estado] = explode('|', $tipo);
+        [$token] = $this->sesionComo($this->app, $rol);
+        $id = $this->documento([
+            'categoria' => $categoria,
+            'autor_id' => $this->usuario('estudiante'),
+            'estado' => $estado,
+            'visible' => true,
+            'archivos_adjuntos' => [self::adjunto('siiis/documentos/iii999')],
+        ]);
+
+        $detalle = $this->send('GET', '/api/v1/' . $modulo . '/' . $id, null, $token);
+        self::assertTrue($this->json($detalle)['documento']['permisos']['borrar']);
+
+        self::assertSame(204, $this->send('DELETE', '/api/v1/' . $modulo . '/' . $id, null, $token)->getStatusCode());
+        self::assertSame([], $this->db->documentos);
+        self::assertSame(['siiis/documentos/iii999'], $this->cloudinary->borrados);
+    }
+
     public function testSiCloudinaryFallaElDocumentoIgualSeBorra(): void
     {
         [$token, $yo] = $this->sesionComo($this->app, 'estudiante');

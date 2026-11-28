@@ -40,7 +40,7 @@ final class UsersApiTest extends AuthTestCase
         $response = $this->get('/api/v1/users');
 
         self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
-        self::assertSame('public, max-age=60', $response->getHeaderLine('Cache-Control'));
+        self::assertSame('public, no-cache', $response->getHeaderLine('Cache-Control'));
         self::assertSame('Authorization', $response->getHeaderLine('Vary'));
         $body = $this->json($response);
         self::assertSame(['Bernal Andrés', 'Bernal Luisa', 'Zapata Carlos'], self::nombres($body['data']));
@@ -276,7 +276,7 @@ final class UsersApiTest extends AuthTestCase
         $response = $this->get('/api/v1/users/' . $id);
 
         self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
-        self::assertSame('public, max-age=60', $response->getHeaderLine('Cache-Control'));
+        self::assertSame('public, no-cache', $response->getHeaderLine('Cache-Control'));
         self::assertSame(['usuario' => [
             'id' => (string) $id,
             'nombre' => 'Luisa',
@@ -312,6 +312,33 @@ final class UsersApiTest extends AuthTestCase
 
         $this->assertError($this->get('/api/v1/users/' . $id), 404, 'NOT_FOUND');
         $this->assertError($this->get('/api/v1/users/' . $id, $token), 404, 'NOT_FOUND');
+    }
+
+    /** DEC-B71 revertida: el superadministrador activo es un integrante más (el director lo será); inactivo, no. */
+    public function testSuperadministradorActivoApareceEnLaVistaPublicaEInactivoNo(): void
+    {
+        $director = $this->miembro('Director', 'Semillero', ['rol' => 'superadministrador']);
+        $retirado = $this->miembro('Antiguo', 'Admin', ['rol' => 'superadministrador', 'estado' => false]);
+        $this->miembro('Bernal', 'Luisa');
+
+        self::assertSame(['Bernal Luisa', 'Director Semillero'], self::nombres($this->json($this->get('/api/v1/users'))['data']));
+        self::assertSame(['Director Semillero'], self::nombres($this->json($this->get('/api/v1/users?rol=superadministrador'))['data']));
+
+        $perfil = $this->get('/api/v1/users/' . $director);
+        self::assertSame(200, $perfil->getStatusCode(), (string) $perfil->getBody());
+        self::assertSame(self::CAMPOS_PUBLICOS, array_keys($this->json($perfil)['usuario']));
+        $this->assertError($this->get('/api/v1/users/' . $retirado), 404, 'NOT_FOUND');
+    }
+
+    public function testElPublicoRevalidaSiempreParaNoMostrarDatosViejos(): void
+    {
+        $id = $this->miembro('Bernal', 'Luisa');
+
+        foreach (['/api/v1/users', '/api/v1/users/' . $id] as $ruta) {
+            $response = $this->get($ruta);
+            self::assertSame('public, no-cache', $response->getHeaderLine('Cache-Control'), $ruta);
+            self::assertStringNotContainsString('max-age', $response->getHeaderLine('Cache-Control'), $ruta);
+        }
     }
 
     public function testAdministradorVeElDetalleCompletoDeUnInactivo(): void

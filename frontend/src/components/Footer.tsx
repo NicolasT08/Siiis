@@ -55,6 +55,15 @@ export default function Footer() {
           Copyright © {new Date().getFullYear()} {SITIO.nombre}
           <br />
           Todos los derechos reservados
+          <br />
+          <span className="footer__legal">
+            <Link to="/privacidad" className="footer__link">
+              Política de privacidad
+            </Link>
+            <Link to="/terminos" className="footer__link">
+              Condiciones de uso
+            </Link>
+          </span>
         </p>
       </div>
     </footer>

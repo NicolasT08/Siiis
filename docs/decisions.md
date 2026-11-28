@@ -260,6 +260,7 @@ equipo el 2026-11-26** (Andryw Barrera, líder, y Luisa Merchán, bases de datos
   - Orden: `apellido`, `nombre` y `_id` ascendentes, con collation de MongoDB `es` (ignora tildes y mayúsculas).
   - Vistas (DEC-B19): `superadministrador` y `administrador` reciben la vista de administrador de **todos** los usuarios (la jerarquía de DEC-B17 limita gestionar, no consultar). Un integrante autenticado recibe su **propio** perfil (`GET /users/{id}` con su id) en la vista completa, para la pantalla de edición del paso 4; el de los demás, en la vista pública.
   - `GET /users/{id}` responde `404 NOT_FOUND` si el id no tiene formato válido, no existe o, en la vista pública, el usuario está inactivo.
+  - Complementada por DEC-B72 (2026-11-27): la caché pública pasa a `public, no-cache`. (La exclusión de superadministradores de DEC-B71 fue revertida.)
   - Caché: sin sesión, `Cache-Control: public, max-age=60`; con sesión, `no-store`. Siempre `Vary: Authorization`.
   - Sin índice nuevo en `Usuarios` (la colección es pequeña y el spec 8.4 no lo pide). Si crece, proponer `{estado, apellido, nombre}` con la misma collation.
 - Alternativas: paginación por cursor; `400` para un id con formato inválido.
@@ -410,6 +411,7 @@ de datos) las **aprobó el 2026-11-26**. DEC-B41 recoge el contrato de las rutas
 - Contexto: el spec 8.2 dice que `contenido` es "texto enriquecido" sin definir el formato. Guardar HTML exigiría sanitizarlo en el backend (una librería nueva) para evitar XSS.
 - Decisión: `contenido` es **Markdown**, opcional, de hasta 50 000 caracteres. Se guarda tal cual (sin espacios alrededor; vacío o `null` → `null`). El frontend debe mostrarlo con un renderizador de Markdown que **no interprete HTML incrustado**. `titulo` es obligatorio (máx. 200) y `descripcion` también (máx. 1000): la descripción es el resumen que aparece en los listados.
 - Pendiente: confirmar con el frontend el formato y el renderizador.
+- Complementada por DEC-B70 (2026-11-27): el documento publicado necesita texto, PDF o ambos.
 - Variables: `DOCUMENTO_TITULO_MAX_LENGTH`, `DOCUMENTO_DESCRIPCION_MAX_LENGTH`, `DOCUMENTO_CONTENIDO_MAX_LENGTH`.
 - Impacto: `DocumentoValidator`, `Settings`, `.env.example`.
 - Requiere migración: no.
@@ -944,3 +946,141 @@ quedaron **aprobadas por el equipo** el 2026-11-26.
 ## DEC-B68 — Plantilla institucional única para todos los correos (`Support/CorreoInstitucional`): tablas y estilos en línea (Gmail y Outlook), máximo 600 px y adaptable al celular; encabezado #0B2A4A con logo opcional (`MAIL_LOGO_URL`, solo URL https; vacío = solo texto), saludo "Estimado(a) …:", botón dorado #B7862F con el enlace completo debajo, pie gris con el semillero, la escuela, la UPTC Seccional Sogamoso, https://siiis.com.co y "Este es un correo automático, por favor no lo responda" (salvo el de contacto, que se responde al remitente). Cada correo lleva su versión en texto plano y asunto formal "… - Semillero SIIIS". No cambia cuándo ni a quién se envían (equipo, 2026-11-27).
 
 ## DEC-B69 — Un solo video de presentación: máximo `HOME_MAX_VIDEOS` (por defecto 1); subir otro responde `409 VIDEO_LIMIT`. "Reemplazar video" envía `POST /multimedia` con `reemplaza=<id>`: el anterior no cuenta para el límite y el backend lo borra (registro y archivo de Cloudinary) solo si el nuevo se subió y registró bien, así el límite nunca se supera ni el inicio queda sin video si la subida falla (equipo, 2026-11-27).
+
+## DEC-B70 — Contenido de un documento: texto, PDF o ambos
+
+- Estado: DECIDIDA (equipo, 2026-11-27)
+- Fecha: 2026-11-27
+- Reemplaza: la regla "PDF obligatorio como contenido principal" de proyectos, artículos y noticias. Esa regla no
+  estaba registrada en este archivo: vivía solo en el frontend (`lib/documentoPdf.ts`, `DocumentEditorPage.tsx` y
+  `DocumentDetailPage.tsx`, que exigían el PDF y enviaban `contenido: null` al crear). Queda **reemplazada**.
+- Contexto: el equipo quiere que un documento pueda ser solo texto, solo PDF o ambos.
+- Decisión:
+  - El contenido de un documento es su texto Markdown (`contenido`, DEC-B37, hasta `DOCUMENTO_CONTENIDO_MAX_LENGTH`)
+    y su PDF principal (el primer adjunto PDF, DEC-B39/B40). Los dos son opcionales, pero el documento publicado
+    necesita **al menos uno**. Igual para proyectos, artículos y noticias.
+  - Un adjunto cuenta como PDF si su URL de Cloudinary o su `nombre_archivo` terminan en `.pdf` (los PDF se guardan
+    con su formato, DEC-B42). Una imagen no cuenta.
+  - Se valida al **publicar**, porque el documento se crea con `POST` (JSON) y el PDF se sube después
+    (`POST /{id}/files`): el borrador (`en_revision` y `visible = false`) puede crearse vacío.
+  - Responde `400 VALIDATION_ERROR` con `fields.contenido` (formato de error de `docs/api.md`) cuando:
+    - se crea ya publicado o visible sin texto;
+    - se publica (`estado` distinto de `en_revision` o `visible: true`) sin texto ni PDF;
+    - una edición (`contenido` vacío o `null`, o quitar el último PDF) dejaría sin texto ni PDF un documento que
+      tenía alguno. Así se puede quitar el PDF si conserva el texto, y quitar el texto si conserva el PDF.
+  - Para reemplazar el PDF, el frontend sube el nuevo y después quita el anterior.
+  - Se pidió `422`, pero la API usa `400 VALIDATION_ERROR` para toda validación; el equipo eligió mantener `400`.
+- Limitación conocida: la comprobación se hace sobre el documento leído antes de escribir. Dos peticiones
+  simultáneas (vaciar el texto y quitar el PDF a la vez) podrían dejarlo vacío; es poco probable con un solo
+  editor por documento.
+- Alternativas: aceptar el PDF en el mismo `POST` (multipart) para validarlo al crear; descartada por ahora.
+- Impacto: `DocumentosService` (crear, actualizar y quitar adjunto), `docs/api.md` (9, 9c, 9d y 11b); frontend:
+  editor con barra de Markdown y vista previa, PDF opcional, y detalle que muestra texto, PDF o ambos.
+- Requiere migración: no. Los documentos existentes siguen siendo válidos; editar lo que no es contenido no exige
+  cambiarlos.
+
+## DEC-B71 — El superadministrador no aparece en la sección pública de integrantes
+
+- Estado: **REVERTIDA** (equipo, 2026-11-27). El equipo nunca pidió esta regla: los superadministradores **sí**
+  aparecen como integrantes, como en el sitio anterior (el director del semillero será superadministrador). Se quitó
+  el filtro del backend y del frontend. Lo que sigue vigente de esta entrada (pedir la sección pública sin token y la
+  caché `public, no-cache`) pasa a DEC-B72. Se conserva el texto original como historial.
+- Estado anterior: DECIDIDA (2026-11-27)
+- Fecha: 2026-11-27
+- Contexto: las cuentas `superadministrador` son cuentas técnicas para administrar el sitio, no integrantes del
+  semillero. Hasta ahora salían en "Integrantes" como cualquier usuario activo.
+- Decisión:
+  - En la **vista pública** (sin token, o con token de un rol no administrativo), `GET /users` nunca incluye
+    usuarios con rol `superadministrador`, ni siquiera con `?rol=superadministrador` (responde `data: []`), y no
+    los cuenta en `meta.total`.
+  - `GET /users/{id}` de un `superadministrador` responde en la vista pública `404 NOT_FOUND`, el mismo error que
+    un usuario inexistente o inactivo (DEC-B20).
+  - En el panel (token de `superadministrador` o `administrador`) siguen apareciendo, con la vista de
+    administrador (DEC-B26). Su propio perfil completo también sigue disponible para él.
+  - Complementa a DEC-B20 (solo activos) y DEC-B26. No cambia el modelo de datos.
+- Caché de las rutas públicas de usuarios: pasa de `public, max-age=60` (DEC-B26) a `public, no-cache`. El
+  navegador puede guardar la respuesta, pero la revalida en cada visita; así, desactivar a alguien deja de mostrarse
+  al instante en "Integrantes". Con sesión sigue `no-store` y siempre `Vary: Authorization`. Las demás rutas
+  públicas (documentos, reseñas) no cambian.
+- Frontend: la sección pública "Integrantes" (listado, carrusel y perfil) pide `GET /users` y `GET /users/{id}`
+  **sin token**, para recibir la vista pública aunque quien mira tenga sesión de administrador. Antes enviaba el
+  token y un administrador veía ahí la vista de administrador, con inactivos (causa del error reportado el
+  2026-11-27). El filtro por rol de esa página ya no ofrece `superadministrador`.
+- Limitación: los documentos siguen mostrando a un superadministrador como autor o integrante (DEC-B19, DEC-B38);
+  el enlace a su perfil público responde `404`.
+- Alternativas: un campo nuevo "visible en el directorio" (cambiaría el modelo de datos, spec 8.2); descartada.
+- Impacto: `UsersService::listar` y `obtener`, `UsuariosRepository::paginar` (`$excluirRol`), `UsersController`
+  (caché), `docs/api.md` 6c y 6d; frontend: `api.members`/`api.member` y `UsersPage`/`MemberDetailPage`.
+- Requiere migración: no.
+
+## DEC-B72 — La sección pública "Integrantes" nunca muestra cuentas desactivadas
+
+- Estado: DECIDIDA (equipo, 2026-11-27)
+- Fecha: 2026-11-27
+- Contexto: con la base real, cuentas desactivadas seguían apareciendo en "Integrantes" y en su perfil, aunque
+  DEC-B20 dice que solo se muestran integrantes activos. El backend ya filtraba bien (`estado = true` en la vista
+  pública); la causa era el frontend: enviaba el token, y con sesión de `superadministrador` o `administrador` la API
+  responde la vista de administrador (DEC-B26), que incluye a los inactivos. La caché de 60 s podía además mostrar
+  datos viejos durante un minuto.
+- Decisión:
+  - La sección pública (listado, carrusel y perfil de un integrante) pide `GET /users` y `GET /users/{id}` **sin
+    token** (`api.members` / `api.member` en el frontend), así siempre recibe la vista pública.
+  - Sin sesión, esas dos rutas responden `Cache-Control: public, no-cache` (antes `public, max-age=60`): el navegador
+    puede guardar la respuesta, pero la revalida en cada visita. Con sesión siguen `no-store`; siempre
+    `Vary: Authorization`. Las demás rutas públicas no cambian.
+  - Todos los roles activos, incluido `superadministrador`, aparecen en la vista pública (DEC-B71 revertida).
+- Impacto: `UsersController` (caché), `docs/api.md` 6c y 6d; frontend: `lib/api.ts`, `UsersPage`, `MemberDetailPage`.
+- Requiere migración: no.
+
+## DEC-B73 — Script de mantenimiento para eliminar cuentas definitivamente
+
+- Estado: DECIDIDA (equipo, 2026-11-27)
+- Fecha: 2026-11-27
+- Contexto: hay que eliminar de verdad dos cuentas ya desactivadas de la base real. Es una tarea de una sola vez; no
+  se quiere un botón de eliminar en el panel.
+- Decisión: la **baja normal sigue siendo la desactivación desde el panel** (`DELETE /users/{id}` o
+  `PATCH {"estado": false}`, DEC-B22), que conserva el historial. Para casos excepcionales existe
+  `backend/scripts/eliminar_cuentas.php` (`EliminarCuentasService` + `MantenimientoCuentasRepository`), sin ruta en la
+  API:
+  - Uso: `php scripts/eliminar_cuentas.php --correo=a@uptc.edu.co [--correo=...] [--confirmar]`. Sin `--confirmar`
+    solo simula. Usa la base de `MONGO_DB_NAME` (o `MONGO_DB_NAME_TEST` con `--test`) y muestra solo su nombre,
+    nunca la URI.
+  - Reporta por correo: credencial y perfil, sesiones, foto de perfil en Cloudinary, documentos como autor y como
+    integrante, reseñas con su `usuario_id` y, solo como información, inscripciones y mensajes de contacto con el
+    mismo correo (guardan el correo como dato, no como referencia, y no se tocan). Avisa si es la cuenta de
+    `DIRECTOR_CORREO`.
+  - Se niega si la cuenta está activa (`Usuarios.estado = true`), si es autora de algún documento (los lista para
+    eliminarlos primero desde el panel), si no quedaría ningún superadministrador activo, o si es
+    `siiisweb@gmail.com` (nunca la toca).
+  - Al confirmar, en una transacción de Atlas que vuelve a comprobar que siga inactiva y sin documentos: borra sus
+    sesiones, la quita del arreglo `integrantes` de los documentos, quita `usuario_id` de sus reseñas (conservan
+    `nombre_visible`, el campo es nullable en el spec 8.2) y borra su perfil de `Usuarios` y su `Credenciales`.
+    Después borra la foto de perfil en Cloudinary; si falla, lo reporta con el `public_id` y sigue.
+- Alternativas: botón de eliminar en el panel (descartado por el equipo); borrar a mano en Atlas (deja referencias
+  colgando).
+- Impacto: `scripts/eliminar_cuentas.php`, `EliminarCuentasService`, `MantenimientoCuentasRepository`;
+  prueba `tests/Integration/EliminarCuentasIntegrationTest.php`.
+- Requiere migración: no.
+
+## DEC-B74 — El usuario puede quitar su propia foto de perfil (RF-06)
+
+- Estado: DECIDIDA (pedida por el equipo, 2026-11-28)
+- Fecha: 2026-11-28
+- Contexto: RF-06 pide subir y cambiar la foto de perfil; DEC-B29 solo cubría subirla o reemplazarla y no había forma
+  de volver a quedar sin foto. El pedido llegó como "pendiente de DEC-B70", pero DEC-B70 trata del contenido de los
+  documentos y no registra ese pendiente; no se encontró anotado en ningún otro lugar de `docs/`. Se registra aquí
+  como decisión nueva.
+- Decisión:
+  - `DELETE /users/{id}/photo`, en la misma ruta donde se sube (DEC-B29). Requiere sesión.
+  - **Solo el propio usuario**: si `{id}` no es el del usuario autenticado responde `403 FORBIDDEN`, también para
+    administradores (a diferencia de subirla, DEC-B29/DEC-B17). No se agrega que un administrador quite fotos ajenas.
+  - Orden: dejar `Usuarios.foto_perfil = null` y después borrar el archivo en Cloudinary con su `public_id`. Si el
+    borrado falla, se registra en el log (`No se pudo borrar una foto de Cloudinary`, con el `public_id`) y la
+    operación responde igual `200`: el mismo manejo que al reemplazar la foto.
+  - Sin foto: `200` sin escribir ni llamar a Cloudinary (idempotente).
+  - Respuesta `200 {"usuario": ...}` con la vista completa del propio usuario y `Cache-Control: no-store`.
+  - Frontend: botón "Quitar foto" junto a "Cambiar foto" en `/mi-perfil`, solo si hay foto, con confirmación
+    (`ConfirmDialog`); el perfil y el menú muestran las iniciales enseguida.
+- Impacto: `Config/Routes`, `UsersController::removePhoto`, `UsersService::quitarFoto`, `docs/api.md` (6h); pruebas en
+  `tests/Api/UsersPhotoApiTest.php`; frontend `lib/api.ts` (`removePhoto`), `features/account/ProfilePage.tsx`.
+- Requiere migración: no (`foto_perfil` ya admite `null`, spec 8.2).

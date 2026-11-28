@@ -14,7 +14,10 @@ final class CloudinaryUrl
     /** Transformación de entrega: formato y calidad automáticos. */
     public const ENTREGA = 'f_auto,q_auto';
 
-    private const PATRON = '#^(https://res\.cloudinary\.com/[^/?\#]+/image/upload/)([^?\#]*)(.*)$#';
+    /** Transformación de entrega de los videos: calidad automática. */
+    public const ENTREGA_VIDEO = 'q_auto';
+
+    private const PATRON = '#^(https://res\.cloudinary\.com/[^/?\#]+/(image|video)/upload/)([^?\#]*)(.*)$#';
 
     /** Un segmento de transformación: `w_400`, `c_fill,g_auto`, `f_auto,q_auto`... */
     private const SEGMENTO_TRANSFORMACION = '#^[a-z]{1,3}_[^,/]+(,[a-z]{1,3}_[^,/]+)*$#';
@@ -43,16 +46,16 @@ final class CloudinaryUrl
     }
 
     /**
-     * Agrega `f_auto,q_auto` a una imagen de Cloudinary (`/image/upload/`). No toca los PDF (se entregan tal
-     * cual, DEC-B40), los videos, los recursos `raw`, las URL de otros dominios ni las que ya traen una
-     * transformación.
+     * Agrega `f_auto,q_auto` a una imagen de Cloudinary (`/image/upload/`) y `q_auto` a un video
+     * (`/video/upload/`). No toca los PDF (se entregan tal cual, DEC-B40), los recursos `raw`, las URL de otros
+     * dominios ni las que ya traen una transformación.
      */
     public static function entrega(string $url): string
     {
         if (preg_match(self::PATRON, $url, $m) !== 1) {
             return $url;
         }
-        [, $base, $ruta, $resto] = $m;
+        [, $base, $recurso, $ruta, $resto] = $m;
         if ($ruta === '' || preg_match('#\.pdf$#i', $ruta) === 1) {
             return $url;
         }
@@ -61,6 +64,6 @@ final class CloudinaryUrl
             return $url;
         }
 
-        return $base . self::ENTREGA . '/' . $ruta . $resto;
+        return $base . ($recurso === 'video' ? self::ENTREGA_VIDEO : self::ENTREGA) . '/' . $ruta . $resto;
     }
 }

@@ -131,10 +131,13 @@ final class AuthController
     }
 
     /**
-     * POST /api/v1/auth/reset-password
+     * POST /api/v1/auth/reset-password — rate limit por IP antes de validar (auditoría M-03).
      */
     public function resetPassword(ServerRequestInterface $request): ResponseInterface
     {
+        $s = $this->settings;
+        $this->rateLimiter->limitar('reset', ClientIp::from($request), $s->rateLimitResetMax, $s->rateLimitResetWindowSeconds);
+
         $input = $this->resetValidator->validate($request->getParsedBody());
         $this->passwordReset->restablecer($input['token'], $input['password']);
 

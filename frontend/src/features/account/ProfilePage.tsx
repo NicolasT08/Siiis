@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Camera, KeyRound, Save, UserCog } from 'lucide-react';
+import { Camera, KeyRound, Save, Trash2, UserCog } from 'lucide-react';
 import { api, esVistaAdmin } from '../../lib/api';
 import type { UsuarioAdmin } from '../../lib/api';
 import { nombreCompleto, useAuth } from '../../lib/auth';
@@ -9,6 +9,7 @@ import { erroresDeCampo, mensajeError } from '../../lib/errors';
 import { etiquetaRol, iniciales } from '../../lib/format';
 import { useApi } from '../../lib/useApi';
 import { Aviso, Cargando, ErrorCampo, ErrorCarga } from '../../components/ui';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { problemaPassword } from '../auth/passwordRules';
 import { leerPerfil } from './perfil';
 
@@ -60,10 +61,36 @@ export function CamposPerfil({ usuario, campos, deshabilitado }: { usuario: Usua
   );
 }
 
-/** Subir o cambiar la foto (6g). */
+/**
+ * Subir o cambiar la foto (6g) y, en el propio perfil, quitarla (6h, DEC-B74). En la edición de usuarios del panel
+ * no aparece "Quitar foto": nadie quita la foto de otro.
+ */
 export function FotoPerfil({ usuario, onCambio }: { usuario: UsuarioAdmin; onCambio: (u: UsuarioAdmin) => void }) {
+  const { usuario: sesion, actualizarSesion } = useAuth();
   const [subiendo, setSubiendo] = useState(false);
   const [resultado, setResultado] = useState<Resultado>(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [quitando, setQuitando] = useState(false);
+  const [errorQuitar, setErrorQuitar] = useState('');
+  const puedeQuitar = !!usuario.foto_perfil && sesion?.id === usuario.id;
+  const ocupado = subiendo || quitando;
+
+  const quitar = async () => {
+    setQuitando(true);
+    setErrorQuitar('');
+    try {
+      const { usuario: nuevo } = await api.removePhoto(usuario.id);
+      onCambio(nuevo);
+      // El menú muestra las iniciales enseguida, sin esperar a /auth/me.
+      actualizarSesion({ foto_perfil: null });
+      setConfirmando(false);
+      setResultado({ tipo: 'ok', texto: 'Quitaste tu foto de perfil. Puedes subir otra cuando quieras.' });
+    } catch (e) {
+      setErrorQuitar(mensajeError(e));
+    } finally {
+      setQuitando(false);
+    }
+  };
 
   const elegir = async (event: ChangeEvent<HTMLInputElement>) => {
     const archivo = event.target.files?.[0];
@@ -96,12 +123,39 @@ export function FotoPerfil({ usuario, onCambio }: { usuario: UsuarioAdmin; onCam
           {iniciales(usuario)}
         </span>
       )}
-      <label className="btn btn--navy">
-        <Camera size={16} aria-hidden="true" /> {subiendo ? 'Subiendo…' : usuario.foto_perfil ? 'Cambiar foto' : 'Subir foto'}
-        <input type="file" accept="image/jpeg,image/png,image/webp" className="visually-hidden" disabled={subiendo} onChange={(e) => void elegir(e)} />
-      </label>
+      <div className="app-actions app-profile__photo-actions">
+        <label className={`btn btn--navy btn-archivo${ocupado ? ' is-disabled' : ''}`}>
+          <Camera size={16} aria-hidden="true" /> {subiendo ? 'Subiendo…' : usuario.foto_perfil ? 'Cambiar foto' : 'Subir foto'}
+          <input type="file" accept="image/jpeg,image/png,image/webp" className="visually-hidden" disabled={ocupado} onChange={(e) => void elegir(e)} />
+        </label>
+        {puedeQuitar && (
+          <button
+            type="button"
+            className="btn btn--danger"
+            disabled={ocupado}
+            onClick={() => {
+              setErrorQuitar('');
+              setConfirmando(true);
+            }}
+          >
+            <Trash2 size={16} aria-hidden="true" /> Quitar foto
+          </button>
+        )}
+      </div>
       <p className="app-hint">JPG, PNG o WebP de hasta 2 MB.</p>
       {resultado && <Aviso tipo={resultado.tipo}>{resultado.texto}</Aviso>}
+      {confirmando && (
+        <ConfirmDialog
+          titulo="¿Quitar tu foto de perfil?"
+          confirmar="Quitar foto"
+          ocupado={quitando}
+          error={errorQuitar}
+          onConfirmar={() => void quitar()}
+          onCancelar={() => setConfirmando(false)}
+        >
+          <p>Se borrará tu foto y en su lugar se mostrarán tus iniciales en tu perfil y en el menú. Puedes subir otra cuando quieras.</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

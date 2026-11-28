@@ -12,6 +12,7 @@ const links = [
   { to: '/proyectos', label: 'Proyectos' },
   { to: '/articulos', label: 'Artículos' },
   { to: '/noticias', label: 'Noticias' },
+  { href: 'https://semillerosiiis.blogspot.com/', label: 'Blog' },
   { to: '/contacto', label: 'Contacto' },
   { to: '/inscripcion', label: 'Inscripción' },
 ];
@@ -124,7 +125,12 @@ export default function Navbar() {
 
           <div id="nav-menu" className={`nav__menu${menuOpen ? ' is-open' : ''}`}>
             <div className="nav__links">
-              {links.map((link) => (
+              {links.map((link) =>
+                'href' in link ? (
+                  <a key={link.href} href={link.href} className="nav__link" target="_blank" rel="noopener noreferrer">
+                    {link.label}
+                  </a>
+                ) : (
                 <NavLink
                   key={link.to}
                   to={link.to}
@@ -133,7 +139,8 @@ export default function Navbar() {
                 >
                   {link.label}
                 </NavLink>
-              ))}
+                ),
+              )}
             </div>
 
             {usuario ? (

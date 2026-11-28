@@ -91,6 +91,37 @@ class CloudinaryService
     }
 
     /**
+     * Transformación al subir una foto del carrusel del inicio: ancho máximo `HOME_IMAGEN_MAX_ANCHO_PX` sin agrandar
+     * las más pequeñas (`c_limit`) y calidad `CLOUDINARY_CALIDAD`.
+     *
+     * @return array<string, int|string>
+     */
+    public static function transformacionImagenHome(Settings $settings): array
+    {
+        return [
+            'width' => $settings->homeImagenMaxAnchoPx,
+            'crop' => 'limit',
+            'quality' => $settings->cloudinaryCalidad,
+        ];
+    }
+
+    /**
+     * Transformación al subir el video de presentación: ancho máximo `HOME_VIDEO_MAX_ANCHO_PX` sin agrandar
+     * (`c_limit`), calidad automática (`q_auto`) y códec automático (`vc_auto`).
+     *
+     * @return array<string, int|string>
+     */
+    public static function transformacionVideoHome(Settings $settings): array
+    {
+        return [
+            'width' => $settings->homeVideoMaxAnchoPx,
+            'crop' => 'limit',
+            'quality' => 'auto',
+            'video_codec' => 'auto',
+        ];
+    }
+
+    /**
      * Sube un archivo ya validado desde el temporal de PHP. Cloudinary genera un public_id único
      * dentro de `$folder`.
      *
@@ -212,16 +243,19 @@ class CloudinaryService
     }
 
     /**
-     * Sube un video público (videos de presentación del inicio, DEC-B62) tal cual, sin transformación, con más
-     * tiempo de espera que una imagen. `$path` también puede ser una URL HTTPS (Cloudinary la descarga).
+     * Sube un video público (videos de presentación del inicio, DEC-B62) con más tiempo de espera que una imagen.
+     * `$transformacion` se aplica al subir (p. ej. `transformacionVideoHome`); vacía, el video se guarda tal cual.
+     * `$path` también puede ser una URL HTTPS (Cloudinary la descarga).
+     *
+     * @param array<string, int|string> $transformacion
      *
      * @return array{url: string, public_id: string}
      *
      * @throws CloudinaryException
      */
-    public function uploadVideo(string $path, string $folder): array
+    public function uploadVideo(string $path, string $folder, array $transformacion = []): array
     {
-        return $this->subir($path, $folder, self::FORMATOS_VIDEO, [], self::TIPO_PUBLICO, self::RECURSO_VIDEO);
+        return $this->subir($path, $folder, self::FORMATOS_VIDEO, $transformacion, self::TIPO_PUBLICO, self::RECURSO_VIDEO);
     }
 
     /**

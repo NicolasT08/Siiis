@@ -979,7 +979,7 @@ input {
   gap: 1rem;
 }
 
-.auth-card label {
+.auth-card label:not(.btn) {
   display: grid;
   gap: 0.45rem;
   color: var(--muted);
@@ -1231,7 +1231,7 @@ input {
   margin-bottom: 18px;
 }
 
-.field label {
+.field label:not(.btn) {
   display: block;
   font-size: 0.82rem;
   font-weight: 600;

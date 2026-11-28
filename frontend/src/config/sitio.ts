@@ -7,6 +7,8 @@ export const SITIO = {
   universidad: 'Universidad Pedagógica y Tecnológica de Colombia (UPTC)',
   direccion: 'Avenida Central del Norte 39-115, 150003 Tunja, Boyacá, Colombia',
   telefono: { texto: '+57 313 842 6821', href: 'tel:+573138426821' },
+  /** Correo para consultas y derechos sobre datos personales (/privacidad). */
+  correoContacto: 'semillerosiiisup@gmail.com',
   /** Dominio que exige la inscripción (INSCRIPCION_DOMINIOS_CORREO del backend). */
   dominioInscripcion: 'uptc.edu.co',
 };

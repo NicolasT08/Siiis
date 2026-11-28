@@ -249,6 +249,36 @@ class UsersService
     }
 
     /**
+     * DELETE /users/{id}/photo (RF-06, DEC-B74): el usuario quita su propia foto. Nadie quita la de otro, ni un
+     * administrador (403). Primero deja `foto_perfil = null` y después borra el archivo en Cloudinary; si ese
+     * borrado falla, queda en el log y la operación sigue (como al reemplazar la foto, DEC-B29). Sin foto, no hace
+     * nada y responde igual.
+     *
+     * @return array<string, mixed> vista completa del propio usuario, con `foto_perfil = null`
+     *
+     * @throws ApiException 403 FORBIDDEN, 404 NOT_FOUND
+     */
+    public function quitarFoto(string $id, string $actorId): array
+    {
+        $objectId = ObjectIdValidator::toObjectId($id);
+        if ($objectId === null || (string) $objectId !== $actorId) {
+            throw ApiException::forbidden('Solo puedes quitar tu propia foto de perfil.');
+        }
+        $usuario = $this->usuarios->findPerfilById($objectId) ?? throw self::noEncontrado();
+
+        $foto = $usuario['foto_perfil'] ?? null;
+        if ($foto !== null) {
+            $this->usuarios->actualizar($objectId, ['foto_perfil' => null]);
+            $publicId = is_array($foto) ? ($foto['public_id'] ?? null) : null;
+            if (is_string($publicId) && $publicId !== '') {
+                $this->borrarFoto($publicId, 'el usuario quitó su foto de perfil');
+            }
+        }
+
+        return $this->obtener((string) $objectId, $actorId, null);
+    }
+
+    /**
      * Usuario que `$actor` puede editar (DEC-B17): el propio o, para roles administrativos, uno de los
      * roles que gestiona. Las reglas sobre `rol` y `estado` las aplica `actualizar`.
      *

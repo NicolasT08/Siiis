@@ -1,5 +1,7 @@
 // Cliente único de la API SIIIS. Contrato: docs/api.md (rutas en inglés, campos exactos).
 
+import { calcularVencimiento, leerVencimiento } from './sesion';
+
 /** VITE_API_URL si se define; si no, el backend local en desarrollo y la ruta relativa en producción. */
 const API_POR_DEFECTO = import.meta.env.DEV ? 'http://localhost:8000/api/v1' : '/api/v1';
 export const API_URL = (import.meta.env.VITE_API_URL || API_POR_DEFECTO).replace(/\/+$/, '');
@@ -21,6 +23,9 @@ export type UsuarioSesion = {
   rol: Rol;
   foto_perfil: Foto;
 };
+
+/** Director del semillero (GET /home/director, 8b): nunca trae el correo. */
+export type DirectorPublico = { id: string; nombre: string; apellido: string; foto_perfil: Foto };
 
 export type LoginResponse = { token: string; expira_en: number; usuario: UsuarioSesion };
 
@@ -156,7 +161,6 @@ export type InscripcionEntrada = {
   carta_motivacion: string;
   /** Obligatoria, no se guarda (DEC-B63). */
   disponibilidad: boolean;
-  acepta_tratamiento_datos: boolean;
   /** De 0 a 3 documentos de apoyo (opcionales, DECISION-005 corregida). */
   documentos: File[];
 };
@@ -223,8 +227,13 @@ const NETWORK_MESSAGE = 'No se pudo conectar con el servidor. Revisa tu conexió
 // Token y sesión vencida
 // ---------------------------------------------------------------------------------------------------
 
-// Token: localStorage con "Recordarme", sessionStorage sin él (api.md, POST /auth/login).
+// Token: localStorage con "Recordarme", sessionStorage sin él (api.md, POST /auth/login). Junto al token se guarda
+// el instante en que vence (RNF-05, `expira_en`), en el mismo almacenamiento.
 const TOKEN_KEY = 'siiis_token';
+const VENCE_KEY = 'siiis_token_vence';
+
+/** Copia en memoria por si el almacenamiento no está disponible (modo privado): dura hasta recargar. */
+let venceEnMemoria: number | null = null;
 
 export const tokenStorage = {
   get(): string | null {
@@ -234,18 +243,35 @@ export const tokenStorage = {
       return null;
     }
   },
-  save(token: string, remember: boolean) {
-    tokenStorage.clear();
+  /** Instante (ms desde epoch) en que vence el token guardado; null si no se conoce. */
+  vencimiento(): number | null {
     try {
-      (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
+      const guardado = localStorage.getItem(TOKEN_KEY) !== null ? localStorage.getItem(VENCE_KEY) : sessionStorage.getItem(VENCE_KEY);
+      return leerVencimiento(guardado) ?? venceEnMemoria;
+    } catch {
+      return venceEnMemoria;
+    }
+  },
+  /** `expiraEn`: segundos de validez que devolvió el login. */
+  save(token: string, remember: boolean, expiraEn: number) {
+    tokenStorage.clear();
+    const vence = calcularVencimiento(expiraEn, Date.now());
+    venceEnMemoria = vence;
+    try {
+      const almacen = remember ? localStorage : sessionStorage;
+      almacen.setItem(TOKEN_KEY, token);
+      almacen.setItem(VENCE_KEY, String(vence));
     } catch {
       // Almacenamiento no disponible (modo privado): la sesión dura hasta recargar.
     }
   },
   clear() {
+    venceEnMemoria = null;
     try {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(VENCE_KEY);
       sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(VENCE_KEY);
     } catch {
       // Nada que limpiar.
     }
@@ -364,26 +390,40 @@ export const api = {
     request<Paginado<UsuarioPublico | UsuarioAdmin>>('/users', { query, signal }),
   user: (id: string, signal?: AbortSignal) =>
     request<{ usuario: UsuarioPublico | UsuarioAdmin }>(`/users/${enc(id)}`, { signal }),
+  /**
+   * Sección pública "Integrantes": sin token, para recibir siempre la vista pública (solo activos, DEC-B20 y
+   * DEC-B72) aunque quien mira tenga sesión de administrador.
+   */
+  members: (query: { page?: number; per_page?: number; rol?: Rol | '' } = {}, signal?: AbortSignal) =>
+    request<Paginado<UsuarioPublico>>('/users', { query, signal, auth: false }),
+  member: (id: string, signal?: AbortSignal) =>
+    request<{ usuario: UsuarioPublico }>(`/users/${enc(id)}`, { signal, auth: false }),
   updateUser: (id: string, datos: PerfilEntrada) =>
     request<{ usuario: UsuarioAdmin }>(`/users/${enc(id)}`, { method: 'PATCH', body: datos }),
   deactivateUser: (id: string) => request<{ usuario: UsuarioAdmin }>(`/users/${enc(id)}`, { method: 'DELETE' }),
   uploadPhoto: (id: string, foto: File) =>
     request<{ usuario: UsuarioAdmin }>(`/users/${enc(id)}/photo`, { method: 'POST', body: formulario({ foto }) }),
+  /** 6h: solo el propio usuario (DEC-B74). */
+  removePhoto: (id: string) => request<{ usuario: UsuarioAdmin }>(`/users/${enc(id)}/photo`, { method: 'DELETE' }),
 
   // 7–8. Inicio
   slider: (signal?: AbortSignal) => request<{ data: MultimediaItem[] }>('/home/slider', { signal }),
   videos: (signal?: AbortSignal) => request<{ data: MultimediaItem[] }>('/home/videos', { signal }),
+  /** 8b. Director del semillero (DEC-B67); 404 si no está configurado. */
+  director: (signal?: AbortSignal) => request<{ director: DirectorPublico }>('/home/director', { signal }),
 
   // 8a. Administración de fotos y videos del inicio (superadministrador y administrador)
   multimedia: (seccion: SeccionInicio, signal?: AbortSignal) =>
     request<{ data: MultimediaAdmin[] }>('/multimedia', { query: { seccion }, signal }),
-  uploadMultimedia: (datos: { seccion: SeccionInicio; descripcion: string; orden?: number | null; archivo: File }) =>
+  /** `reemplaza` (DEC-B69): id del elemento que el backend borra solo si la subida sale bien. */
+  uploadMultimedia: (datos: { seccion: SeccionInicio; descripcion: string; orden?: number | null; archivo: File; reemplaza?: string }) =>
     request<{ multimedia: MultimediaAdmin }>('/multimedia', {
       method: 'POST',
       body: formulario({
         seccion: datos.seccion,
         descripcion: datos.descripcion,
         ...(datos.orden ? { orden: String(datos.orden) } : {}),
+        ...(datos.reemplaza ? { reemplaza: datos.reemplaza } : {}),
         archivo: datos.archivo,
       }),
     }),
@@ -441,7 +481,6 @@ export const api = {
         semestre: String(datos.semestre),
         carta_motivacion: datos.carta_motivacion,
         disponibilidad: datos.disponibilidad ? 'true' : 'false',
-        acepta_tratamiento_datos: datos.acepta_tratamiento_datos ? 'true' : 'false',
         ...(datos.areas_interes.length ? { 'areas_interes[]': datos.areas_interes } : {}),
         ...(datos.documentos.length ? { 'documentos[]': datos.documentos } : {}),
       }),

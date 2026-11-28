@@ -230,7 +230,7 @@ Público. La pantalla de restablecimiento lee `token` de la query string y lo en
 
 Al restablecer, **se cierran todas las sesiones** del usuario.
 
-**Errores:** `400 VALIDATION_ERROR` (con `fields.token` y/o `fields.password`) y `400 INVALID_OR_EXPIRED_TOKEN`.
+**Errores:** `400 VALIDATION_ERROR` (con `fields.token` y/o `fields.password`), `400 INVALID_OR_EXPIRED_TOKEN` y `429 RATE_LIMITED` (por IP, `RATE_LIMIT_RESET_MAX` intentos por `RATE_LIMIT_RESET_WINDOW_SECONDS`; por defecto 10 por hora; los intentos inválidos también cuentan).
 
 ---
 
@@ -376,9 +376,10 @@ Ejemplo: `GET /api/v1/users?rol=estudiante&page=2&per_page=12`
 ```
 
 - La vista pública (DEC-B19) nunca incluye correo, teléfono, estado ni fechas. Los opcionales sin valor llegan como `null`.
+- La sección pública "Integrantes" del frontend debe pedir esta ruta **sin token**, para recibir la vista pública aunque quien mira tenga sesión de administrador (DEC-B72).
 - Con token de administrador, cada elemento de `data` tiene la forma de la vista de administrador (ver 6b).
 - Una página fuera de rango responde `200` con `data: []` y el `meta` real.
-- Cabeceras: sin sesión, `Cache-Control: public, max-age=60`; con sesión, `no-store`. Siempre `Vary: Authorization`.
+- Cabeceras: sin sesión, `Cache-Control: public, no-cache` (el navegador revalida en cada visita; DEC-B72, antes `max-age=60`); con sesión, `no-store`. Siempre `Vary: Authorization`.
 
 **Errores:** `400 VALIDATION_ERROR`, con `fields` por parámetro (p. ej. `page=0`, `per_page=100`, `rol=egresado`, `estado=si` o un parámetro enviado como arreglo, `rol[]=x`). Nunca responde `401`.
 
@@ -478,6 +479,30 @@ await fetch(`/api/v1/users/${id}/photo`, { method: 'POST', headers: { Authorizat
 - `401 UNAUTHORIZED`, `403 FORBIDDEN`, `404 NOT_FOUND`: como en 6e.
 - `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_MEDIA_TYPE` (formato no admitido, o imagen dañada que Cloudinary rechaza: "La imagen está dañada o no es una imagen válida…"). En ambos casos la foto anterior se conserva.
 - `502 CLOUDINARY_UNAVAILABLE`: solo si Cloudinary falla (no responde o está mal configurado); la foto anterior se conserva.
+
+## 6h. `DELETE /users/{id}/photo`
+
+Requiere token. El usuario **quita su propia foto** de perfil (RF-06, DEC-B74). Solo sobre sí mismo: `{id}` debe ser
+el del usuario autenticado; nadie quita la foto de otro, tampoco un administrador.
+
+**Request**: sin cuerpo.
+
+```ts
+await fetch(`/api/v1/users/${id}/photo`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+```
+
+- Deja `foto_perfil = null` y después borra el archivo de Cloudinary. Si ese borrado falla, la respuesta es igual
+  `200` y el `public_id` queda en el log para limpiarlo a mano (como al reemplazar la foto, 6g).
+- Si el usuario no tiene foto, responde `200` sin hacer nada (se puede repetir).
+- Sin foto, el frontend muestra las iniciales (como con cualquier usuario sin foto).
+
+**200**: `{"usuario": {...}}` con la vista de administrador del propio usuario (6b) y `"foto_perfil": null`. Cabecera
+`Cache-Control: no-store`.
+
+**Errores:**
+- `401 UNAUTHORIZED`: sin token o sesión vencida.
+- `403 FORBIDDEN`: `{id}` no es el del usuario autenticado (o no es un id válido).
+- `404 NOT_FOUND`: el perfil del usuario autenticado ya no existe.
 
 ---
 
@@ -618,6 +643,7 @@ Fase 3. Proyectos de la colección `Documentos` (`categoria = proyecto`). Artíc
 | Qué ve cada quien | Sin sesión: lo público. Con sesión: lo público más lo suyo (como autor o integrante). Revisores: todo |
 | Lo que no puedes ver | Responde `404 NOT_FOUND`, también en `PATCH` y `DELETE` |
 | `contenido` | **Markdown**, hasta 50 000 caracteres. Muéstralo con un renderizador de Markdown que **no interprete HTML** (el backend lo guarda tal cual). Pendiente de confirmar con frontend (DEC-B37) |
+| Texto o PDF (DEC-B70) | El contenido de un documento es su texto (`contenido`), su PDF principal (el primer adjunto PDF, sección 11) o ambos; los dos son opcionales, pero **un documento publicado necesita al menos uno**. El borrador (`en_revision` y `visible = false`) puede crearse vacío, porque el PDF se sube después de crearlo. Responde `400 VALIDATION_ERROR` con `fields.contenido` = `"Escribe el contenido o sube un PDF: el documento necesita al menos uno de los dos."` cuando: se crea ya publicado o visible sin texto; se publica (`estado` distinto de `en_revision` o `visible: true`) un documento sin texto ni PDF; o una edición (`contenido` vacío o `null`, o quitar el último PDF) dejaría sin ninguno de los dos un documento que tenía alguno. Los documentos existentes siguen siendo válidos sin migración. Igual en proyectos, artículos y noticias |
 
 ### Objeto `documento`
 
@@ -701,7 +727,7 @@ Requiere token.
 |---|---|---|
 | `titulo` | sí | texto de 1 a 200 caracteres |
 | `descripcion` | sí | texto de 1 a 1000 caracteres |
-| `contenido` | no | Markdown de hasta 50 000 caracteres; vacío o `null` → `null` |
+| `contenido` | no | Markdown de hasta `DOCUMENTO_CONTENIDO_MAX_LENGTH` (50 000) caracteres; vacío o `null` → `null`. Obligatorio solo si el documento se crea ya publicado o visible (DEC-B70) |
 | `integrantes` | no | lista de ids de usuarios **activos**, sin repetidos, hasta 20 |
 | `estado` | no | solo revisores; por defecto `en_revision` |
 | `visible` | no | booleano JSON (`true`/`false`); solo revisores; por defecto `false` |
@@ -712,7 +738,7 @@ Requiere token.
 **201** `{"documento": {...}}` con el detalle. Cabecera `Cache-Control: no-store`.
 
 **Errores:**
-- `400 VALIDATION_ERROR` (`fields`): campos faltantes o largos, tipos incorrectos, `estado` que no es de proyecto (p. ej. `publicado`), o `integrantes` que no existen o están inactivos (el mensaje lista los ids).
+- `400 VALIDATION_ERROR` (`fields`): campos faltantes o largos, tipos incorrectos, `estado` que no es de proyecto (p. ej. `publicado`), `integrantes` que no existen o están inactivos (el mensaje lista los ids), o `fields.contenido` si se crea publicado o visible sin texto (DEC-B70).
 - `401 UNAUTHORIZED`, `403 FORBIDDEN`.
 
 ### 9d. `PATCH /projects/{id}`
@@ -725,7 +751,7 @@ Requiere token. Edición parcial: solo cambian los campos enviados. Los campos y
 **200** `{"documento": {...}}` con el detalle. Cabecera `Cache-Control: no-store`.
 
 **Errores:**
-- `400 VALIDATION_ERROR`: como en `POST`; sin ningún campo editable, sin `fields`.
+- `400 VALIDATION_ERROR`: como en `POST`; sin ningún campo editable, sin `fields`. `fields.contenido` si se publica sin texto ni PDF, o si vaciar `contenido` dejaría el documento sin texto ni PDF (se puede quitar el texto si conserva el PDF; DEC-B70).
 - `401 UNAUTHORIZED`.
 - `403 FORBIDDEN`: no eres el autor ni revisor; el proyecto ya no está en revisión; o intentas cambiar `estado` o `visible` sin ser revisor.
 - `404 NOT_FOUND`: como en 9b.
@@ -840,7 +866,9 @@ Requiere token. `{archivo}` es el valor de `archivos_adjuntos[].archivo` del det
 
 **200** `{"documento": {...}}`: el detalle sin ese adjunto. Cabecera `Cache-Control: no-store`.
 
-**Errores:** `401 UNAUTHORIZED`, `403 FORBIDDEN` (como en 9d), `404 NOT_FOUND` (el documento o el archivo no existen).
+**Errores:** `400 VALIDATION_ERROR` (`fields.contenido`) si es el último PDF y el documento no tiene texto (DEC-B70: primero escribe el texto o sube otro PDF), `401 UNAUTHORIZED`, `403 FORBIDDEN` (como en 9d), `404 NOT_FOUND` (el documento o el archivo no existen).
+
+Para **reemplazar** el PDF principal, sube el nuevo y después quita el anterior: así el documento nunca queda sin PDF.
 
 Al borrar un documento (9e) se borran también todos sus adjuntos.
 

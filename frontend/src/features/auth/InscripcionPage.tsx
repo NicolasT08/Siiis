@@ -2,26 +2,24 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { BookOpenCheck, CalendarDays, Lightbulb, Send } from 'lucide-react';
 import ProjectsHero from '../projects/components/ProjectsHero';
-import SelectorArchivos from '../../components/SelectorArchivos';
-import { AREAS_INTERES as AREAS, SITIO, TEXTO_AUTORIZACION } from '../../config/sitio';
+import { AREAS_INTERES as AREAS, SITIO } from '../../config/sitio';
 import { api } from '../../lib/api';
 import { erroresDeCampo, mensajeError } from '../../lib/errors';
-import { validarArchivo } from '../../lib/archivos';
 import { Aviso, ErrorCampo } from '../../components/ui';
+import SelectorArchivos from '../../components/SelectorArchivos';
+import { validarHojaDeVida } from '../../lib/archivos';
 import '../projects/projects.css';
 import './registration.css';
 
-const CARTA_MIN = 100;
 const CARTA_MAX = 3000;
-const MAX_DOCUMENTOS = 3;
 
 export default function InscripcionPage() {
   const [enviando, setEnviando] = useState(false);
   const [ok, setOk] = useState('');
   const [error, setError] = useState('');
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [carta, setCarta] = useState('');
-  const [documentos, setDocumentos] = useState<File[]>([]);
+  // RF-11: hoja de vida opcional, un PDF; viaja en documentos[] (DEC-B49, DEC-B63).
+  const [hojaDeVida, setHojaDeVida] = useState<File[]>([]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,16 +38,10 @@ export default function InscripcionPage() {
     const semestre = Number(texto('semestre'));
     if (!Number.isInteger(semestre) || semestre < 1 || semestre > 10) errores.semestre = 'Elige un semestre entre 1 y 10.';
     const cartaTexto = texto('motivacion');
-    if (cartaTexto.length < CARTA_MIN) errores.carta_motivacion = `Escribe al menos ${CARTA_MIN} caracteres.`;
+    if (!cartaTexto) errores.carta_motivacion = 'Este campo es obligatorio.';
+    const problemaHoja = hojaDeVida[0] ? validarHojaDeVida(hojaDeVida[0]) : null;
+    if (problemaHoja) errores.documentos = problemaHoja;
     if (datos.get('disponibilidad') !== 'on') errores.disponibilidad = 'Confirma tu disponibilidad para las reuniones semanales.';
-    if (datos.get('acepta_tratamiento_datos') !== 'on') errores.acepta_tratamiento_datos = 'Debes autorizar el tratamiento de tus datos personales.';
-    for (const archivo of documentos) {
-      const problema = validarArchivo(archivo);
-      if (problema) {
-        errores.documentos = `${archivo.name}: ${problema}`;
-        break;
-      }
-    }
 
     setOk('');
     setError('');
@@ -71,12 +63,10 @@ export default function InscripcionPage() {
         areas_interes: datos.getAll('areas_interes').map(String),
         carta_motivacion: cartaTexto,
         disponibilidad: true,
-        acepta_tratamiento_datos: true,
-        documentos,
+        documentos: hojaDeVida,
       });
       form.reset();
-      setCarta('');
-      setDocumentos([]);
+      setHojaDeVida([]);
       setOk(respuesta.mensaje);
     } catch (e) {
       setCampos(erroresDeCampo(e));
@@ -180,7 +170,6 @@ export default function InscripcionPage() {
                 <ErrorCampo id="ins-semestre-e" mensaje={campos.semestre} />
               </label>
             </div>
-            <p className="registration-hint">Usa tu correo institucional @{SITIO.dominioInscripcion}: allí te llegará la respuesta.</p>
 
             <fieldset className="registration-areas">
               <legend>
@@ -202,32 +191,26 @@ export default function InscripcionPage() {
               <textarea
                 name="motivacion"
                 rows={5}
-                minLength={CARTA_MIN}
                 maxLength={CARTA_MAX}
                 placeholder="Cuéntanos por qué quieres unirte y qué temas te gustaría explorar."
                 required
                 disabled={enviando}
-                value={carta}
-                onChange={(e) => setCarta(e.target.value)}
                 aria-invalid={!!campos.carta_motivacion}
                 aria-describedby="ins-carta_motivacion-e"
               />
-              <span className="registration-hint" aria-live="polite">
-                {carta.trim().length} / {CARTA_MAX} caracteres (mínimo {CARTA_MIN})
-              </span>
               <ErrorCampo id="ins-carta_motivacion-e" mensaje={campos.carta_motivacion} />
             </label>
 
-            <fieldset className="registration-areas">
-              <legend>
-                Documentos de apoyo <span>(opcional)</span>
-              </legend>
+            <fieldset className="registration-areas registration-cv">
+              <legend>Hoja de vida (PDF)</legend>
               <SelectorArchivos
-                archivos={documentos}
-                onChange={setDocumentos}
-                accept="application/pdf,image/jpeg,image/png,image/webp"
-                max={MAX_DOCUMENTOS}
-                ayuda="Hasta 3 archivos: PDF de máximo 3 MB, o JPG, PNG o WebP de máximo 5 MB"
+                archivos={hojaDeVida}
+                onChange={(archivos) => {
+                  setHojaDeVida(archivos);
+                  setCampos((c) => ({ ...c, documentos: '' }));
+                }}
+                accept="application/pdf,.pdf"
+                ayuda="Opcional. PDF de hasta 3 MB"
                 disabled={enviando}
                 invalido={!!campos.documentos}
                 errorId="ins-documentos-e"
@@ -244,11 +227,9 @@ export default function InscripcionPage() {
             </label>
             <ErrorCampo id="ins-disponibilidad-e" mensaje={campos.disponibilidad} />
 
-            <label className="registration-commitment">
-              <input type="checkbox" name="acepta_tratamiento_datos" required disabled={enviando} {...invalido('acepta_tratamiento_datos')} />
-              <span>{TEXTO_AUTORIZACION}</span>
-            </label>
-            <ErrorCampo id="ins-acepta_tratamiento_datos-e" mensaje={campos.acepta_tratamiento_datos} />
+            <p className="registration-privacy">
+              Usaremos tus datos únicamente para gestionar esta solicitud de ingreso al semillero.
+            </p>
 
             {ok && <Aviso tipo="ok">{ok}</Aviso>}
             {error && <Aviso tipo="error">{error}</Aviso>}

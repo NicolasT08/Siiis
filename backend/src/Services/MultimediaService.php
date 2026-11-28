@@ -76,13 +76,12 @@ class MultimediaService
         $folder = $this->settings->cloudinaryHomeFolder . '/' . self::SUBCARPETA[$seccion];
         try {
             $subido = $tipo === 'video'
-                ? $this->cloudinary->uploadVideo($archivo['path'], $folder)
+                ? $this->cloudinary->uploadVideo($archivo['path'], $folder, CloudinaryService::transformacionVideoHome($this->settings))
                 : $this->cloudinary->upload(
                     $archivo['path'],
                     $folder,
                     CloudinaryService::FORMATOS_IMAGEN,
-                    // Mismas reglas que las imágenes adjuntas (DEC-B42): 1600 px de ancho máximo y calidad automática.
-                    CloudinaryService::transformacionImagenAdjunta($this->settings),
+                    CloudinaryService::transformacionImagenHome($this->settings),
                 );
         } catch (ArchivoRechazadoException $e) {
             $this->logger->warning('Cloudinary rechazó un archivo del inicio', ['seccion' => $seccion, 'error' => $e->getMessage()]);
@@ -220,8 +219,27 @@ class MultimediaService
         }
     }
 
+    /**
+     * Solo se borran de Cloudinary los archivos que subió la aplicación, que siempre quedan dentro de
+     * `CLOUDINARY_HOME_FOLDER/` (la API y `cargar_multimedia.php --carpeta`). Los recursos preexistentes registrados
+     * con `--existentes` (Foto_1…Foto_8, video_home) están fuera de esa carpeta: al quitarlos o reemplazarlos solo
+     * se borra su registro en MongoDB y el archivo se conserva en Cloudinary.
+     */
+    public function esArchivoPropio(string $publicId): bool
+    {
+        return str_starts_with($publicId, $this->settings->cloudinaryHomeFolder . '/');
+    }
+
     private function borrarArchivo(string $publicId, string $tipo, string $motivo): void
     {
+        if (!$this->esArchivoPropio($publicId)) {
+            $this->logger->info('Recurso preexistente de Cloudinary conservado; solo se quitó su registro', [
+                'public_id' => $publicId,
+                'motivo' => $motivo,
+            ]);
+
+            return;
+        }
         try {
             $this->cloudinary->delete(
                 $publicId,

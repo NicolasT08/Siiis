@@ -393,7 +393,12 @@ final class ProjectsApiTest extends DocumentosTestCase
     public function testAutorEditaMientrasEstaEnRevision(): void
     {
         [$token, $yo] = $this->sesionComo($this->app, 'estudiante');
-        $id = $this->documento(['autor_id' => $yo, 'estado' => 'en_revision', 'visible' => false]);
+        // Con PDF, para que pueda quitar el texto (DEC-B70).
+        $id = $this->documento(['autor_id' => $yo, 'estado' => 'en_revision', 'visible' => false, 'archivos_adjuntos' => [[
+            'url' => 'https://res.cloudinary.com/demo/image/upload/v1/siiis/documentos/informe.pdf',
+            'public_id' => 'siiis/documentos/informe',
+            'nombre_archivo' => 'informe.pdf',
+        ]]]);
         $this->clock->advance(3600);
 
         $response = $this->send('PATCH', '/api/v1/projects/' . $id, [

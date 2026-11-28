@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { ArrowDown, ArrowUp, Film, Image as ImageIcon, Save, Trash2, Upload } from 'lucide-react';
+import { ArrowDown, ArrowUp, Film, Image as ImageIcon, RefreshCw, Save, Trash2, Upload } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { MultimediaAdmin, SeccionInicio } from '../../lib/api';
 import { validarFotoInicio, validarVideo } from '../../lib/archivos';
@@ -12,6 +12,9 @@ import SelectorArchivos from '../../components/SelectorArchivos';
 
 type Resultado = { tipo: 'ok' | 'error'; texto: string } | null;
 
+/** HOME_MAX_VIDEOS del backend (DEC-B69): con el máximo, en lugar de subir se ofrece "Reemplazar video". */
+const MAX_VIDEOS = 1;
+
 const SECCIONES: { seccion: SeccionInicio; titulo: string; esVideo: boolean; ayuda: string }[] = [
   {
     seccion: 'slider_principal',
@@ -21,7 +24,7 @@ const SECCIONES: { seccion: SeccionInicio; titulo: string; esVideo: boolean; ayu
   },
   {
     seccion: 'video_presentacion',
-    titulo: 'Videos de presentación',
+    titulo: 'Video de presentación',
     esVideo: true,
     ayuda: 'MP4, WebM o MOV de hasta 50 MB (mejor en 720p). La subida puede tardar un par de minutos.',
   },
@@ -111,6 +114,8 @@ function Seccion({ seccion, titulo, esVideo, ayuda }: (typeof SECCIONES)[number]
   const [archivos, setArchivos] = useState<File[]>([]);
   const items = local ?? (estado.status === 'ready' ? estado.data.data : []);
   const ids = { archivo: `${seccion}-archivo`, descripcion: `${seccion}-descripcion`, orden: `${seccion}-orden` };
+  // Con el máximo de videos ya no se sube otro: se reemplaza el actual (el backend lo borra solo si la subida sale bien).
+  const reemplazo = esVideo && items.length >= MAX_VIDEOS ? items[0] : null;
 
   const ejecutar = async (tarea: () => Promise<MultimediaAdmin[] | void>, ok?: string) => {
     setOcupado(true);
@@ -161,10 +166,13 @@ function Seccion({ seccion, titulo, esVideo, ayuda }: (typeof SECCIONES)[number]
     setCampos(errores);
     if (Object.keys(errores).length || !archivo) return;
 
-    const ok = await ejecutar(async () => {
-      await api.uploadMultimedia({ seccion, descripcion, orden, archivo });
-      return (await api.multimedia(seccion)).data;
-    }, esVideo ? 'Video subido.' : 'Foto subida.');
+    const ok = await ejecutar(
+      async () => {
+        await api.uploadMultimedia({ seccion, descripcion, orden: reemplazo ? null : orden, archivo, reemplaza: reemplazo?.id });
+        return (await api.multimedia(seccion)).data;
+      },
+      reemplazo ? 'Video reemplazado.' : esVideo ? 'Video subido.' : 'Foto subida.',
+    );
     if (ok) {
       form.reset();
       setArchivos([]);
@@ -205,11 +213,15 @@ function Seccion({ seccion, titulo, esVideo, ayuda }: (typeof SECCIONES)[number]
 
       {resultado && <Aviso tipo={resultado.tipo}>{resultado.texto}</Aviso>}
 
-      <form className="app-form media-admin__upload" onSubmit={(e) => void subir(e)} noValidate>
+      <form key={reemplazo?.id ?? 'nuevo'} className="app-form media-admin__upload" onSubmit={(e) => void subir(e)} noValidate>
         <h3>
-          <Upload size={18} aria-hidden="true" /> {esVideo ? 'Subir video' : 'Subir foto'}
+          {reemplazo ? <RefreshCw size={18} aria-hidden="true" /> : <Upload size={18} aria-hidden="true" />}{' '}
+          {reemplazo ? 'Reemplazar video' : esVideo ? 'Subir video' : 'Subir foto'}
         </h3>
-        <p className="app-hint">{ayuda}</p>
+        <p className="app-hint">
+          {ayuda}
+          {reemplazo && ' Solo puede haber un video: el actual se borra únicamente si el nuevo se sube bien.'}
+        </p>
         <div className="app-form-grid">
           <div className="app-field app-field--wide">
             <span>{esVideo ? 'Video' : 'Foto'}</span>
@@ -217,7 +229,7 @@ function Seccion({ seccion, titulo, esVideo, ayuda }: (typeof SECCIONES)[number]
               archivos={archivos}
               onChange={setArchivos}
               accept={esVideo ? 'video/mp4,video/webm,video/quicktime' : 'image/jpeg,image/png,image/webp'}
-              etiqueta={esVideo ? (archivos.length ? 'Cambiar video' : 'Elegir video') : archivos.length ? 'Cambiar foto' : 'Elegir foto'}
+              etiqueta={esVideo ? (archivos.length ? 'Cambiar video' : 'Seleccionar video') : archivos.length ? 'Cambiar foto' : 'Seleccionar foto'}
               disabled={ocupado}
               invalido={!!campos.archivo}
               errorId={`${ids.archivo}-e`}
@@ -226,17 +238,29 @@ function Seccion({ seccion, titulo, esVideo, ayuda }: (typeof SECCIONES)[number]
           </div>
           <div className="app-field">
             <label htmlFor={ids.descripcion}>Descripción</label>
-            <input id={ids.descripcion} name="descripcion" maxLength={200} required disabled={ocupado} aria-invalid={!!campos.descripcion} aria-describedby={`${ids.descripcion}-e`} />
+            <input
+              id={ids.descripcion}
+              name="descripcion"
+              maxLength={200}
+              required
+              defaultValue={reemplazo?.descripcion ?? ''}
+              disabled={ocupado}
+              aria-invalid={!!campos.descripcion}
+              aria-describedby={`${ids.descripcion}-e`}
+            />
             <ErrorCampo id={`${ids.descripcion}-e`} mensaje={campos.descripcion} />
           </div>
-          <div className="app-field">
-            <label htmlFor={ids.orden}>Posición (opcional)</label>
-            <input id={ids.orden} name="orden" type="number" min={1} max={1000} placeholder="Al final" disabled={ocupado} aria-invalid={!!campos.orden} aria-describedby={`${ids.orden}-e`} />
-            <ErrorCampo id={`${ids.orden}-e`} mensaje={campos.orden} />
-          </div>
+          {!reemplazo && (
+            <div className="app-field">
+              <label htmlFor={ids.orden}>Posición (opcional)</label>
+              <input id={ids.orden} name="orden" type="number" min={1} max={1000} placeholder="Al final" disabled={ocupado} aria-invalid={!!campos.orden} aria-describedby={`${ids.orden}-e`} />
+              <ErrorCampo id={`${ids.orden}-e`} mensaje={campos.orden} />
+            </div>
+          )}
         </div>
         <button type="submit" className="btn btn--bronze" disabled={ocupado}>
-          <Upload size={16} aria-hidden="true" /> {ocupado ? 'Procesando…' : esVideo ? 'Subir video' : 'Subir foto'}
+          {reemplazo ? <RefreshCw size={16} aria-hidden="true" /> : <Upload size={16} aria-hidden="true" />}{' '}
+          {ocupado ? 'Procesando…' : reemplazo ? 'Reemplazar video' : esVideo ? 'Subir video' : 'Subir foto'}
         </button>
       </form>
     </section>

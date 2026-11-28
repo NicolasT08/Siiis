@@ -144,6 +144,26 @@ final class PasswordResetApiTest extends AuthTestCase
         $this->assertError($this->forgot($app, 'b@uptc.edu.co'), 429, 'RATE_LIMITED');
     }
 
+    public function testResetRateLimitAntesDeValidar(): void
+    {
+        $this->db->crearCuenta(self::CORREO, self::PASSWORD);
+        $app = $this->authApp(['RATE_LIMIT_RESET_MAX' => '2', 'RATE_LIMIT_RESET_WINDOW_SECONDS' => '600']);
+        $this->forgot($app, self::CORREO);
+        $token = $this->mail->ultimoToken();
+
+        $this->assertError($this->reset($app, str_repeat('a', 64), 'Nueva-Clave-2026'), 400, 'INVALID_OR_EXPIRED_TOKEN');
+        $this->assertError($this->reset($app, 'corto', 'Nueva-Clave-2026'), 400, 'INVALID_OR_EXPIRED_TOKEN');
+
+        // Tercer intento en la ventana: 429 aunque el token sea válido, y la contraseña no cambia.
+        $response = $this->reset($app, $token, 'Nueva-Clave-2026');
+        $this->assertError($response, 429, 'RATE_LIMITED');
+        self::assertGreaterThan(0, (int) $response->getHeaderLine('Retry-After'));
+
+        // Vencida la ventana (antes de que venza el token, a los 30 min), el mismo token funciona.
+        $this->clock->advance(600);
+        self::assertSame(200, $this->reset($app, $token, 'Nueva-Clave-2026')->getStatusCode());
+    }
+
     public function testResetConTokenValido(): void
     {
         [$credId] = $this->db->crearCuenta(self::CORREO, self::PASSWORD);

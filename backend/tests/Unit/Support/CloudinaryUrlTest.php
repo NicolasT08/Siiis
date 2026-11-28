@@ -34,9 +34,13 @@ final class CloudinaryUrlTest extends TestCase
         yield 'pdf en mayúsculas' => [self::BASE . 'v1/x.PDF', self::BASE . 'v1/x.PDF'];
         yield 'ya optimizada' => [self::BASE . 'f_auto,q_auto/v1/a.jpg', self::BASE . 'f_auto,q_auto/v1/a.jpg'];
         yield 'con otra transformación' => [self::BASE . 'c_fill,w_100/v1/a.jpg', self::BASE . 'c_fill,w_100/v1/a.jpg'];
-        yield 'video' => [
+        yield 'video con q_auto' => [
             'https://res.cloudinary.com/demo/video/upload/v1/dog.mp4',
-            'https://res.cloudinary.com/demo/video/upload/v1/dog.mp4',
+            'https://res.cloudinary.com/demo/video/upload/q_auto/v1/dog.mp4',
+        ];
+        yield 'video ya optimizado' => [
+            'https://res.cloudinary.com/demo/video/upload/q_auto/v1/dog.mp4',
+            'https://res.cloudinary.com/demo/video/upload/q_auto/v1/dog.mp4',
         ];
         yield 'raw' => [
             'https://res.cloudinary.com/demo/raw/upload/v1/siiis/documentos/a.pdf',

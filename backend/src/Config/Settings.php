@@ -114,6 +114,10 @@ final readonly class Settings
         public string $googleDominioPermitido,
         /** Carpeta de Cloudinary de las fotos y videos del inicio (DEC-B62) */
         public string $cloudinaryHomeFolder,
+        /** Ancho máximo al subir una foto del carrusel (c_limit, sin agrandar las pequeñas) */
+        public int $homeImagenMaxAnchoPx,
+        /** Ancho máximo al subir el video de presentación (c_limit, q_auto, vc_auto) */
+        public int $homeVideoMaxAnchoPx,
         /** Tamaño máximo de un video subido por la API (DEC-B62); post_max_size debe ser mayor */
         public int $multimediaVideoMaxBytes,
         public int $multimediaDescripcionMaxLength,
@@ -122,6 +126,17 @@ final readonly class Settings
         /** Correo de la cuenta del director del semillero (GET /home/director); vacío = sin director. */
         public string $directorCorreo,
         public string $storagePath,
+        /** Timeouts del cliente de MongoDB (auditoría M-01); ver Database\Mongo. */
+        public int $mongoServerSelectionTimeoutMs = 5000,
+        public int $mongoConnectTimeoutMs = 5000,
+        public int $mongoSocketTimeoutMs = 20000,
+        /** POST /auth/reset-password (auditoría M-03) */
+        public int $rateLimitResetMax = 10,
+        public int $rateLimitResetWindowSeconds = 3600,
+        /** Carpeta de los respaldos de scripts/respaldar_base.php (A-01); fuera de public_html. */
+        public string $respaldoDir = '',
+        /** Cantidad de respaldos que se conservan; los más viejos se borran. */
+        public int $respaldoMax = 7,
     ) {
     }
 
@@ -132,6 +147,7 @@ final readonly class Settings
      */
     public static function fromEnv(array $env, ?string $storagePath = null): self
     {
+        $storage = $storagePath ?? dirname(__DIR__, 2) . '/storage';
         $mongoUri = self::string($env, 'MONGO_URI');
         if ($mongoUri === '') {
             throw new ConfigException('Falta la variable de entorno MONGO_URI (ver backend/.env.example).');
@@ -282,12 +298,21 @@ final readonly class Settings
             googleClientId: self::string($env, 'GOOGLE_CLIENT_ID'),
             googleDominioPermitido: self::dominioGoogle($env),
             cloudinaryHomeFolder: trim(self::string($env, 'CLOUDINARY_HOME_FOLDER', 'siiis/home'), '/'),
+            homeImagenMaxAnchoPx: self::positiveInt($env, 'HOME_IMAGEN_MAX_ANCHO_PX', 1920),
+            homeVideoMaxAnchoPx: self::positiveInt($env, 'HOME_VIDEO_MAX_ANCHO_PX', 1280),
             multimediaVideoMaxBytes: self::positiveInt($env, 'MULTIMEDIA_VIDEO_MAX_BYTES', 52428800),
             multimediaDescripcionMaxLength: self::positiveInt($env, 'MULTIMEDIA_DESCRIPCION_MAX_LENGTH', 200),
             rateLimitMultimediaMax: self::positiveInt($env, 'RATE_LIMIT_MULTIMEDIA_MAX', 60),
             rateLimitMultimediaWindowSeconds: self::positiveInt($env, 'RATE_LIMIT_MULTIMEDIA_WINDOW_SECONDS', 3600),
             directorCorreo: mb_strtolower(self::string($env, 'DIRECTOR_CORREO')),
-            storagePath: $storagePath ?? dirname(__DIR__, 2) . '/storage',
+            storagePath: $storage,
+            mongoServerSelectionTimeoutMs: self::positiveInt($env, 'MONGO_SERVER_SELECTION_TIMEOUT_MS', 5000),
+            mongoConnectTimeoutMs: self::positiveInt($env, 'MONGO_CONNECT_TIMEOUT_MS', 5000),
+            mongoSocketTimeoutMs: self::positiveInt($env, 'MONGO_SOCKET_TIMEOUT_MS', 20000),
+            rateLimitResetMax: self::positiveInt($env, 'RATE_LIMIT_RESET_MAX', 10),
+            rateLimitResetWindowSeconds: self::positiveInt($env, 'RATE_LIMIT_RESET_WINDOW_SECONDS', 3600),
+            respaldoDir: self::rutaRespaldos($env, $storage),
+            respaldoMax: self::positiveInt($env, 'RESPALDO_MAX', 7),
         );
     }
 
@@ -319,6 +344,7 @@ final readonly class Settings
         return max(
             $this->rateLimitLoginWindowSeconds,
             $this->rateLimitForgotWindowSeconds,
+            $this->rateLimitResetWindowSeconds,
             $this->rateLimitChangePasswordWindowSeconds,
             $this->rateLimitReviewsWindowSeconds,
             $this->rateLimitContactWindowSeconds,
@@ -464,6 +490,29 @@ final readonly class Settings
         }
 
         return [$default, $max];
+    }
+
+    /**
+     * RESPALDO_DIR: vacío = storage/respaldos. Una ruta relativa se toma desde backend/ (la raíz del código). Se
+     * rechaza una ruta dentro de public_html: los respaldos tienen hashes de contraseñas y datos personales.
+     *
+     * @param array<string, mixed> $env
+     */
+    private static function rutaRespaldos(array $env, string $storage): string
+    {
+        $ruta = self::string($env, 'RESPALDO_DIR');
+        if ($ruta === '') {
+            return $storage . '/respaldos';
+        }
+        $absoluta = preg_match('#^([a-zA-Z]:[\\\\/]|[\\\\/])#', $ruta) === 1;
+        if (!$absoluta) {
+            $ruta = dirname(__DIR__, 2) . '/' . $ruta;
+        }
+        if (preg_match('#(^|[\\\\/])public_html([\\\\/]|$)#i', $ruta) === 1) {
+            throw new ConfigException('RESPALDO_DIR no puede estar dentro de public_html.');
+        }
+
+        return rtrim($ruta, '\\/');
     }
 
     /**

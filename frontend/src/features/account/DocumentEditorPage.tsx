@@ -1,19 +1,31 @@
 import { useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Eye, FileText, Paperclip, Pencil, Save, Trash2, Upload, X } from 'lucide-react';
+import { ArrowLeft, Eye, FileText, ImagePlus, Pencil, Save, Trash2, Upload, X } from 'lucide-react';
 import { api, ESTADOS_POR_MODULO } from '../../lib/api';
 import type { CategoriaDocumento, Documento, DocumentoEntrada, EstadoDocumento, Modulo, UsuarioPublico } from '../../lib/api';
 import { esRevisor, useAuth } from '../../lib/auth';
 import { validarArchivo } from '../../lib/archivos';
+import { pdfPrincipal, validarPdfDocumento } from '../../lib/documentoPdf';
 import { erroresDeCampo, mensajeError } from '../../lib/errors';
 import { ETIQUETA_CATEGORIA, ETIQUETA_ESTADO, nombrePersona, rutaDocumento } from '../../lib/format';
 import { useApi } from '../../lib/useApi';
-import Markdown from '../../components/Markdown';
+import MarkdownEditor from '../../components/MarkdownEditor';
+import SelectorArchivos from '../../components/SelectorArchivos';
 import { Aviso, Cargando, ErrorCampo, ErrorCarga } from '../../components/ui';
 import type { Resultado } from './ProfilePage';
 
+/** Límite de adjuntos del backend; incluye el documento PDF principal. */
 const MAX_ADJUNTOS = 10;
+
+/** DOCUMENTO_CONTENIDO_MAX_LENGTH del backend (DEC-B37). */
+const MAX_CONTENIDO = 50000;
+
+/** Mensaje de DEC-B70: el documento necesita texto, PDF o ambos. */
+const SIN_TEXTO_NI_PDF = 'Escribe el contenido o sube un PDF: el documento necesita al menos uno de los dos.';
+
+/** Estado que se pasa al pasar de "crear" a "editar". */
+type EstadoCreacion = { creado?: boolean; errorPdf?: string; errorPublicar?: string } | null;
 
 /** Todos los integrantes activos (GET /users es paginado; máximo 50 por página). */
 async function todosLosIntegrantes(signal: AbortSignal): Promise<UsuarioPublico[]> {
@@ -79,15 +91,18 @@ function SelectorIntegrantes({ seleccion, onChange, excluir }: { seleccion: stri
   );
 }
 
-function Adjuntos({ modulo, documento, onCambio }: { modulo: Modulo; documento: Documento; onCambio: (d: Documento) => void }) {
+/** Imágenes adjuntas extra (opcionales). El documento PDF principal se maneja en el formulario. */
+function Imagenes({ modulo, documento, onCambio }: { modulo: Modulo; documento: Documento; onCambio: (d: Documento) => void }) {
   const [ocupado, setOcupado] = useState(false);
   const [resultado, setResultado] = useState<Resultado>(null);
+  const principal = pdfPrincipal(documento.archivos_adjuntos);
+  const extras = documento.archivos_adjuntos.filter((a) => a.archivo !== principal?.archivo);
 
   const subir = async (event: ChangeEvent<HTMLInputElement>) => {
     const archivo = event.target.files?.[0];
     event.target.value = '';
     if (!archivo) return;
-    const problema = validarArchivo(archivo);
+    const problema = validarPdfDocumento(archivo) === null ? 'El documento PDF se sube en el formulario de arriba.' : validarArchivo(archivo);
     if (problema) {
       setResultado({ tipo: 'error', texto: problema });
       return;
@@ -123,12 +138,12 @@ function Adjuntos({ modulo, documento, onCambio }: { modulo: Modulo; documento: 
   return (
     <section className="app-card app-form" aria-labelledby="adjuntos-editor">
       <h2 id="adjuntos-editor">
-        <Paperclip size={20} aria-hidden="true" /> Archivos adjuntos
+        <ImagePlus size={20} aria-hidden="true" /> Imágenes adjuntas (opcional)
       </h2>
-      <p className="app-hint">PDF de hasta 3 MB, o JPG, PNG o WebP de hasta 5 MB. Máximo {MAX_ADJUNTOS} archivos; se suben de a uno.</p>
-      {documento.archivos_adjuntos.length > 0 && (
+      <p className="app-hint">JPG, PNG o WebP de hasta 5 MB; se suben de a una y se muestran debajo del PDF. Máximo {MAX_ADJUNTOS} archivos contando el PDF.</p>
+      {extras.length > 0 && (
         <ul className="app-files">
-          {documento.archivos_adjuntos.map((a) => (
+          {extras.map((a) => (
             <li key={a.archivo}>
               <a href={a.url} target="_blank" rel="noopener noreferrer">
                 <span>
@@ -142,9 +157,9 @@ function Adjuntos({ modulo, documento, onCambio }: { modulo: Modulo; documento: 
           ))}
         </ul>
       )}
-      <label className={`btn btn--navy${ocupado || lleno ? ' is-disabled' : ''}`} aria-disabled={ocupado || lleno}>
-        <Upload size={16} aria-hidden="true" /> {ocupado ? 'Procesando…' : lleno ? 'Límite de adjuntos alcanzado' : 'Subir archivo'}
-        <input type="file" className="visually-hidden" accept="application/pdf,image/jpeg,image/png,image/webp" disabled={ocupado || lleno} onChange={(e) => void subir(e)} />
+      <label className={`btn btn--navy btn-archivo${ocupado || lleno ? ' is-disabled' : ''}`} aria-disabled={ocupado || lleno}>
+        <Upload size={16} aria-hidden="true" /> {ocupado ? 'Procesando…' : lleno ? 'Límite de adjuntos alcanzado' : 'Subir imagen'}
+        <input type="file" className="visually-hidden" accept="image/jpeg,image/png,image/webp" disabled={ocupado || lleno} onChange={(e) => void subir(e)} />
       </label>
       {resultado && <Aviso tipo={resultado.tipo}>{resultado.texto}</Aviso>}
     </section>
@@ -156,13 +171,61 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
   const navigate = useNavigate();
   const revisor = esRevisor(usuario?.rol);
   const [actual, setActual] = useState<Documento | null>(documento);
+  const [pdf, setPdf] = useState<File[]>([]);
   const [contenido, setContenido] = useState(documento?.contenido ?? '');
-  const [vista, setVista] = useState<'editar' | 'previa'>('editar');
   const [integrantes, setIntegrantes] = useState<string[]>(documento?.integrantes.map((i) => i.id) ?? []);
   const [guardando, setGuardando] = useState(false);
-  const creado = (useLocation().state as { creado?: boolean } | null)?.creado === true;
-  const [resultado, setResultado] = useState<Resultado>(creado ? { tipo: 'ok', texto: 'Guardado. Ya puedes subir archivos adjuntos.' } : null);
+  const llegada = useLocation().state as EstadoCreacion;
+  const [resultado, setResultado] = useState<Resultado>(() => {
+    if (llegada?.errorPdf) return { tipo: 'error', texto: `Se creó el documento, pero no se pudo subir el PDF: ${llegada.errorPdf} Elige el PDF de nuevo y guarda para reintentar.` };
+    if (llegada?.errorPublicar) return { tipo: 'error', texto: `Se creó el documento con su PDF, pero quedó en revisión y oculto: ${llegada.errorPublicar}` };
+    if (llegada?.creado) return { tipo: 'ok', texto: 'Guardado. Si quieres, agrega imágenes adjuntas.' };
+    return null;
+  });
   const [campos, setCampos] = useState<Record<string, string>>({});
+  const principal = actual ? pdfPrincipal(actual.archivos_adjuntos) : null;
+
+  /** Sube el PDF elegido y, si reemplaza a otro, borra el anterior. Devuelve el error o null. */
+  const subirPdf = async (doc: Documento, archivo: File): Promise<string | null> => {
+    const anterior = pdfPrincipal(doc.archivos_adjuntos);
+    try {
+      let { documento: nuevo } = await api.uploadAttachment(modulo, doc.id, archivo);
+      setActual(nuevo);
+      if (anterior) {
+        try {
+          ({ documento: nuevo } = await api.deleteAttachment(modulo, doc.id, anterior.archivo));
+          setActual(nuevo);
+        } catch (e) {
+          return `Se subió el PDF nuevo, pero no se pudo quitar el anterior ("${anterior.nombre_archivo}"): ${mensajeError(e)}`;
+        }
+      }
+      setPdf([]);
+      return null;
+    } catch (e) {
+      return mensajeError(e);
+    }
+  };
+
+  /** Quita el PDF principal. El backend lo rechaza si el documento guardado se quedaría sin texto (DEC-B70). */
+  const quitarPdf = async () => {
+    if (!actual || !principal) return;
+    if (!actual.contenido?.trim()) {
+      setCampos((c) => ({ ...c, pdf: 'Para quitar el PDF, primero escribe el contenido y guarda los cambios.' }));
+      return;
+    }
+    if (!window.confirm(`¿Quitar "${principal.nombre_archivo}"?`)) return;
+    setGuardando(true);
+    setResultado(null);
+    try {
+      const { documento: nuevo } = await api.deleteAttachment(modulo, actual.id, principal.archivo);
+      setActual(nuevo);
+      setResultado({ tipo: 'ok', texto: 'Se quitó el PDF.' });
+    } catch (e) {
+      setResultado({ tipo: 'error', texto: mensajeError(e) });
+    } finally {
+      setGuardando(false);
+    }
+  };
 
   const guardar = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -171,18 +234,27 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
     const entrada: DocumentoEntrada = {
       titulo: texto('titulo'),
       descripcion: texto('descripcion'),
+      // Texto y PDF son opcionales, pero hace falta al menos uno (DEC-B70).
       contenido: contenido.trim() || null,
       integrantes,
     };
     if (modulo === 'articles') entrada.categoria = texto('categoria') as CategoriaDocumento;
     // Solo los revisores cambian estado y visibilidad (DEC-B33); un no revisor recibiría 403.
+    const publicacion: Pick<DocumentoEntrada, 'estado' | 'visible'> = {};
     if (revisor) {
-      entrada.estado = texto('estado') as EstadoDocumento;
-      entrada.visible = datos.get('visible') === 'on';
+      publicacion.estado = texto('estado') as EstadoDocumento;
+      publicacion.visible = datos.get('visible') === 'on';
     }
     const errores: Record<string, string> = {};
     if (!entrada.titulo) errores.titulo = 'Este campo es obligatorio.';
     if (!entrada.descripcion) errores.descripcion = 'Este campo es obligatorio.';
+    if (contenido.length > MAX_CONTENIDO) errores.contenido = `Máximo ${MAX_CONTENIDO.toLocaleString('es-CO')} caracteres.`;
+    const archivo = pdf[0];
+    if (archivo) {
+      const problema = validarPdfDocumento(archivo);
+      if (problema) errores.pdf = problema;
+    }
+    if (!entrada.contenido && !archivo && !principal) errores.contenido = SIN_TEXTO_NI_PDF;
     setCampos(errores);
     setResultado(null);
     if (Object.keys(errores).length) return;
@@ -190,13 +262,33 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
     setGuardando(true);
     try {
       if (actual) {
-        const { documento: nuevo } = await api.updateDocument(modulo, actual.id, entrada);
+        // Primero el PDF: así se puede cambiar de "solo texto" a "solo PDF" sin que el documento quede vacío.
+        const error = archivo ? await subirPdf(actual, archivo) : null;
+        if (error) {
+          setResultado({ tipo: 'error', texto: `No se guardaron los cambios porque falló el PDF: ${error}` });
+          return;
+        }
+        const { documento: nuevo } = await api.updateDocument(modulo, actual.id, { ...entrada, ...publicacion });
         setActual(nuevo);
         setResultado({ tipo: 'ok', texto: 'Cambios guardados.' });
       } else {
-        const { documento: nuevo } = await api.createDocument(modulo, entrada);
-        // Al crear se pasa a la edición, donde ya se pueden subir adjuntos.
-        navigate(`/mis-contenidos/${modulo}/${encodeURIComponent(nuevo.id)}/editar`, { replace: true, state: { creado: true } });
+        // Con PDF se crea como borrador, se sube el PDF y después se publica: el backend no deja publicar sin
+        // texto ni PDF, y el PDF solo se puede subir a un documento que ya existe.
+        const publicaDeEntrada = !archivo || !!entrada.contenido;
+        let { documento: nuevo } = await api.createDocument(modulo, publicaDeEntrada ? { ...entrada, ...publicacion } : entrada);
+        const error = archivo ? await subirPdf(nuevo, archivo) : null;
+        let errorPublicar: string | null = null;
+        const quierePublicar = publicacion.estado !== undefined && (publicacion.estado !== 'en_revision' || publicacion.visible);
+        if (!publicaDeEntrada && !error && quierePublicar) {
+          try {
+            ({ documento: nuevo } = await api.updateDocument(modulo, nuevo.id, publicacion));
+          } catch (e) {
+            errorPublicar = mensajeError(e);
+          }
+        }
+        // Se pasa a la edición: ahí se reintenta el PDF si falló y se agregan imágenes.
+        const estado: EstadoCreacion = error ? { errorPdf: error } : errorPublicar ? { errorPublicar } : { creado: true };
+        navigate(`/mis-contenidos/${modulo}/${encodeURIComponent(nuevo.id)}/editar`, { replace: true, state: estado });
       }
     } catch (e) {
       setCampos(erroresDeCampo(e));
@@ -213,7 +305,7 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
     <div className="app-stack">
       <form className="app-card app-form" onSubmit={(e) => void guardar(e)} noValidate>
         <h2>
-          <Pencil size={20} aria-hidden="true" /> {actual ? `Editar ${nombreTipo}` : `Nuevo ${nombreTipo === 'noticia' ? 'noticia' : nombreTipo}`}
+          <Pencil size={20} aria-hidden="true" /> {actual ? `Editar ${nombreTipo}` : `${nombreTipo === 'noticia' ? 'Nueva' : 'Nuevo'} ${nombreTipo}`}
         </h2>
         {!revisor && (
           <p className="app-hint">Queda en revisión y oculto hasta que un revisor (docente director o administrador) lo publique. Puedes editarlo mientras siga en revisión.</p>
@@ -258,40 +350,57 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
             </>
           )}
 
+          <div className="app-field--wide">
+            <Aviso tipo="info">El documento necesita al menos uno de los dos: el contenido escrito o un PDF. Puedes usar ambos.</Aviso>
+          </div>
+
           <div className="app-field app-field--wide">
-            <div className="app-tabs" role="tablist" aria-label="Contenido">
-              <button type="button" role="tab" aria-selected={vista === 'editar'} className={vista === 'editar' ? 'is-active' : ''} onClick={() => setVista('editar')}>
-                <Pencil size={14} aria-hidden="true" /> Escribir
-              </button>
-              <button type="button" role="tab" aria-selected={vista === 'previa'} className={vista === 'previa' ? 'is-active' : ''} onClick={() => setVista('previa')}>
-                <Eye size={14} aria-hidden="true" /> Vista previa
-              </button>
-            </div>
-            {vista === 'editar' ? (
-              <>
-                <label htmlFor="doc-contenido">Contenido en Markdown (opcional)</label>
-                <textarea
-                  id="doc-contenido"
-                  rows={14}
-                  maxLength={50000}
-                  value={contenido}
-                  disabled={guardando}
-                  onChange={(e) => setContenido(e.target.value)}
-                  aria-describedby="doc-contenido-ayuda doc-contenido-e"
-                  placeholder={'## Objetivo\n\nTexto con **negrita**, *cursiva*, listas:\n\n- Punto 1\n- Punto 2\n\n[Enlace](https://ejemplo.com)'}
-                />
-                <span id="doc-contenido-ayuda" className="app-hint">
-                  Usa ## para títulos, **negrita**, *cursiva*, - para listas y [texto](url) para enlaces. El HTML no se muestra. {contenido.length} / 50 000
-                </span>
-              </>
-            ) : contenido.trim() ? (
-              <div className="app-card">
-                <Markdown texto={contenido} />
-              </div>
-            ) : (
-              <p className="app-hint">Aún no hay contenido para previsualizar.</p>
-            )}
+            <label htmlFor="doc-contenido">Contenido (opcional)</label>
+            <MarkdownEditor
+              id="doc-contenido"
+              valor={contenido}
+              onChange={(valor) => {
+                setContenido(valor);
+                if (campos.contenido) setCampos((c) => ({ ...c, contenido: '' }));
+              }}
+              maxLength={MAX_CONTENIDO}
+              disabled={guardando}
+              invalido={!!campos.contenido}
+              describedBy="doc-contenido-e"
+            />
             <ErrorCampo id="doc-contenido-e" mensaje={campos.contenido} />
+          </div>
+
+          <div className="app-field app-field--wide">
+            <span>Documento PDF (opcional)</span>
+            {principal && (
+              <p className="app-hint">
+                Actual:{' '}
+                <a href={principal.url} target="_blank" rel="noopener noreferrer">
+                  {principal.nombre_archivo}
+                </a>
+                . Elige otro solo si quieres reemplazarlo.{' '}
+                <button type="button" className="btn btn--danger btn--sm" disabled={guardando} onClick={() => void quitarPdf()}>
+                  <Trash2 size={14} aria-hidden="true" /> Quitar PDF
+                </button>
+              </p>
+            )}
+            <SelectorArchivos
+              archivos={pdf}
+              onChange={(lista) => {
+                setPdf(lista);
+                // Se valida al elegir para avisar antes de guardar.
+                const problema = lista[0] ? validarPdfDocumento(lista[0]) : null;
+                setCampos((c) => ({ ...c, pdf: problema ?? '', ...(lista[0] && c.contenido === SIN_TEXTO_NI_PDF ? { contenido: '' } : {}) }));
+              }}
+              accept="application/pdf,.pdf"
+              etiqueta={pdf.length ? 'Cambiar PDF' : principal ? 'Reemplazar PDF' : 'Seleccionar PDF'}
+              ayuda="Solo PDF, máximo 3 MB."
+              disabled={guardando}
+              invalido={!!campos.pdf}
+              errorId="doc-pdf-e"
+            />
+            <ErrorCampo id="doc-pdf-e" mensaje={campos.pdf} />
           </div>
 
           <SelectorIntegrantes seleccion={integrantes} onChange={setIntegrantes} excluir={actual?.autor?.id ?? usuario?.id} />
@@ -312,9 +421,9 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
       </form>
 
       {actual ? (
-        <Adjuntos modulo={modulo} documento={actual} onCambio={setActual} />
+        <Imagenes modulo={modulo} documento={actual} onCambio={setActual} />
       ) : (
-        <Aviso tipo="info">Podrás subir archivos adjuntos después de crear el documento.</Aviso>
+        <Aviso tipo="info">Podrás agregar imágenes adjuntas después de crear el documento.</Aviso>
       )}
     </div>
   );

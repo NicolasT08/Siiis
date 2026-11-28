@@ -2,6 +2,7 @@
 
 Versión 3 del sitio web del **Semillero de Investigación SIIIS** (Ingeniería de Sistemas y Computación, UPTC). Reemplaza la versión actual del sitio y facilita la publicación de proyectos, artículos y noticias, la inscripción al semillero y la participación de la comunidad académica.
 
+**Sitio publicado:** https://siiis.com.co
 
 ---
 
@@ -9,8 +10,19 @@ Versión 3 del sitio web del **Semillero de Investigación SIIIS** (Ingeniería 
 
 ```text
 .
-├── frontend/     # Interfaz web (páginas públicas, login, administración)
-├── backend/      # API REST en Python + FastAPI
+├── frontend/                # SPA en React + TypeScript + Vite
+│   ├── public/              # Archivos estáticos (íconos, imágenes)
+│   └── src/                 # Código fuente: app/, components/, features/, lib/, styles/
+├── backend/                 # API REST en PHP (Slim 4), bajo /api/v1
+│   ├── public/              # Punto de entrada web (index.php)
+│   ├── src/                 # Código PSR-4 Siiis\: Controllers, Services, Repositories, Middleware,
+│   │                        #   Security, Validation, Database, Config, Support
+│   ├── scripts/             # Scripts de consola: índices, superadministrador, multimedia, empaquetado
+│   ├── cron/                # Tareas programadas (limpieza de contadores de rate limiting)
+│   ├── storage/             # Logs, contadores de rate limiting y caché (no se versiona su contenido)
+│   └── tests/               # PHPUnit: Unit, Api e Integration
+├── docs/                    # Spec, contrato de la API, decisiones y guía de despliegue
+├── cronograma/              # Cronograma del proyecto (ProjectLibre)
 └── README.md
 ```
 
@@ -20,112 +32,147 @@ Versión 3 del sitio web del **Semillero de Investigación SIIIS** (Ingeniería 
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | HTML, CSS y JavaScript. El spec contempla migrar a React + TypeScript |
-| Backend | Python 3.12+ · FastAPI · Uvicorn · PyMongo · PyJWT · bcrypt |
+| Frontend | React 19 · TypeScript · Vite · React Router · react-markdown + remark-gfm · lucide-react · ESLint |
+| Backend | PHP 8.2 · Slim 4 · PHP-DI · mongodb/mongodb · firebase/php-jwt · PHPMailer · cloudinary_php · phpdotenv |
 | Base de datos | MongoDB Atlas |
 | Multimedia | Cloudinary |
 | Correo | Gmail (SMTP) |
-| Calidad | pytest · ruff · mypy |
+| Login con Google | Solo cuentas `@uptc.edu.co` de integrantes ya registrados en el semillero (no crea cuentas) |
+| Calidad | PHPUnit · PHPStan (nivel 6) · PHP-CS-Fixer (PSR-12) |
+| Hosting | Hostinger (frontend en `public_html/`, API en `public_html/api/`) |
 | Control de versiones | Git / GitHub |
-
-> **Nota:** existe además una versión del backend en **PHP** (Slim 4), con el mismo contrato de API y la misma base de datos, pensada para el despliegue en Hostinger, que solo ejecuta PHP. Para la primera entrega se usa la versión en Python.
 
 ---
 
 ## Requisitos
 
-- **Python 3.12 o superior** (probado con 3.14)
+- **PHP 8.2 o superior** con las extensiones `mongodb` (≥ 1.18), `fileinfo`, `curl`, `openssl` y `mbstring`
+- **Composer 2**
+- **Node.js** `^20.19.0` o `>=22.12.0` (lo exige Vite) con npm
 - **Git**
-- Un navegador moderno
-- Acceso a un cluster de **MongoDB Atlas**, con tu IP agregada en *Network Access*
-- *(Opcional)* Node.js, si el frontend migra a React + TypeScript
+- Acceso al cluster de **MongoDB Atlas**, con tu IP agregada en *Network Access*
 
 ---
 
-## Puesta en marcha rápida
+## Puesta en marcha local
 
 ### 1. Clonar el repositorio
 
 ```powershell
-git clone <URL_DEL_REPOSITORIO>
-cd <CARPETA_DEL_REPOSITORIO>
+git clone "URL del repositorio"
+cd Siis
 ```
+
+(Usa el nombre de la carpeta que haya creado `git clone`).
 
 ### 2. Backend
 
 ```powershell
 cd backend
-py -3.14 -m venv .venv                                  # o: python -m venv .venv
-.venv\Scripts\python -m pip install -r requirements-dev.txt
-copy .env.example .env                                  # luego completa los valores
+composer install
+Copy-Item .env.example .env        # luego completa los valores
 ```
 
 Completa en `backend/.env`, como mínimo:
 
 | Variable | Valor |
 |---|---|
-| `MONGO_URI` | Cadena `mongodb+srv://...` de Atlas |
-| `JWT_SECRET` | Texto aleatorio de 32 caracteres o más. Genéralo con `python -c "import secrets; print(secrets.token_hex(32))"` |
-| `FRONTEND_ORIGIN` | Dirección exacta desde la que abres el frontend (por ejemplo `http://127.0.0.1:5500` con Live Server) |
-| `APP_ENV` | `development` |
+| `MONGO_URI` | Cadena `mongodb+srv://...` del cluster de Atlas |
+| `MONGO_DB_NAME` | Nombre de la base (por defecto `siiis`) |
+| `JWT_SECRET` | Texto aleatorio de 32 caracteres o más. Genéralo con `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"` |
+| `FRONTEND_ORIGIN` | Dirección exacta del frontend en desarrollo (por defecto `http://localhost:5173`, la de Vite) |
+| `GOOGLE_CLIENT_ID` | ID de cliente OAuth de Google Cloud. Si lo dejas vacío, el login con Google queda desactivado |
+| `GOOGLE_DOMINIO_PERMITIDO` | `uptc.edu.co` |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Credenciales de la cuenta de Cloudinary |
+| `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` | Cuenta de Gmail y su **contraseña de aplicación** (`MAIL_HOST` y `MAIL_PORT` ya vienen para Gmail) |
 
-Crea el primer usuario administrador:
+El resto de variables tiene valores por defecto y está documentado en `backend/.env.example`. Para las pruebas de integración se usa además `MONGO_DB_NAME_TEST` (por defecto `siiis_test`).
+
+Crea los índices de la base (se puede repetir sin problema) y el primer superadministrador. El script pide los datos por consola y la contraseña no se muestra al escribirla:
 
 ```powershell
-.venv\Scripts\python -m scripts.crear_superadmin
+php scripts/crear_indices.php
+php scripts/crear_superadmin.php
+```
+
+Opcional: datos de ejemplo para el carrusel y el video de inicio:
+
+```powershell
+php scripts/seed_multimedia.php
 ```
 
 Arranca la API:
 
 ```powershell
-.venv\Scripts\uvicorn app.main:app --reload --port 8001 --no-proxy-headers
+composer serve
 ```
 
-Comprueba que funciona abriendo http://localhost:8001/api/v1/health. Debe responder `{"status":"ok","db":"ok"}`.
+Comprueba que funciona abriendo http://localhost:8000/api/v1/health. Debe responder `{"status":"ok","db":"ok"}`.
 
-> ⚠️ **Nunca subas el archivo `.env` a Git.** Contiene la contraseña de la base de datos y el secreto de los tokens. El `.gitignore` ya lo excluye.
+> ⚠️ **Nunca subas el archivo `.env` a Git.** Contiene la contraseña de la base de datos y el secreto de los tokens. El `.gitignore` ya lo excluye; solo se versiona `.env.example`.
 
 ### 3. Frontend
 
-<!-- TODO (Front-End): completar con los pasos reales del frontend. -->
+En otra terminal, desde la raíz del repositorio:
 
-1. Abre la carpeta `frontend/` en VS Code.
-2. Sírvela con **Live Server**, o con el servidor que defina el equipo de frontend.
-3. Configura la URL base de la API en el frontend: `http://localhost:8001/api/v1`.
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Abre http://localhost:5173. En desarrollo, el frontend usa `http://localhost:8000/api/v1` sin configurar nada más.
+
+Solo si necesitas otra URL de la API o quieres probar el botón de Google, copia `frontend/.env.example` como `frontend/.env.local` y completa `VITE_API_URL` o `VITE_GOOGLE_CLIENT_ID` (el mismo valor que `GOOGLE_CLIENT_ID` del backend).
 
 Si el navegador muestra un error de **CORS**, revisa que `FRONTEND_ORIGIN` en `backend/.env` coincida exactamente con la dirección del frontend. `localhost` y `127.0.0.1` cuentan como orígenes distintos.
 
----
+Otros comandos del frontend:
 
-## Endpoints disponibles (fase 1)
-
-| Método | Ruta | Descripción | Requiere login |
-|---|---|---|---|
-| GET | `/api/v1/health` | Estado de la API y de la base de datos | No |
-| POST | `/api/v1/auth/login` | Iniciar sesión (`correo`, `password`) | No |
-| GET | `/api/v1/auth/me` | Datos del usuario autenticado | Sí |
-| POST | `/api/v1/auth/logout` | Cerrar sesión | Sí |
-| POST | `/api/v1/auth/forgot-password` | Solicitar enlace de recuperación | No |
-| POST | `/api/v1/auth/reset-password` | Restablecer contraseña con el token | No |
-| GET | `/api/v1/home/slider` | Imágenes del carrusel de inicio | No |
-| GET | `/api/v1/home/videos` | Videos de presentación | No |
-
-Las rutas protegidas se llaman con la cabecera `Authorization: Bearer <token>`.
-
-El contrato completo, con ejemplos de peticiones, respuestas y códigos de error, está en [`backend/docs/api.md`](backend/docs/api.md).
+```powershell
+npm run build      # compila a frontend/dist (usa /api/v1, el mismo dominio que la API)
+npm run lint       # ESLint
+npm run preview    # sirve el build localmente
+```
 
 ---
 
 ## Pruebas y calidad (backend)
 
+Desde `backend/`:
+
 ```powershell
-cd backend
-.venv\Scripts\python -m pytest                 # todas las pruebas
-.venv\Scripts\python -m pytest -m "not integration"   # sin conexión a Atlas
-.venv\Scripts\ruff check .
-.venv\Scripts\ruff format --check .
-.venv\Scripts\mypy
+composer test       # PHPUnit (las pruebas de integración se saltan si no hay MONGO_URI)
+composer lint       # PHP-CS-Fixer en modo revisión (PSR-12)
+composer lint:fix   # aplica las correcciones de estilo
+composer analyse    # PHPStan nivel 6
 ```
+
+Las pruebas de integración usan la base `MONGO_DB_NAME_TEST`, nunca la de producción.
+
+---
+
+## Despliegue
+
+El sitio se publica en Hostinger. El script `backend/scripts/empaquetar.ps1` arma la carpeta `deploy/` con la API (fuera de `public_html`) y el build del frontend:
+
+```powershell
+npm --prefix frontend run build
+powershell -ExecutionPolicy Bypass -File backend\scripts\empaquetar.ps1 -Dominio siiis.com.co
+```
+
+Los pasos completos (configuración de PHP, `.env` de producción, cron, login con Google y verificación) están en [`docs/deployment.md`](docs/deployment.md).
+
+---
+
+## Documentación
+
+| Documento | Contenido |
+|---|---|
+| [`docs/SIIIS_V3_SPEC_DRIVEN.md`](docs/SIIIS_V3_SPEC_DRIVEN.md) | Especificación del proyecto |
+| [`docs/api.md`](docs/api.md) | Contrato de la API: rutas, peticiones, respuestas y códigos de error |
+| [`docs/decisions.md`](docs/decisions.md) | Decisiones tomadas y pendientes |
+| [`docs/deployment.md`](docs/deployment.md) | Despliegue y mantenimiento en Hostinger |
 
 ---
 
