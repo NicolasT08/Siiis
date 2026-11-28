@@ -1,0 +1,248 @@
+% siiis.sty - Estilo comun de los manuales del sitio SIIIS V3.
+% Compila con pdflatex (Overleaf o TeX Live). Solo usa paquetes estandar.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{siiis}[2026/11/28 Estilo de documentos SIIIS V3]
+
+% ---------------------------------------------------------------------------------------------------------------
+% Codificacion, idioma y pagina
+% ---------------------------------------------------------------------------------------------------------------
+\RequirePackage[utf8]{inputenc}
+\RequirePackage[T1]{fontenc}
+\RequirePackage{lmodern}
+\RequirePackage[spanish,es-tabla,es-noshorthands]{babel}
+\RequirePackage[a4paper,top=2.6cm,bottom=2.6cm,left=2.5cm,right=2.5cm,headheight=15pt]{geometry}
+\RequirePackage{xcolor}
+\RequirePackage{graphicx}
+\RequirePackage{booktabs}
+\RequirePackage{longtable}
+\RequirePackage{array}
+\RequirePackage{float}
+\RequirePackage{enumitem}
+\RequirePackage{fancyhdr}
+\RequirePackage{lastpage}
+\RequirePackage{listings}
+\RequirePackage{tikz}
+\RequirePackage{underscore}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds}
+\RequirePackage[hidelinks,unicode]{hyperref}
+
+% ---------------------------------------------------------------------------------------------------------------
+% Colores institucionales
+% ---------------------------------------------------------------------------------------------------------------
+\definecolor{siiisazul}{HTML}{0B2545}
+\definecolor{siiisazulmedio}{HTML}{13315C}
+\definecolor{siiisdorado}{HTML}{D4A017}
+\definecolor{siiisgris}{HTML}{5B6878}
+\definecolor{siiisfondo}{HTML}{F4F6F9}
+\definecolor{siiiscodigo}{HTML}{F7F7F2}
+
+\hypersetup{colorlinks=true,linkcolor=siiisazul,urlcolor=siiisazulmedio,citecolor=siiisazul}
+
+% ---------------------------------------------------------------------------------------------------------------
+% Datos del documento (se definen en cada main.tex con \siiisdatos)
+% ---------------------------------------------------------------------------------------------------------------
+\newcommand{\siiisnombre}{Documento}
+\newcommand{\siiiscodigo}{}
+\newcommand{\siiisversion}{1.0}
+\newcommand{\siiisfecha}{\today}
+\newcommand{\siiisautor}{Equipo de Desarrollo SIIIS}
+% \siiisdatos{Nombre del documento}{Codigo}{Version}{Fecha}
+\newcommand{\siiisdatos}[4]{%
+  \renewcommand{\siiisnombre}{#1}%
+  \renewcommand{\siiiscodigo}{#2}%
+  \renewcommand{\siiisversion}{#3}%
+  \renewcommand{\siiisfecha}{#4}%
+  \hypersetup{pdftitle={#1},pdfauthor={Equipo de Desarrollo SIIIS}}%
+}
+
+% ---------------------------------------------------------------------------------------------------------------
+% Encabezados y pies
+% ---------------------------------------------------------------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{siiisazul}\textbf{SIIIS V3}}
+\fancyhead[R]{\small\color{siiisgris}\siiisnombre}
+\fancyfoot[L]{\small\color{siiisgris}\siiiscodigo\ -- Versi\'on \siiisversion}
+\fancyfoot[R]{\small\color{siiisgris}P\'agina \thepage\ de \pageref*{LastPage}}
+\renewcommand{\headrulewidth}{0.6pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{siiisdorado}\leaders\hrule height \headrulewidth\hfill}}
+\renewcommand{\footrulewidth}{0.4pt}
+\renewcommand{\footrule}{\hbox to\headwidth{\color{siiisazul}\leaders\hrule height \footrulewidth\hfill}}
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \fancyfoot[R]{\small\color{siiisgris}P\'agina \thepage\ de \pageref*{LastPage}}%
+  \renewcommand{\headrulewidth}{0pt}%
+}
+
+% Titulos de seccion en azul institucional
+\makeatletter
+\renewcommand{\section}{\@startsection{section}{1}{\z@}{-3.2ex \@plus -1ex \@minus -.2ex}{1.6ex \@plus .2ex}%
+  {\normalfont\Large\bfseries\color{siiisazul}}}
+\renewcommand{\subsection}{\@startsection{subsection}{2}{\z@}{-2.6ex \@plus -1ex \@minus -.2ex}{1.2ex \@plus .2ex}%
+  {\normalfont\large\bfseries\color{siiisazulmedio}}}
+\renewcommand{\subsubsection}{\@startsection{subsubsection}{3}{\z@}{-2.2ex \@plus -1ex \@minus -.2ex}{0.8ex \@plus .2ex}%
+  {\normalfont\normalsize\bfseries\color{siiisazulmedio}}}
+\makeatother
+
+\setlength{\parskip}{0.45em}
+\setlength{\parindent}{0pt}
+\setlist{itemsep=0.25em,topsep=0.35em}
+\renewcommand{\arraystretch}{1.25}
+
+% ---------------------------------------------------------------------------------------------------------------
+% Portada: fondo azul oscuro con franja dorada
+% ---------------------------------------------------------------------------------------------------------------
+% \siiisportada{Titulo del documento}{Subtitulo}
+\newcommand{\siiisportada}[2]{%
+  \begin{titlepage}
+    \thispagestyle{empty}
+    \begin{tikzpicture}[remember picture,overlay]
+      \fill[siiisazul] (current page.south west) rectangle (current page.north east);
+      \fill[siiisdorado] ([yshift=-7.2cm]current page.north west) rectangle ([yshift=-7.9cm]current page.north east);
+      \fill[siiisazulmedio] (current page.south west) rectangle ([yshift=3.2cm]current page.south east);
+      \fill[siiisdorado] ([yshift=3.2cm]current page.south west) rectangle ([yshift=3.35cm]current page.south east);
+      \node[anchor=north west,text width=15cm,align=left,text=white] at ([xshift=2.5cm,yshift=-2.6cm]current page.north west)
+        {\fontsize{14}{18}\selectfont\bfseries SIIIS --- Semillero de Investigaci\'on, Innovaci\'on\\[2pt] e Ingenier\'ia de Sistemas};
+      \node[anchor=north west,text width=15cm,align=left,text=siiisdorado] at ([xshift=2.5cm,yshift=-4.6cm]current page.north west)
+        {\large Escuela de Ingenier\'ia de Sistemas y Computaci\'on\\ Universidad Pedag\'ogica y Tecnol\'ogica de Colombia (UPTC)};
+      \node[anchor=north west,text width=15cm,align=left,text=white] at ([xshift=2.5cm,yshift=-9.6cm]current page.north west)
+        {\fontsize{30}{36}\selectfont\bfseries #1};
+      \node[anchor=north west,text width=15cm,align=left,text=white] at ([xshift=2.5cm,yshift=-13.4cm]current page.north west)
+        {\Large #2};
+      \node[anchor=south west,text width=15cm,align=left,text=white] at ([xshift=2.5cm,yshift=0.9cm]current page.south west)
+        {\small\begin{tabular}{@{}ll@{}}
+          \textcolor{siiisdorado}{\textbf{C\'odigo:}} & \siiiscodigo\\
+          \textcolor{siiisdorado}{\textbf{Versi\'on:}} & \siiisversion\\
+          \textcolor{siiisdorado}{\textbf{Fecha:}} & \siiisfecha\\
+          \textcolor{siiisdorado}{\textbf{Elaborado por:}} & \siiisautor\\
+        \end{tabular}};
+    \end{tikzpicture}
+  \end{titlepage}
+}
+
+% ---------------------------------------------------------------------------------------------------------------
+% Control de versiones y equipo
+% ---------------------------------------------------------------------------------------------------------------
+% \siiiscontrolversiones{filas: version & fecha & descripcion & autor \\}
+\newcommand{\siiiscontrolversiones}[1]{%
+  \section*{Control de versiones}
+  \begin{center}
+  \begin{tabular}{@{}p{1.6cm}p{2.6cm}p{6.6cm}p{3.6cm}@{}}
+    \toprule
+    \textbf{Versi\'on} & \textbf{Fecha} & \textbf{Descripci\'on} & \textbf{Elaborado por}\\
+    \midrule
+    #1
+    \bottomrule
+  \end{tabular}
+  \end{center}
+}
+
+% Equipo del proyecto (tabla del README.md)
+\newcommand{\siiisequipo}{%
+  \begin{center}
+  \begin{tabular}{@{}p{5.2cm}p{8.6cm}@{}}
+    \toprule
+    \textbf{Rol} & \textbf{Integrante}\\
+    \midrule
+    L\'ider del proyecto & Andryw Yesid Barrera Camargo\\
+    Desarrollo Front-End & Rafael Esteban Lozano Vargas\\
+    Bases de Datos & Luisa Fernanda Merch\'an Rojas\\
+    Desarrollo Back-End & Nicol\'as Samuel Tinjaca Topia\\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  \textbf{Cliente:} Semillero de Investigaci\'on SIIIS --- Escuela de Ingenier\'ia de Sistemas y Computaci\'on, UPTC.
+}
+
+% ---------------------------------------------------------------------------------------------------------------
+% Utilidades de texto
+% ---------------------------------------------------------------------------------------------------------------
+% Codigo en linea (nombres de variables, rutas, comandos cortos). Con el paquete underscore, el guion bajo se
+% escribe sin escaparlo; las llaves se escriben \{ \} y la barra invertida \textbackslash.
+\newcommand{\cod}[1]{\texttt{#1}}
+% Recuadros de aviso
+\newcommand{\siiisrecuadro}[3]{% color, titulo, texto
+  \par\medskip\noindent
+  \fcolorbox{#1}{siiisfondo}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{%
+    \textbf{\textcolor{#1}{#2}}\par\smallskip #3}}\par\medskip}
+\newcommand{\nota}[1]{\siiisrecuadro{siiisazulmedio}{Nota}{#1}}
+\newcommand{\importante}[1]{\siiisrecuadro{siiisdorado!80!black}{Importante}{#1}}
+
+% ---------------------------------------------------------------------------------------------------------------
+% Capturas de pantalla con respaldo: si el archivo no existe, se dibuja un recuadro "Captura pendiente"
+% y el documento compila igual. Busca en img/ y en <carpeta del manual>/img/ (Overleaf compila desde la raiz).
+% ---------------------------------------------------------------------------------------------------------------
+\newcommand{\siiiscarpeta}{.}
+\newcommand{\capturapendiente}[2]{%
+  \fcolorbox{siiisgris}{siiisfondo}{\parbox[c][#2][c]{\dimexpr0.86\linewidth\relax}{\centering
+    \textcolor{siiisgris}{\Large\bfseries Captura pendiente}\\[4pt]
+    \textcolor{siiisgris}{\small\texttt{img/\detokenize{#1}}}}}}
+% \captura[ancho]{archivo.png}{Pie de figura}
+\newcommand{\captura}[3][0.9\linewidth]{%
+  \begin{figure}[H]
+    \centering
+    \IfFileExists{img/#2}{\includegraphics[width=#1,keepaspectratio]{img/#2}}{%
+      \IfFileExists{\siiiscarpeta/img/#2}{\includegraphics[width=#1,keepaspectratio]{\siiiscarpeta/img/#2}}{%
+        \capturapendiente{#2}{4.2cm}}}
+    \caption{#3}
+  \end{figure}}
+
+% ---------------------------------------------------------------------------------------------------------------
+% Listados de codigo: bash, PowerShell, PHP, JSON y TypeScript
+% ---------------------------------------------------------------------------------------------------------------
+\lstdefinelanguage{PowerShell}{
+  morekeywords={if,else,elseif,foreach,for,while,function,param,return,try,catch,finally,in,
+    Copy-Item,Set-Location,Get-ChildItem,New-Item,Remove-Item,Write-Host},
+  sensitive=false,
+  morecomment=[l]{\#},
+  morestring=[b]",
+  morestring=[b]',
+}
+\lstdefinelanguage{JSON}{
+  morestring=[b]",
+  stringstyle=\color{siiisazulmedio},
+}
+\lstdefinelanguage{TypeScript}{
+  morekeywords={const,let,var,function,return,if,else,for,while,new,await,async,import,from,export,default,
+    type,interface,extends,implements,class,true,false,null,undefined},
+  sensitive=true,
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]',
+  morestring=[b]",
+  morestring=[b]`,
+}
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{siiiscodigo},
+  frame=leftline,
+  framerule=2.5pt,
+  rulecolor=\color{siiisdorado},
+  xleftmargin=8pt,
+  framexleftmargin=6pt,
+  keywordstyle=\color{siiisazul}\bfseries,
+  commentstyle=\color{siiisgris}\itshape,
+  stringstyle=\color{siiisazulmedio},
+  showstringspaces=false,
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  keepspaces=true,
+  tabsize=2,
+  upquote=true,
+  aboveskip=0.8em,
+  belowskip=0.8em,
+  extendedchars=true,
+  literate=
+    {á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+    {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1
+    {ñ}{{\~n}}1 {Ñ}{{\~N}}1 {ü}{{\"u}}1 {¿}{{	extquestiondown}}1 {¡}{{	extexclamdown}}1,
+}
+\lstdefinestyle{bash}{language=bash}
+\lstdefinestyle{powershell}{language=PowerShell}
+\lstdefinestyle{php}{language=PHP}
+\lstdefinestyle{json}{language=JSON}
+\lstdefinestyle{ts}{language=TypeScript}
+\lstdefinestyle{texto}{language={}}
+
+\endinput

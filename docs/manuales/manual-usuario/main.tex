@@ -1,0 +1,462 @@
+% Manual de usuario - SIIIS V3
+% Compilar con pdflatex (dos pasadas). Las capturas van en img/; si falta alguna, se muestra "Captura pendiente".
+\documentclass[11pt,a4paper]{article}
+\IfFileExists{siiis.sty}{\usepackage{siiis}}{\usepackage{../siiis}}
+\renewcommand{\siiiscarpeta}{manual-usuario}
+\graphicspath{{img/}{manual-usuario/img/}}
+
+\siiisdatos{Manual de usuario}{SIIIS-MU-001}{1.0}{28 de noviembre de 2026}
+
+% Nombre de un boton, pestana o enlace tal como aparece en pantalla
+\newcommand{\boton}[1]{\textbf{\textcolor{siiisazul}{#1}}}
+
+\begin{document}
+
+\siiisportada{Manual de usuario}{Sitio web SIIIS V3: gu\'ia para visitantes, integrantes y administradores}
+
+\siiiscontrolversiones{%
+  1.0 & 28/11/2026 & Versi\'on inicial del manual de usuario. & Equipo de Desarrollo SIIIS\\
+}
+
+\tableofcontents
+\clearpage
+
+% =================================================================================================================
+\section{Introducci\'on}
+% =================================================================================================================
+
+Este manual explica c\'omo usar el sitio web del Semillero de Investigaci\'on SIIIS, disponible en
+\url{https://siiis.com.co}. Est\'a escrito para tres tipos de personas:
+
+\begin{itemize}
+  \item \textbf{Visitantes}: cualquier persona que entra al sitio sin iniciar sesi\'on.
+  \item \textbf{Integrantes}: estudiantes y docentes del semillero que tienen una cuenta.
+  \item \textbf{Administradores}: quienes gestionan los usuarios, el contenido y las solicitudes desde el panel de
+    administraci\'on.
+\end{itemize}
+
+El sitio funciona en computadores, tabletas y celulares. En el celular, el men\'u principal se abre con el bot\'on de
+las tres l\'ineas, en la parte superior.
+
+\captura[0.95\linewidth]{inicio.png}{P\'agina de inicio en un computador.}
+\captura[0.4\linewidth]{inicio-celular.png}{P\'agina de inicio en un celular, con el men\'u abierto.}
+
+% =================================================================================================================
+\section{Roles y qu\'e puede hacer cada uno}
+% =================================================================================================================
+
+Cada cuenta tiene un rol. El rol lo asigna un administrador; nadie puede cambiar su propio rol.
+
+{\small
+\begin{longtable}{@{}p{3.6cm}p{10.4cm}@{}}
+\toprule
+\textbf{Rol} & \textbf{Qu\'e puede hacer}\\
+\midrule
+\endhead
+\textbf{Visitante} (sin cuenta) & Navegar el sitio; ver integrantes, proyectos, art\'iculos y noticias; enviar la
+  solicitud de inscripci\'on; escribir al semillero desde Contacto; dejar una rese\~na (se publica cuando la revisan);
+  ir al blog.\\
+\textbf{Estudiante} (\cod{estudiante}) & Todo lo del visitante, m\'as: iniciar sesi\'on; editar su perfil, cambiar o
+  quitar su foto y cambiar su contrase\~na; crear proyectos, art\'iculos y noticias (quedan en revisi\'on) y editarlos o
+  eliminarlos mientras siguen en revisi\'on; ver sus borradores y aquellos en los que aparece como integrante; dejar
+  rese\~nas que se publican de inmediato con su nombre.\\
+\textbf{Estudiante l\'ider} (\cod{estudiante_lider}) & Lo mismo que un estudiante. Hoy el sitio no le da permisos
+  adicionales.\\
+\textbf{Docente director} (\cod{docente_director}) & Todo lo anterior, m\'as el panel de administraci\'on con dos
+  secciones: \boton{Contenido en revisi\'on} (publicar, ocultar, editar y eliminar cualquier proyecto, art\'iculo o
+  noticia) y \boton{Rese\~nas} (publicar, ocultar o borrar rese\~nas).\\
+\textbf{Administrador} (\cod{administrador}) & Todo lo del docente director, m\'as: \boton{Usuarios} (crear, editar,
+  desactivar y reactivar cuentas de docentes directores, estudiantes l\'ideres y estudiantes), \boton{Inscripciones},
+  \boton{Mensajes de contacto} e \boton{Inicio} (fotos del carrusel y video de presentaci\'on).\\
+\textbf{Superadministrador} (\cod{superadministrador}) & Todo lo del administrador, y adem\'as gestiona cuentas de
+  administradores y de otros superadministradores. El sitio no deja desactivar ni quitar el rol al \'ultimo
+  superadministrador activo.\\
+\bottomrule
+\end{longtable}
+}
+
+% =================================================================================================================
+\section{Como visitante}
+% =================================================================================================================
+
+\subsection{Navegar el sitio}
+El men\'u principal tiene: \boton{Inicio}, \boton{Acerca de}, \boton{Integrantes}, \boton{Proyectos},
+\boton{Art\'iculos}, \boton{Noticias}, \boton{Blog}, \boton{Contacto} e \boton{Inscripci\'on}. En la parte inferior de
+cada p\'agina est\'an los enlaces a la pol\'itica de privacidad y a los t\'erminos de uso.
+
+\begin{itemize}
+  \item \textbf{Inicio}: carrusel de fotos del semillero, video de presentaci\'on y noticias recientes.
+  \item \textbf{Acerca de}: qui\'enes somos, la direcci\'on del semillero y los equipos de las versiones anteriores del
+    sitio.
+\end{itemize}
+
+Al cambiar de p\'agina aparece por un momento el logo del semillero girando como una moneda: es la animaci\'on de carga.
+
+\subsection{Ver a los integrantes}
+\begin{enumerate}
+  \item Pulse \boton{Integrantes} en el men\'u.
+  \item Recorra el listado. Puede filtrar por rol con la lista desplegable.
+  \item Pulse el nombre de una persona para ver su perfil: programa acad\'emico, semestre, biograf\'ia y sus
+    publicaciones y proyectos.
+  \item A un lado del perfil (debajo, en el celular) est\'a la columna \boton{Art\'iculos de inter\'es}, con los
+    \'ultimos art\'iculos de otros integrantes.
+\end{enumerate}
+El correo y el tel\'efono de los integrantes nunca se muestran en el sitio.
+
+\captura{integrantes.png}{Listado de integrantes.}
+\captura{perfil-integrante.png}{Perfil de un integrante con sus publicaciones y la columna ``Art\'iculos de inter\'es''.}
+
+\subsection{Ver proyectos, art\'iculos y noticias}
+\begin{enumerate}
+  \item Pulse \boton{Proyectos}, \boton{Art\'iculos} o \boton{Noticias} en el men\'u.
+  \item Use los filtros de la parte superior si los hay. En proyectos puede filtrar por estado (\emph{En ejecuci\'on} o
+    \emph{Finalizado}).
+  \item Pulse una tarjeta para abrir la publicaci\'on completa. All\'i ver\'a el texto, el documento PDF (si lo tiene)
+    con el bot\'on \boton{Descargar PDF}, las im\'agenes y los integrantes que participaron.
+\end{enumerate}
+
+\captura{proyectos.png}{Listado de proyectos.}
+\captura{detalle-proyecto.png}{Detalle de un proyecto con su texto y el visor del PDF.}
+
+\subsection{Enviar la solicitud de inscripci\'on}
+\begin{enumerate}
+  \item Pulse \boton{Inscripci\'on} en el men\'u.
+  \item Complete el formulario:
+    \begin{itemize}
+      \item \textbf{Nombre completo}.
+      \item \textbf{Correo electr\'onico}: debe ser su correo institucional \cod{@uptc.edu.co}.
+      \item \textbf{C\'odigo estudiantil} (opcional).
+      \item \textbf{Programa acad\'emico} y \textbf{Semestre}.
+      \item \textbf{\'Areas de inter\'es}: marque una o varias.
+      \item \textbf{Carta de intenci\'on o motivaci\'on}: cu\'entenos por qu\'e quiere unirse.
+      \item \textbf{Hoja de vida (PDF)}, opcional: pulse \boton{Seleccionar archivo} y elija un PDF de hasta 3 MB.
+        Debajo ver\'a el nombre del archivo elegido.
+      \item Marque la casilla de disponibilidad para las reuniones semanales (obligatoria).
+    \end{itemize}
+  \item Pulse \boton{Enviar solicitud}. Ver\'a un mensaje de confirmaci\'on y le escribiremos al correo que indic\'o con
+    la respuesta.
+\end{enumerate}
+Solo puede haber una solicitud pendiente por correo. Si su solicitud ya fue aceptada o rechazada, puede enviar otra.
+
+\captura{inscripcion.png}{Formulario de inscripci\'on.}
+
+\subsection{Escribir al semillero (Contacto)}
+\begin{enumerate}
+  \item Pulse \boton{Contacto} en el men\'u.
+  \item Escriba su \textbf{Nombre}, \textbf{Correo electr\'onico}, \textbf{Asunto} y \textbf{Mensaje}.
+  \item Pulse \boton{Enviar}. El equipo del semillero le responder\'a al correo que indic\'o.
+\end{enumerate}
+
+\captura{contacto.png}{P\'agina de contacto.}
+
+\subsection{Dejar una rese\~na}
+\begin{enumerate}
+  \item Baje hasta la secci\'on de rese\~nas de la p\'agina de inicio (o abra la p\'agina de rese\~nas desde el bot\'on
+    de esa secci\'on).
+  \item En \boton{Deja tu rese\~na}, escriba \textbf{Tu nombre}, elija una \textbf{Calificaci\'on} (opcional) y escriba
+    el \textbf{Comentario}.
+  \item Pulse \boton{Enviar rese\~na}.
+\end{enumerate}
+Las rese\~nas de visitantes se publican cuando el equipo las revisa. Si usted es integrante y tiene la sesi\'on
+iniciada, su rese\~na se publica de inmediato con su nombre.
+
+\captura{resenas.png}{Rese\~nas del semillero y formulario para dejar una.}
+
+\subsection{Ir al blog}
+La pesta\~na \boton{Blog} del men\'u abre en otra pesta\~na el blog del semillero (\url{https://semillerosiiis.blogspot.com/}).
+
+% =================================================================================================================
+\section{Como integrante}
+% =================================================================================================================
+
+Para usar estas funciones necesita una cuenta. Las cuentas las crea un administrador (normalmente despu\'es de aceptar
+su solicitud de inscripci\'on); no hay registro libre en el sitio.
+
+\subsection{Iniciar sesi\'on}
+\textbf{Con contrase\~na:}
+\begin{enumerate}
+  \item Pulse \boton{Iniciar sesi\'on}, arriba a la derecha.
+  \item Escriba su \textbf{Correo electr\'onico} y su \textbf{Contrase\~na}.
+  \item Si est\'a en su propio equipo, puede marcar \boton{Recordarme} para que la sesi\'on siga abierta aunque cierre
+    el navegador (hasta un m\'aximo de 8 horas).
+  \item Pulse \boton{Ingresar}.
+\end{enumerate}
+
+\textbf{Con Google:}
+\begin{enumerate}
+  \item Pulse \boton{Iniciar sesi\'on} y luego el bot\'on \boton{Iniciar sesi\'on con Google}.
+  \item Elija su cuenta institucional \cod{@uptc.edu.co}.
+\end{enumerate}
+Con Google solo pueden entrar cuentas \cod{@uptc.edu.co} que ya tengan usuario en el semillero. Si su cuenta no est\'a
+registrada, el sitio se lo indica y le ofrece ir a la inscripci\'on.
+
+Con la sesi\'on iniciada, al pulsar su nombre arriba a la derecha ver\'a: \boton{Mi perfil}, \boton{Mis contenidos},
+\boton{Administraci\'on} (solo si su rol tiene panel) y \boton{Cerrar sesi\'on}.
+
+\captura[0.6\linewidth]{login.png}{Ventana de inicio de sesi\'on con correo, contrase\~na y el bot\'on de Google.}
+
+\subsection{Recuperar la contrase\~na}
+\begin{enumerate}
+  \item En la ventana de inicio de sesi\'on, pulse \boton{¿Olvidaste tu contrase\~na?}.
+  \item Escriba su correo y pulse \boton{Enviar enlace}.
+  \item Revise su correo (tambi\'en la carpeta de correo no deseado). El enlace sirve una sola vez y vence en 30 minutos.
+  \item Abra el enlace. En la p\'agina \boton{Restablecer contrase\~na}, escriba la \textbf{Nueva contrase\~na}: al menos
+    8 caracteres, con al menos una letra y un n\'umero, y distinta de la actual.
+  \item Pulse \boton{Guardar contrase\~na} e inicie sesi\'on con la nueva.
+\end{enumerate}
+Por seguridad, el sitio muestra el mismo mensaje exista o no el correo, y al cambiar la contrase\~na se cierran las
+sesiones abiertas en otros equipos.
+
+\captura[0.6\linewidth]{recuperar-contrasena.png}{Solicitud del enlace para recuperar la contrase\~na.}
+\captura[0.6\linewidth]{restablecer.png}{P\'agina para escribir la nueva contrase\~na.}
+
+\subsection{Cierre autom\'atico a las 8 horas}
+Por seguridad, toda sesi\'on dura como m\'aximo 8 horas. Pasado ese tiempo el sitio la cierra solo, aunque est\'e en
+otra pesta\~na, y lo lleva a iniciar sesi\'on con el aviso ``Tu sesi\'on expir\'o. Inicia sesi\'on de nuevo''. Tambi\'en
+se cierra si un administrador cambia su rol o desactiva su cuenta. Lo que no haya guardado en ese momento se pierde, as\'i
+que conviene guardar con frecuencia.
+
+\captura[0.6\linewidth]{sesion-expirada.png}{Aviso de sesi\'on expirada.}
+
+\subsection{Editar el perfil y la foto}
+\begin{enumerate}
+  \item Pulse su nombre y luego \boton{Mi perfil}.
+  \item En \boton{Mis datos}, actualice su nombre, apellido, programa acad\'emico, semestre, tel\'efono (no es p\'ublico)
+    y biograf\'ia. Pulse \boton{Guardar cambios}.
+  \item Para \textbf{subir o cambiar la foto}, pulse \boton{Subir foto} o \boton{Cambiar foto} y elija una imagen JPG,
+    PNG o WebP de hasta 2 MB. Se recorta autom\'aticamente en un cuadrado.
+  \item Para \textbf{quitar la foto}, pulse \boton{Quitar foto} y confirme en el di\'alogo. En su lugar se mostrar\'an
+    sus iniciales, en el perfil y en el men\'u.
+  \item Para \textbf{cambiar la contrase\~na}, use la secci\'on \boton{Cambiar contrase\~na}: escriba la actual, la
+    nueva y su confirmaci\'on.
+\end{enumerate}
+
+\captura{mi-perfil.png}{Pantalla ``Mi perfil'' con la foto, los botones ``Cambiar foto'' y ``Quitar foto'' y los datos.}
+\captura[0.6\linewidth]{quitar-foto.png}{Di\'alogo de confirmaci\'on para quitar la foto.}
+
+\subsection{Crear, editar y eliminar proyectos, art\'iculos y noticias}
+
+\subsubsection*{Crear}
+\begin{enumerate}
+  \item Pulse su nombre y luego \boton{Mis contenidos}.
+  \item Pulse \boton{Nuevo proyecto}, \boton{Nuevo art\'iculo} o \boton{Nueva noticia}.
+  \item Complete el \textbf{T\'itulo} y el \textbf{Resumen} (aparece en los listados).
+  \item Agregue el contenido. Puede usar \textbf{texto}, un \textbf{PDF} o \textbf{ambos}:
+    \begin{itemize}
+      \item \textbf{Texto}: escr\'ibalo en el editor de \textbf{Contenido} (ver la gu\'ia m\'as abajo).
+      \item \textbf{PDF}: pulse \boton{Seleccionar PDF} y elija un PDF de hasta 3 MB.
+    \end{itemize}
+  \item Si otras personas participaron, b\'usquelas en \textbf{Integrantes} y agr\'eguelas (hasta 20).
+  \item Pulse \boton{Crear}.
+\end{enumerate}
+Lo que crea un integrante queda \textbf{En revisi\'on} y oculto al p\'ublico hasta que un revisor (docente director,
+administrador o superadministrador) lo publique. Una vez creado, puede agregar im\'agenes con \boton{Subir imagen} (JPG,
+PNG o WebP de hasta 5 MB; m\'aximo 10 archivos por publicaci\'on).
+
+\subsubsection*{Editar y eliminar}
+\begin{enumerate}
+  \item En \boton{Mis contenidos}, busque la publicaci\'on y pulse \boton{Editar}.
+  \item Haga los cambios y pulse \boton{Guardar cambios}. Para cambiar el PDF elija otro con \boton{Reemplazar PDF};
+    para quitarlo, pulse \boton{Quitar PDF} (solo si la publicaci\'on conserva texto).
+  \item Para eliminarla, abra la publicaci\'on y pulse \boton{Eliminar}; confirme en el di\'alogo.
+\end{enumerate}
+El autor puede editar y eliminar su publicaci\'on solo mientras sigue \textbf{En revisi\'on}. Despu\'es de publicada,
+los cambios los hace un revisor. Las personas agregadas como integrantes ven la publicaci\'on, pero no la editan.
+
+\subsubsection*{Gu\'ia r\'apida del editor}
+El editor tiene dos pesta\~nas: \boton{Escribir} y \boton{Vista previa}. En \boton{Escribir}, la barra de botones da
+formato al texto seleccionado:
+
+\begin{center}
+\begin{tabular}{@{}p{3.6cm}p{10.4cm}@{}}
+  \toprule
+  \textbf{Bot\'on} & \textbf{Qu\'e hace}\\
+  \midrule
+  Negrita & Resalta el texto en \textbf{negrita}.\\
+  Cursiva & Pone el texto en \emph{cursiva}.\\
+  T\'itulo y Subt\'itulo & Convierten la l\'inea en un t\'itulo o un subt\'itulo.\\
+  Lista con vi\~netas & Convierte las l\'ineas en una lista con puntos.\\
+  Lista numerada & Convierte las l\'ineas en una lista 1, 2, 3\ldots\\
+  Enlace & Inserta un enlace: escriba el texto y reemplace la direcci\'on que aparece entre par\'entesis.\\
+  Cita & Convierte la l\'inea en una cita.\\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+La pesta\~na \boton{Vista previa} muestra c\'omo se ver\'a el texto publicado, sin guardarlo.
+
+\captura{mis-contenidos.png}{Pantalla ``Mis contenidos'' con los botones para crear y la lista de publicaciones propias.}
+\captura{editor-documento.png}{Editor de una publicaci\'on: t\'itulo, resumen, contenido, PDF e integrantes.}
+\captura{editor-vista-previa.png}{Pesta\~na ``Vista previa'' del editor.}
+
+\subsection{Art\'iculos de inter\'es y vista previa}
+\begin{enumerate}
+  \item Abra el perfil de un integrante desde \boton{Integrantes}.
+  \item Pulse cualquier publicaci\'on del perfil o de la columna \boton{Art\'iculos de inter\'es}.
+  \item Se abre una ventana con la vista previa: el texto y el visor del PDF, sin salir del perfil.
+  \item Pulse \boton{Abrir p\'agina completa} para ir a la publicaci\'on, o \boton{Cerrar} (o la tecla Esc) para volver.
+\end{enumerate}
+
+\captura{vista-previa-publicacion.png}{Vista previa de una publicaci\'on desde el perfil de un integrante.}
+
+% =================================================================================================================
+\section{Como administrador y superadministrador}
+% =================================================================================================================
+
+\subsection{Entrar al panel}
+Pulse su nombre y luego \boton{Administraci\'on}. El panel muestra solo las secciones que su rol permite:
+
+\begin{center}
+\begin{tabular}{@{}p{4.4cm}p{9.6cm}@{}}
+  \toprule
+  \textbf{Secci\'on} & \textbf{Para qu\'e sirve}\\
+  \midrule
+  Contenido en revisi\'on & Publicar, ocultar o borrar proyectos, art\'iculos y noticias.\\
+  Rese\~nas & Aprobar u ocultar rese\~nas y borrar las ofensivas.\\
+  Inicio & Fotos del carrusel y video de presentaci\'on de la p\'agina de inicio.\\
+  Usuarios & Crear cuentas, cambiar roles, desactivar y reactivar integrantes.\\
+  Inscripciones & Revisar solicitudes y sus documentos; aceptar o rechazar.\\
+  Mensajes de contacto & Bandeja de mensajes con le\'idos y no le\'idos.\\
+  \bottomrule
+\end{tabular}
+\end{center}
+El docente director ve solo \boton{Contenido en revisi\'on} y \boton{Rese\~nas}.
+
+\captura{panel.png}{Panel de administraci\'on de un administrador.}
+
+\subsection{Contenido en revisi\'on}
+\begin{enumerate}
+  \item Entre a \boton{Contenido en revisi\'on}. Elija \boton{Proyectos} o \boton{Art\'iculos y noticias} y, si quiere,
+    filtre por visibilidad.
+  \item Abra una publicaci\'on. Seg\'un su estado ver\'a los botones:
+    \begin{itemize}
+      \item \boton{Publicar}: la hace visible al p\'ublico.
+      \item \boton{Ocultar} y \boton{Mostrar}: la quitan o la devuelven al sitio p\'ublico sin borrarla.
+      \item \boton{Marcar finalizado}: para proyectos en ejecuci\'on que ya terminaron.
+      \item \boton{Devolver a revisi\'on}: la oculta y permite que el autor la vuelva a editar.
+      \item \boton{Editar} y \boton{Eliminar} (con confirmaci\'on; no se puede deshacer).
+    \end{itemize}
+\end{enumerate}
+Una publicaci\'on necesita texto, PDF o ambos para poder publicarse.
+
+\captura{admin-contenido.png}{Listado de ``Contenido en revisi\'on''.}
+
+\subsection{Moderar rese\~nas}
+\begin{enumerate}
+  \item Entre a \boton{Rese\~nas}. Las de visitantes llegan ocultas.
+  \item Pulse \boton{Publicar} para mostrarla u \boton{Ocultar} para retirarla del sitio.
+  \item Use \boton{Borrar} solo para spam o contenido ofensivo: el navegador pide confirmar y no se puede deshacer.
+\end{enumerate}
+
+\captura{admin-resenas.png}{Moderaci\'on de rese\~nas.}
+
+\subsection{Usuarios}
+\textbf{Crear una cuenta:}
+\begin{enumerate}
+  \item Entre a \boton{Usuarios} y pulse \boton{Crear usuario}.
+  \item Escriba el \textbf{Correo}, una \textbf{Contrase\~na inicial} (8 o m\'as caracteres con letra y n\'umero), el
+    \textbf{Rol} y los datos del perfil.
+  \item Pulse \boton{Crear usuario}. La cuenta queda activa; entregue la contrase\~na inicial a la persona, que puede
+    cambiarla en \boton{Mi perfil}.
+\end{enumerate}
+
+\textbf{Editar:} en la fila de la persona, pulse \boton{Editar}, cambie sus datos o su rol y pulse
+\boton{Guardar cambios}. Su propia cuenta se edita desde \boton{Mi perfil}.
+
+\textbf{Desactivar y reactivar:} en el listado, pulse \boton{Desactivar} y confirme. La persona deja de poder entrar y
+de aparecer en el sitio, y sus sesiones se cierran; sus datos no se borran. Para devolverle el acceso, pulse
+\boton{Reactivar}.
+
+Un administrador gestiona docentes directores, estudiantes l\'ideres y estudiantes; el superadministrador gestiona
+todos los roles. Nadie puede cambiar su propio rol ni desactivarse a s\'i mismo.
+
+\captura{admin-usuarios.png}{Listado de usuarios con los botones ``Crear usuario'', ``Desactivar'' y ``Reactivar''.}
+\captura{admin-usuario-nuevo.png}{Formulario para crear un usuario.}
+
+\subsection{Inscripciones}
+\begin{enumerate}
+  \item Entre a \boton{Inscripciones}. Filtre por \boton{Pendientes}, \boton{Aceptadas}, \boton{Rechazadas} o
+    \boton{Todas}.
+  \item Abra una solicitud para ver los datos del aspirante, sus \'areas de inter\'es y la carta de motivaci\'on.
+  \item En \boton{Documentos (hoja de vida)} est\'an los archivos adjuntos. Los enlaces son privados y vencen en 1 hora;
+    si vencieron, pulse \boton{Renovar enlaces}.
+  \item Pulse \boton{Aceptar} o \boton{Rechazar}. Al aspirante le llega un correo con la respuesta. Una solicitud se
+    resuelve una sola vez.
+  \item Aceptar \textbf{no} crea la cuenta: despu\'es pulse \boton{Crear cuenta con estos datos}, revise los datos que
+    se copian de la solicitud, defina una contrase\~na inicial y env\'iesela al aspirante.
+\end{enumerate}
+Las solicitudes rechazadas se conservan seis meses y luego las borra el equipo t\'ecnico.
+
+\captura{admin-inscripciones.png}{Listado de inscripciones.}
+\captura{admin-inscripcion-detalle.png}{Detalle de una solicitud con la hoja de vida y los botones ``Aceptar'' y ``Rechazar''.}
+
+\subsection{Mensajes de contacto}
+\begin{enumerate}
+  \item Entre a \boton{Mensajes de contacto}. Filtre por \boton{No le\'idos}, \boton{Le\'idos} o \boton{Todos}.
+  \item Al abrir un mensaje, queda marcado como le\'ido.
+  \item Pulse \boton{Responder} para escribirle al remitente desde su programa de correo.
+\end{enumerate}
+
+\captura{admin-mensajes.png}{Bandeja de mensajes de contacto.}
+
+\subsection{Multimedia del inicio}
+Entre a \boton{Inicio} en el panel. Los cambios se ven en la p\'agina de inicio en unos minutos.
+
+\textbf{Carrusel de fotos:}
+\begin{enumerate}
+  \item Para subir una foto: pulse \boton{Seleccionar foto}, elija una imagen JPG, PNG o WebP de hasta 5 MB, escriba
+    una \textbf{Descripci\'on} (la leen los lectores de pantalla), indique la \textbf{Posici\'on} si quiere (opcional)
+    y pulse \boton{Subir foto}.
+  \item Para cambiar el orden, use \boton{Antes} y \boton{Despu\'es} en cada foto.
+  \item Para cambiar la descripci\'on, ed\'itela y gu\'ardela.
+  \item Para quitar una foto, pulse \boton{Borrar} y confirme. Se elimina tambi\'en el archivo y no se puede deshacer.
+\end{enumerate}
+
+\textbf{Video de presentaci\'on:} solo puede haber uno.
+\begin{enumerate}
+  \item Pulse \boton{Seleccionar video} y elija un video MP4, WebM o MOV de hasta 50 MB.
+  \item Pulse \boton{Reemplazar video} (o \boton{Subir video} si todav\'ia no hay ninguno). El video anterior se borra
+    solo si el nuevo se sube bien. Un video grande puede tardar varios minutos en subir: no cierre la p\'agina.
+\end{enumerate}
+
+\captura{admin-inicio.png}{Administraci\'on del carrusel y del video de presentaci\'on.}
+
+% =================================================================================================================
+\section{Preguntas frecuentes}
+% =================================================================================================================
+
+\begin{description}[style=nextline]
+  \item[¿C\'omo obtengo una cuenta?] Env\'ie la solicitud desde \boton{Inscripci\'on}. Si la aceptan, un administrador
+    crea su cuenta y le entrega una contrase\~na inicial.
+  \item[Google dice que mi cuenta no est\'a registrada.] Solo entran con Google las cuentas \cod{@uptc.edu.co} que ya
+    tienen usuario en el semillero. Pida a un administrador que revise su cuenta o env\'ie la inscripci\'on.
+  \item[No me lleg\'o el correo para recuperar la contrase\~na.] Revise la carpeta de correo no deseado. El enlace vence
+    en 30 minutos y solo se env\'ia a cuentas activas. Si sigue sin llegar, escriba a soporte.
+  \item[El sitio dice ``Demasiados intentos''.] Por seguridad hay un l\'imite de intentos. Espere unos minutos y vuelva a
+    intentarlo.
+  \item[Mi publicaci\'on no aparece en el sitio.] Lo que crea un integrante queda \emph{En revisi\'on} hasta que un
+    revisor lo publique.
+  \item[Ya no puedo editar mi publicaci\'on.] El autor solo edita mientras est\'a en revisi\'on. Pida a un revisor que
+    haga el cambio o que la devuelva a revisi\'on.
+  \item[Me sac\'o de la sesi\'on sin avisar.] La sesi\'on dura como m\'aximo 8 horas. Tambi\'en se cierra si cambian su
+    rol o su cuenta se desactiva.
+  \item[No se sube mi archivo.] Revise el formato y el tama\~no: fotos de perfil hasta 2 MB; PDF hasta 3 MB; im\'agenes
+    hasta 5 MB; video del inicio hasta 50 MB.
+  \item[Hice un cambio y no lo veo.] Algunas p\'aginas tardan unos minutos en actualizarse. Recargue la p\'agina; si
+    persiste, use la recarga forzada (Ctrl + F5).
+  \item[Quiero que eliminen mi cuenta.] P\'idalo a un administrador: la cuenta se desactiva y deja de aparecer en el
+    sitio.
+\end{description}
+
+% =================================================================================================================
+\section{Contacto de soporte}
+% =================================================================================================================
+
+Para problemas con el sitio, escriba a \href{mailto:siiisweb@gmail.com}{\textbf{siiisweb@gmail.com}} indicando qu\'e
+estaba haciendo, en qu\'e p\'agina y, si puede, una captura de pantalla del mensaje que vio. Nunca env\'ie su
+contrase\~na: el equipo del semillero no la pedir\'a.
+
+\subsection*{Equipo de desarrollo}
+\siiisequipo
+
+\end{document}

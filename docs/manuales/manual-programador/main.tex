@@ -1,0 +1,1050 @@
+% Manual del programador - SIIIS V3
+% Compilar con pdflatex (dos pasadas para la tabla de contenido y el numero total de paginas).
+\documentclass[11pt,a4paper]{article}
+\IfFileExists{siiis.sty}{\usepackage{siiis}}{\usepackage{../siiis}}
+\renewcommand{\siiiscarpeta}{manual-programador}
+\graphicspath{{img/}{manual-programador/img/}}
+
+\siiisdatos{Manual del programador}{SIIIS-MP-001}{1.0}{28 de noviembre de 2026}
+
+\begin{document}
+
+\siiisportada{Manual del programador}{Sitio web SIIIS V3: arquitectura, instalaci\'on, configuraci\'on, despliegue y mantenimiento}
+
+\siiiscontrolversiones{%
+  1.0 & 28/11/2026 & Versi\'on inicial del manual del programador. & Equipo de Desarrollo SIIIS\\
+}
+
+\tableofcontents
+\clearpage
+
+% =================================================================================================================
+\section{Introducci\'on y alcance}
+% =================================================================================================================
+
+Este manual describe c\'omo est\'a construido el sitio web del Semillero de Investigaci\'on SIIIS (versi\'on 3), c\'omo
+se instala y se ejecuta en un equipo de desarrollo, c\'omo se configura, se despliega en Hostinger y se mantiene.
+Est\'a dirigido a quienes contin\'uen el desarrollo o administren la plataforma.
+
+El sitio publicado est\'a en \url{https://siiis.com.co}. Reemplaza la versi\'on anterior y permite publicar proyectos,
+art\'iculos y noticias, recibir inscripciones y mensajes de contacto, moderar rese\~nas y administrar a los integrantes.
+
+\textbf{Fuentes de verdad.} Este manual resume, sin reemplazarlos, los documentos del repositorio:
+
+\begin{center}
+\begin{tabular}{@{}p{5.6cm}p{8.4cm}@{}}
+  \toprule
+  \textbf{Documento} & \textbf{Contenido}\\
+  \midrule
+  \cod{docs/SIIIS_V3_SPEC_DRIVEN.md} & Especificaci\'on del proyecto (requisitos, modelo de datos, contrato inicial).\\
+  \cod{docs/api.md} & Contrato completo de la API: rutas, peticiones, respuestas y c\'odigos de error.\\
+  \cod{docs/decisions.md} & Decisiones tomadas y pendientes (\cod{DEC-B01} a \cod{DEC-B74}).\\
+  \cod{docs/deployment.md} & Despliegue y mantenimiento en Hostinger, respaldos y cabeceras.\\
+  \cod{docs/trazabilidad-requisitos.md} & Cumplimiento de los requisitos del ERS v2.0.\\
+  \cod{docs/auditoria-calidad.md} & Auditor\'ia de calidad previa al despliegue y hallazgos abiertos.\\
+  \cod{docs/PLAN.md} & Estado del plan de trabajo vigente.\\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Alcance.} Cubre el frontend (\cod{frontend/}), la API (\cod{backend/}), la base de datos en MongoDB Atlas y los
+servicios externos (Cloudinary, Gmail SMTP y Google Identity). El uso del sitio por parte de visitantes, integrantes y
+administradores est\'a en el \emph{Manual de usuario}.
+
+% =================================================================================================================
+\section{Arquitectura}
+% =================================================================================================================
+
+El sitio es una aplicaci\'on de una sola p\'agina (SPA) en React que consume una API REST en PHP (Slim 4) bajo
+\cod{/api/v1}. En producci\'on, ambos viven en el mismo dominio de Hostinger: el frontend en \cod{public_html/} y la
+API en \cod{public_html/api/}, cuyo c\'odigo real est\'a fuera de \cod{public_html} (carpeta \cod{siiis-api/}). Los datos
+y textos van a MongoDB Atlas; todo archivo binario (im\'agenes, PDF y videos) va a Cloudinary, y MongoDB guarda solo
+su \cod{\{url, public_id\}}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    font=\small,
+    caja/.style={draw=siiisazul,very thick,rounded corners=3pt,fill=white,minimum width=5.2cm,minimum height=0.95cm,align=center},
+    capa/.style={draw=siiisazulmedio,thick,rounded corners=3pt,fill=siiisfondo,minimum width=4.6cm,minimum height=0.75cm,align=center},
+    externo/.style={draw=siiisdorado!80!black,very thick,rounded corners=3pt,fill=siiisdorado!12,minimum width=3.3cm,minimum height=0.95cm,align=center},
+    flecha/.style={-{Stealth[length=2.4mm]},thick,draw=siiisazul},
+    flechaext/.style={-{Stealth[length=2.4mm]},thick,draw=siiisdorado!80!black,dashed},
+  ]
+  \node[caja] (front) {\textbf{Frontend} --- React 19 + TypeScript (Vite)\\ \footnotesize navegador del usuario};
+  \node[capa,below=1.15cm of front] (mw) {Middleware (CORS, JSON, IP, auth, rol)};
+  \node[capa,below=0.35cm of mw] (ctrl) {\textbf{Controllers}};
+  \node[capa,below=0.35cm of ctrl] (serv) {\textbf{Services} (reglas de negocio)};
+  \node[capa,below=0.35cm of serv] (repo) {\textbf{Repositories} (consultas MongoDB)};
+  \begin{scope}[on background layer]
+    \node[draw=siiisazul,very thick,rounded corners=4pt,fill=siiisazul!6,inner sep=8pt,fit=(mw)(ctrl)(serv)(repo),
+      label={[anchor=south west,font=\small\bfseries,text=siiisazul]north west:API REST --- PHP 8.2 + Slim 4 (/api/v1)}] (api) {};
+  \end{scope}
+  \node[externo,below=1.1cm of api] (mongo) {\textbf{MongoDB Atlas}\\ \footnotesize 8 colecciones};
+  \node[externo,right=1.2cm of serv] (cloud) {\textbf{Cloudinary}\\ \footnotesize im\'agenes, PDF, video};
+  \node[externo,below=0.5cm of cloud] (smtp) {\textbf{Gmail SMTP}\\ \footnotesize PHPMailer};
+  \node[externo,left=1.2cm of ctrl] (google) {\textbf{Google Identity}\\ \footnotesize solo @uptc.edu.co};
+
+  \draw[flecha] (front) -- node[right,font=\footnotesize]{HTTPS + JSON, \texttt{Authorization: Bearer}} (api.north);
+  \draw[flecha] (mw) -- (ctrl);
+  \draw[flecha] (ctrl) -- (serv);
+  \draw[flecha] (serv) -- (repo);
+  \draw[flecha] (api.south) -- node[right,font=\footnotesize]{mongodb+srv} (mongo);
+  \draw[flechaext] (serv.east) -- (cloud.west);
+  \draw[flechaext] (serv.east) |- (smtp.west);
+  \draw[flechaext] (front.west) -| node[above,pos=0.25,font=\footnotesize]{bot\'on (id\_token)} (google.north);
+  \draw[flechaext] (ctrl.west) -- node[below,font=\footnotesize]{llaves JWKS} (google.east);
+\end{tikzpicture}
+\caption{Arquitectura por capas del sitio SIIIS V3.}
+\end{figure}
+
+\textbf{Responsabilidades por capa (backend):}
+\begin{itemize}
+  \item \textbf{Middleware} (\cod{src/Middleware}): CORS en desarrollo, lectura del cuerpo JSON, IP del cliente,
+    autenticaci\'on (\cod{AuthMiddleware}, \cod{OptionalAuthMiddleware}), rol (\cod{RoleMiddleware}), cabeceras de
+    seguridad y manejador global de errores en JSON.
+  \item \textbf{Controllers} (\cod{src/Controllers}): delgados; validan la entrada con \cod{src/Validation} y llaman a un
+    servicio. Responden siempre con \cod{JsonResponse}.
+  \item \textbf{Services} (\cod{src/Services}): reglas de negocio, permisos por rol, Cloudinary y correo.
+  \item \textbf{Repositories} (\cod{src/Repositories}): \'unico lugar con consultas a MongoDB. Los nombres de colecciones
+    y campos est\'an centralizados en \cod{Siiis	extbackslash Database	extbackslash Collections}.
+  \item \textbf{Support} y \textbf{Security}: serializaci\'on (sin \cod{password}, tokens ni \cod{public_id}), JWT,
+    contrase\~nas, rate limiting, roles y verificaci\'on de Google.
+\end{itemize}
+
+% =================================================================================================================
+\section{Stack tecnol\'ogico}
+% =================================================================================================================
+
+\begin{center}
+\begin{tabular}{@{}p{3.6cm}p{10.4cm}@{}}
+  \toprule
+  \textbf{Capa} & \textbf{Tecnolog\'ia}\\
+  \midrule
+  Frontend & React 19, TypeScript, Vite, React Router, react-markdown + remark-gfm, lucide-react, ESLint.\\
+  Backend & PHP 8.2, Slim 4, PHP-DI, mongodb/mongodb, firebase/php-jwt, PHPMailer, cloudinary\_php, phpdotenv.\\
+  Base de datos & MongoDB Atlas (extensi\'on PHP \cod{mongodb} 1.18 o superior).\\
+  Multimedia & Cloudinary.\\
+  Correo & Gmail (SMTP) con contrase\~na de aplicaci\'on.\\
+  Login con Google & Google Identity Services; solo cuentas \cod{@uptc.edu.co} de integrantes ya registrados.\\
+  Calidad & PHPUnit, PHPStan (nivel 6), PHP-CS-Fixer (PSR-12), ESLint.\\
+  Hosting & Hostinger (plan compartido): frontend en \cod{public_html/}, API en \cod{public_html/api/}.\\
+  Control de versiones & Git y GitHub.\\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Requisitos del equipo de desarrollo:} PHP 8.2 o superior con las extensiones \cod{mongodb} (1.18 o superior),
+\cod{fileinfo}, \cod{curl}, \cod{openssl} y \cod{mbstring}; Composer 2; Node.js \cod{	extasciicircum 20.19.0} o \cod{>=22.12.0}
+con npm; Git; y acceso al cluster de MongoDB Atlas con la IP del equipo agregada en \emph{Network Access}.
+
+% =================================================================================================================
+\section{Estructura del repositorio}
+% =================================================================================================================
+
+\begin{lstlisting}[style=texto]
+.
+|-- frontend/              SPA en React + TypeScript + Vite
+|   |-- public/            Archivos estaticos (iconos, .htaccess del sitio, imagenes)
+|   |-- scripts/           generar-favicon.mjs (iconos del sitio; no forma parte del build)
+|   `-- src/               app/, components/, config/, features/, lib/, styles/
+|-- backend/               API REST en PHP (Slim 4), bajo /api/v1
+|   |-- public/            Punto de entrada web (index.php y .htaccess)
+|   |-- src/               Codigo PSR-4 Siiis\: Config, Controllers, Database, Middleware,
+|   |                      Repositories, Security, Services, Support, Validation
+|   |-- scripts/           Scripts de consola (indices, superadministrador, multimedia,
+|   |                      respaldo, eliminacion de cuentas, empaquetado)
+|   |-- cron/              Tareas programadas (limpieza de contadores de rate limiting)
+|   |-- storage/           logs/, ratelimit/, cache/ y respaldos/ (no se versiona su contenido)
+|   `-- tests/             PHPUnit: Unit, Api e Integration
+|-- docs/                  Spec, contrato de la API, decisiones, despliegue, auditorias, manuales
+|-- cronograma/            Cronograma del proyecto (ProjectLibre)
+`-- README.md
+\end{lstlisting}
+
+La carpeta \cod{deploy/} la genera \cod{backend/scripts/empaquetar.ps1} y est\'a en \cod{.gitignore}.
+
+% =================================================================================================================
+\section{Instalaci\'on y ejecuci\'on local}
+% =================================================================================================================
+
+\subsection{Backend}
+
+\begin{enumerate}
+  \item Clonar el repositorio y entrar a la carpeta creada por \cod{git clone}.
+  \item Instalar dependencias y crear el archivo de configuraci\'on:
+\begin{lstlisting}[style=powershell]
+cd backend
+composer install
+Copy-Item .env.example .env        # luego completa los valores
+\end{lstlisting}
+  \item Completar en \cod{backend/.env}, como m\'inimo: \cod{MONGO_URI}, \cod{MONGO_DB_NAME}, \cod{JWT_SECRET} (32
+    caracteres o m\'as), \cod{FRONTEND_ORIGIN}, las credenciales \cod{CLOUDINARY_*} y las de correo \cod{MAIL_*}
+    (ver la secci\'on~\ref{sec:config}). Un secreto aleatorio se puede generar con:
+\begin{lstlisting}[style=powershell]
+php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
+\end{lstlisting}
+  \item Crear los \'indices (se puede repetir sin problema) y el primer superadministrador. El script pide los datos por
+    consola y no muestra la contrase\~na al escribirla:
+\begin{lstlisting}[style=powershell]
+php scripts/crear_indices.php
+php scripts/crear_superadmin.php
+\end{lstlisting}
+  \item Opcional, datos de ejemplo para el carrusel y el video de inicio: \cod{php scripts/seed_multimedia.php}.
+  \item Arrancar la API y comprobar el estado:
+\begin{lstlisting}[style=powershell]
+composer serve       # php -S localhost:8000 -t public public/index.php
+\end{lstlisting}
+    \url{http://localhost:8000/api/v1/health} debe responder:
+\begin{lstlisting}[style=json]
+{"status":"ok","db":"ok"}
+\end{lstlisting}
+\end{enumerate}
+
+\importante{Nunca se sube el archivo \cod{.env} a Git: contiene la contrase\~na de la base de datos y el secreto de los
+tokens. El \cod{.gitignore} ya lo excluye; solo se versiona \cod{.env.example}.}
+
+\subsection{Frontend}
+
+En otra terminal, desde la ra\'iz del repositorio:
+\begin{lstlisting}[style=powershell]
+cd frontend
+npm install
+npm run dev          # http://localhost:5173
+\end{lstlisting}
+
+En desarrollo el frontend usa \cod{http://localhost:8000/api/v1} sin configurar nada m\'as. Solo si se necesita otra
+URL de la API o probar el bot\'on de Google, se copia \cod{frontend/.env.example} como \cod{frontend/.env.local} y se
+completan \cod{VITE_API_URL} o \cod{VITE_GOOGLE_CLIENT_ID}. Otros comandos:
+
+\begin{lstlisting}[style=powershell]
+npm run build        # compila a frontend/dist (usa /api/v1, el mismo dominio que la API)
+npm run lint         # ESLint
+npm run preview      # sirve el build localmente
+\end{lstlisting}
+
+% =================================================================================================================
+\section{Configuraci\'on}\label{sec:config}
+% =================================================================================================================
+
+La API lee su configuraci\'on de \cod{backend/.env} (en Hostinger, \cod{siiis-api/.env}, fuera de \cod{public_html}).
+Si falta un valor obligatorio, la API no arranca y responde \cod{CONFIG_ERROR} sin detalles. La tabla recoge
+\textbf{todas} las variables de \cod{backend/.env.example} y las dos del frontend, con su valor por defecto. Ninguna
+tabla de este manual contiene valores reales: los secretos solo viven en el \cod{.env} de cada entorno.
+
+{\small
+\begin{longtable}{@{}p{5.9cm}p{2.7cm}p{5.6cm}@{}}
+\caption{Variables de entorno (valores por defecto de \cod{.env.example}).}\\
+\toprule
+\textbf{Variable} & \textbf{Por defecto} & \textbf{Descripci\'on}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Variable} & \textbf{Por defecto} & \textbf{Descripci\'on}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Aplicaci\'on}}}\\
+\cod{APP_ENV} & \cod{development} & Entorno; en producci\'on \cod{production}.\\
+\cod{APP_DEBUG} & \cod{true} & Detalle de errores. En producci\'on debe ser \cod{false} (con \cod{true} la API no arranca).\\
+\cod{APP_URL} & \cod{http://localhost:8000} & URL de la API.\\
+\cod{FRONTEND_ORIGIN} & \cod{http://localhost:5173} & Origen exacto del frontend permitido por CORS en desarrollo.\\
+\cod{CORS_ORIGIN} & (vac\'io) & Solo si la API vive en otro dominio (plan B en Render). Vac\'io en Hostinger.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{MongoDB Atlas}}}\\
+\cod{MONGO_URI} & (vac\'io) & Cadena \cod{mongodb+srv://...} del cluster. Obligatoria.\\
+\cod{MONGO_DB_NAME} & \cod{siiis} & Base de datos de la aplicaci\'on.\\
+\cod{MONGO_DB_NAME_TEST} & \cod{siiis_test} & Base exclusiva de pruebas; nunca debe ser \cod{siiis}.\\
+\cod{MONGO_SERVER_SELECTION_TIMEOUT_MS} & \cod{5000} & Espera m\'axima para encontrar un servidor.\\
+\cod{MONGO_CONNECT_TIMEOUT_MS} & \cod{5000} & Espera m\'axima para abrir una conexi\'on.\\
+\cod{MONGO_SOCKET_TIMEOUT_MS} & \cod{20000} & Espera m\'axima de una operaci\'on. Al vencer, la API responde \cod{503 DB_UNAVAILABLE}.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Respaldos}}}\\
+\cod{RESPALDO_DIR} & (vac\'io) & Carpeta de respaldos; vac\'io = \cod{storage/respaldos}. Nunca dentro de \cod{public_html}.\\
+\cod{RESPALDO_MAX} & \cod{7} & Cantidad de respaldos que se conservan.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Sesi\'on (JWT)}}}\\
+\cod{JWT_SECRET} & (vac\'io) & Secreto de firma HS256; m\'inimo 32 caracteres. Obligatorio.\\
+\cod{JWT_TTL_SECONDS} & \cod{28800} & Duraci\'on del token; se recorta a 28\,800 s (8 h).\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Login con Google}}}\\
+\cod{GOOGLE_CLIENT_ID} & (vac\'io) & ID de cliente OAuth ``Aplicaci\'on web''. Vac\'io = \cod{POST /auth/google} no existe.\\
+\cod{GOOGLE_DOMINIO_PERMITIDO} & \cod{uptc.edu.co} & Dominio de Google Workspace admitido (claim \cod{hd}).\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Login y contrase\~nas}}}\\
+\cod{MAX_LOGIN_ATTEMPTS} & \cod{5} & Umbral de intentos fallidos; solo se registra en el log, no bloquea (DEC-B06).\\
+\cod{PASSWORD_MIN_LENGTH} & \cod{8} & Longitud m\'inima de la contrase\~na (adem\'as, una letra y un n\'umero).\\
+\cod{PASSWORD_RESET_TTL_MINUTES} & \cod{30} & Vigencia del enlace de recuperaci\'on.\\
+\cod{PASSWORD_RESET_URL} & \cod{http://localhost:5173/restablecer} & P\'agina del frontend que recibe el enlace.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Rate limiting (por IP, en \cod{storage/ratelimit/})}}}\\
+\cod{RATE_LIMIT_LOGIN_MAX} / \cod{_WINDOW_SECONDS} & \cod{10} / \cod{900} & Inicios de sesi\'on (tambi\'en con Google).\\
+\cod{RATE_LIMIT_FORGOT_MAX} / \cod{_WINDOW_SECONDS} & \cod{5} / \cod{3600} & Solicitudes de recuperaci\'on de contrase\~na.\\
+\cod{RATE_LIMIT_RESET_MAX} / \cod{_WINDOW_SECONDS} & \cod{10} / \cod{3600} & Restablecimientos con el enlace del correo.\\
+\cod{RATE_LIMIT_CHANGE_PASSWORD_MAX} / \cod{_WINDOW_SECONDS} & \cod{10} / \cod{900} & Cambios de contrase\~na con sesi\'on.\\
+\cod{TRUSTED_PROXIES} & (vac\'io) & IP o rangos CIDR de proxies de confianza; vac\'io = se usa \cod{REMOTE_ADDR}.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{P\'agina de inicio y multimedia}}}\\
+\cod{HOME_MAX_ITEMS} & \cod{20} & M\'aximo de fotos del carrusel.\\
+\cod{HOME_MAX_VIDEOS} & \cod{1} & M\'aximo de videos de presentaci\'on (DEC-B69).\\
+\cod{DIRECTOR_CORREO} & (vac\'io) & Cuenta cuyo nombre y foto muestra ``Acerca de''; el correo nunca se expone.\\
+\cod{CLOUDINARY_HOME_FOLDER} & \cod{siiis/home} & Carpeta de Cloudinary de fotos y videos del inicio.\\
+\cod{HOME_IMAGEN_MAX_ANCHO_PX} & \cod{1920} & Ancho m\'aximo de las fotos del carrusel al subirlas.\\
+\cod{HOME_VIDEO_MAX_ANCHO_PX} & \cod{1280} & Ancho m\'aximo del video al subirlo.\\
+\cod{MULTIMEDIA_VIDEO_MAX_BYTES} & \cod{52428800} & Tama\~no m\'aximo del video (50 MB).\\
+\cod{MULTIMEDIA_DESCRIPCION_MAX_LENGTH} & \cod{200} & Longitud m\'axima de la descripci\'on.\\
+\cod{RATE_LIMIT_MULTIMEDIA_MAX} / \cod{_WINDOW_SECONDS} & \cod{60} / \cod{3600} & Subidas al inicio desde el panel.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Perfil de usuario}}}\\
+\cod{PERFIL_NOMBRE_MAX_LENGTH} & \cod{80} & Nombre y apellido.\\
+\cod{PERFIL_PROGRAMA_MAX_LENGTH} & \cod{120} & Programa acad\'emico.\\
+\cod{PERFIL_BIOGRAFIA_MAX_LENGTH} & \cod{1000} & Biograf\'ia.\\
+\cod{PERFIL_SEMESTRE_MAX} & \cod{10} & Semestre m\'aximo.\\
+\cod{PERFIL_TELEFONO_MIN_DIGITS} / \cod{_MAX_DIGITS} & \cod{7} / \cod{20} & D\'igitos del tel\'efono.\\
+\cod{PERFIL_FOTO_MAX_BYTES} & \cod{2097152} & Foto de perfil (2 MB; JPEG, PNG o WebP).\\
+\cod{PERFIL_FOTO_LADO_PX} & \cod{400} & Recorte cuadrado de la foto al subirla.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Listado de integrantes}}}\\
+\cod{USERS_PER_PAGE_DEFAULT} / \cod{_MAX} & \cod{20} / \cod{50} & Paginaci\'on de \cod{GET /users}.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Proyectos, art\'iculos y noticias}}}\\
+\cod{DOCUMENTOS_PER_PAGE_DEFAULT} / \cod{_MAX} & \cod{12} / \cod{50} & Paginaci\'on de los listados.\\
+\cod{DOCUMENTO_TITULO_MAX_LENGTH} & \cod{200} & T\'itulo.\\
+\cod{DOCUMENTO_DESCRIPCION_MAX_LENGTH} & \cod{1000} & Resumen.\\
+\cod{DOCUMENTO_CONTENIDO_MAX_LENGTH} & \cod{50000} & Contenido en Markdown.\\
+\cod{DOCUMENTO_INTEGRANTES_MAX} & \cod{20} & Integrantes por documento.\\
+\cod{DOCUMENTO_ADJUNTO_MAX_BYTES} & \cod{5242880} & Imagen adjunta (5 MB).\\
+\cod{DOCUMENTO_PDF_MAX_BYTES} & \cod{3145728} & PDF adjunto (3 MB).\\
+\cod{DOCUMENTO_ADJUNTOS_MAX} & \cod{10} & Adjuntos por documento.\\
+\cod{DOCUMENTO_IMAGEN_MAX_ANCHO_PX} & \cod{1600} & Ancho m\'aximo de las im\'agenes adjuntas.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Rese\~nas y contacto}}}\\
+\cod{RATE_LIMIT_REVIEWS_MAX} / \cod{_WINDOW_SECONDS} & \cod{10} / \cod{3600} & Rese\~nas por IP.\\
+\cod{RATE_LIMIT_CONTACT_MAX} / \cod{_WINDOW_SECONDS} & \cod{20} / \cod{3600} & Mensajes de contacto por IP.\\
+\cod{RESENAS_PER_PAGE_DEFAULT} / \cod{_MAX} & \cod{10} / \cod{50} & Paginaci\'on de rese\~nas.\\
+\cod{RESENA_NOMBRE_MAX_LENGTH} & \cod{80} & Nombre visible de la rese\~na.\\
+\cod{RESENA_COMENTARIO_MAX_LENGTH} & \cod{1000} & Comentario.\\
+\cod{CONTACTO_CORREO_DESTINO} & (vac\'io) & Buz\'on que recibe los mensajes; vac\'io = \cod{MAIL_FROM_ADDRESS} y si no, \cod{MAIL_USERNAME}.\\
+\cod{CONTACTO_NOMBRE_MAX_LENGTH} & \cod{80} & Nombre del remitente.\\
+\cod{CONTACTO_ASUNTO_MAX_LENGTH} & \cod{150} & Asunto.\\
+\cod{CONTACTO_MENSAJE_MAX_LENGTH} & \cod{3000} & Mensaje.\\
+\cod{MENSAJES_PER_PAGE_DEFAULT} / \cod{_MAX} & \cod{20} / \cod{50} & Paginaci\'on del buz\'on.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Inscripciones}}}\\
+\cod{RATE_LIMIT_INSCRIPTIONS_MAX} / \cod{_WINDOW_SECONDS} & \cod{20} / \cod{3600} & Solicitudes por IP.\\
+\cod{INSCRIPCIONES_PER_PAGE_DEFAULT} / \cod{_MAX} & \cod{20} / \cod{50} & Paginaci\'on en el panel.\\
+\cod{INSCRIPCION_DOCUMENTOS_MAX} & \cod{3} & Documentos por solicitud (hoy el formulario ofrece la hoja de vida en PDF, opcional).\\
+\cod{INSCRIPCION_ENLACE_TTL_SECONDS} & \cod{3600} & Vigencia de los enlaces firmados de los documentos.\\
+\cod{INSCRIPCION_DOMINIOS_CORREO} & \cod{uptc.edu.co} & Dominios admitidos en el correo del aspirante; vac\'io = cualquiera.\\
+\cod{INSCRIPCION_NOMBRE_MAX_LENGTH} & \cod{120} & Nombre completo.\\
+\cod{INSCRIPCION_CARTA_MIN_LENGTH} & \cod{100} & Se lee de la configuraci\'on, pero hoy no se exige un m\'inimo en la carta (DEC-B65).\\
+\cod{INSCRIPCION_CARTA_MAX_LENGTH} & \cod{3000} & Carta de motivaci\'on.\\
+\cod{INSCRIPCION_CORREO_AVISO} & (vac\'io) & Qui\'en recibe el aviso de una solicitud nueva; vac\'io = \cod{CONTACTO_CORREO_DESTINO}.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Correo (PHPMailer SMTP)}}}\\
+\cod{MAIL_HOST} & \cod{smtp.gmail.com} & Servidor SMTP.\\
+\cod{MAIL_PORT} & \cod{587} & Puerto SMTP.\\
+\cod{MAIL_USERNAME} & (vac\'io) & Cuenta de Gmail.\\
+\cod{MAIL_PASSWORD} & (vac\'io) & Contrase\~na de aplicaci\'on de Gmail (no la contrase\~na normal).\\
+\cod{MAIL_FROM_ADDRESS} & (vac\'io) & Remitente de los correos.\\
+\cod{MAIL_FROM_NAME} & \cod{Semillero SIIIS} & Nombre del remitente.\\
+\cod{MAIL_LOGO_URL} & (vac\'io) & URL https del logo del encabezado de los correos; vac\'io = solo texto.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Cloudinary}}}\\
+\cod{CLOUDINARY_CLOUD_NAME} & (vac\'io) & Nombre de la nube.\\
+\cod{CLOUDINARY_API_KEY} & (vac\'io) & Clave de la API.\\
+\cod{CLOUDINARY_API_SECRET} & (vac\'io) & Secreto de la API.\\
+\cod{CLOUDINARY_PERFILES_FOLDER} & \cod{siiis/perfiles} & Fotos de perfil.\\
+\cod{CLOUDINARY_DOCUMENTOS_FOLDER} & \cod{siiis/documentos} & Adjuntos de proyectos, art\'iculos y noticias.\\
+\cod{CLOUDINARY_INSCRIPCIONES_FOLDER} & \cod{siiis/inscripciones} & Documentos de inscripci\'on (privados).\\
+\cod{CLOUDINARY_CALIDAD} & \cod{auto} & Calidad al subir: \cod{auto}, \cod{auto:best}, \cod{auto:good}, \cod{auto:eco}, \cod{auto:low} o 1--100.\\
+\multicolumn{3}{@{}l}{\textbf{\textcolor{siiisazul}{Frontend (\cod{frontend/.env.local})}}}\\
+\cod{VITE_API_URL} & (vac\'io) & URL de la API; vac\'io = \cod{http://localhost:8000/api/v1} en desarrollo y \cod{/api/v1} en el build.\\
+\cod{VITE_GOOGLE_CLIENT_ID} & (vac\'io) & Mismo valor que \cod{GOOGLE_CLIENT_ID}; vac\'io = no aparece el bot\'on de Google.\\
+\end{longtable}
+}
+
+% =================================================================================================================
+\section{Modelo de datos}
+% =================================================================================================================
+
+La fuente oficial es el documento \emph{Arquitectura para la Base de Datos de la P\'agina Web del Semillero}
+(\cod{SIIIS-BD-001}, versi\'on 1.0, 13 de septiembre de 2026), copiado en \cod{docs/Diccionario Bases de Datos.pdf}.
+Define una arquitectura h\'ibrida: MongoDB para los datos documentales y textuales, y Cloudinary para im\'agenes, videos
+y adjuntos, enlazados con el patr\'on \cod{\{url, public_id\}}. Su principio central es separar los datos de
+autenticaci\'on (\cod{Credenciales}) de los datos de perfil (\cod{Usuarios}).
+
+El c\'odigo usa exactamente las 8 colecciones del diccionario, con sus nombres y campos (con tildes y may\'usculas),
+centralizados en \cod{Siiis\textbackslash Database\textbackslash Collections}. Las tablas siguientes reproducen el
+diccionario; donde el c\'odigo hace algo distinto o adicional, se indica en la secci\'on~\ref{sec:diferencias} con la
+decisi\'on que lo justifica. Cambiar colecciones o campos requiere la aprobaci\'on del equipo de bases de datos.
+
+% Tabla de una coleccion del diccionario: \coleccion{Nombre}{Descripcion}{filas}
+\newcommand{\coleccion}[3]{%
+  \subsection{\cod{#1}}
+  #2
+  {\small
+  \begin{longtable}{@{}p{3.9cm}p{3.6cm}p{6.5cm}@{}}
+  \toprule
+  \textbf{Campo} & \textbf{Tipo} & \textbf{Descripci\'on (diccionario)}\\
+  \midrule
+  #3
+  \bottomrule
+  \end{longtable}
+  }}
+
+\coleccion{Credenciales}{Autenticaci\'on: solo lo necesario para iniciar sesi\'on y recuperar el acceso. Ning\'un dato
+de perfil vive aqu\'i.}{%
+  \cod{_id} & ObjectId & Identificador \'unico de la credencial.\\
+  \cod{correo} & String & Correo de acceso; \'indice \'unico.\\
+  \cod{password} & String & Contrase\~na cifrada con hash (bcrypt). Nunca en texto plano.\\
+  \cod{usuario_id} & ObjectId (ref. \cod{Usuarios}) & Perfil de esta cuenta (relaci\'on 1 a 1).\\
+  \cod{estado_cuenta} & String & \cod{activa}, \cod{bloqueada}, \cod{pendiente_verificacion}.\\
+  \cod{token_recuperacion} & String & Token temporal del flujo de recuperaci\'on de contrase\~na.\\
+  \cod{token_expiracion} & Date & Vencimiento del token de recuperaci\'on.\\
+  \cod{intentos_fallidos} & Number & Inicios de sesi\'on fallidos consecutivos.\\
+  \cod{fecha_creacion} & Date & Creaci\'on de la cuenta.\\
+  \cod{ultimo_acceso} & Date & \'Ultimo inicio de sesi\'on exitoso.\\
+}
+
+\coleccion{Usuarios}{Perfil p\'ublico y acad\'emico del integrante. El rol vive aqu\'i y no en \cod{Credenciales},
+para no duplicarlo.}{%
+  \cod{_id} & ObjectId & Identificador del perfil.\\
+  \cod{credencial_id} & ObjectId (ref. \cod{Credenciales}) & Cuenta de acceso asociada.\\
+  \cod{nombre} & String & Nombres.\\
+  \cod{apellido} & String & Apellidos.\\
+  \cod{rol} & String & \cod{superadministrador}, \cod{administrador}, \cod{docente_director},
+    \cod{estudiante_lider}, \cod{estudiante}.\\
+  \cod{programa_academico} & String & Programa acad\'emico.\\
+  \cod{semestre} & Number & Semestre actual (estudiantes).\\
+  \cod{foto_perfil} & Object \cod{\{url, public_id\}} & Imagen de perfil en Cloudinary.\\
+  \cod{biografia} & String & Descripci\'on breve, visible en el perfil p\'ublico.\\
+  \cod{telefono} & String & N\'umero de contacto (opcional).\\
+  \cod{estado} & Boolean & Activo o inactivo (deserci\'on). No es el rol.\\
+  \cod{fecha_ingreso} & Date & Ingreso al semillero.\\
+  \cod{fecha_salida} & Date & Salida del semillero, si aplica.\\
+}
+
+\coleccion{Documentos}{Proyectos, art\'iculos y noticias en una sola colecci\'on.}{%
+  \cod{_id} & ObjectId & Identificador.\\
+  \cod{categoria} & String & \cod{proyecto}, \cod{articulo}, \cod{noticia}.\\
+  \cod{titulo} & String & Nombre del proyecto, art\'iculo o noticia.\\
+  \cod{descripcion} & String & Descripci\'on corta.\\
+  \cod{contenido} & String & Texto enriquecido, para la previsualizaci\'on en el editor.\\
+  \cod{autor_id} & ObjectId (ref. \cod{Usuarios}) & Usuario que lo public\'o.\\
+  \cod{integrantes} & Array<ObjectId> (ref. \cod{Usuarios}) & Integrantes relacionados.\\
+  \cod{archivos_adjuntos} & Array<Object \cod{\{url, public_id, nombre_archivo\}}> & Archivos e im\'agenes en
+    Cloudinary; aqu\'i solo la referencia.\\
+  \cod{estado} & String & \cod{ejecucion}, \cod{finalizado}, \cod{en_revision}, \cod{publicado}.\\
+  \cod{visible} & Boolean & Visible p\'ublicamente en el sitio.\\
+  \cod{fecha_creacion} & Date & Creaci\'on.\\
+  \cod{fecha_actualizacion} & Date & \'Ultima modificaci\'on.\\
+}
+
+\coleccion{Multimedia}{Referencias a Cloudinary de la pantalla principal, separadas de los adjuntos de un
+documento.}{%
+  \cod{_id} & ObjectId & Identificador del recurso.\\
+  \cod{tipo} & String & \cod{imagen}, \cod{video}.\\
+  \cod{url} & String & URL entregada por Cloudinary.\\
+  \cod{public_id} & String & Identificador en Cloudinary (para actualizar o eliminar).\\
+  \cod{seccion} & String & \cod{slider_principal}, \cod{video_presentacion}, \cod{galeria}.\\
+  \cod{descripcion} & String & Texto alternativo o pie de imagen (accesibilidad).\\
+  \cod{orden} & Number & Orden dentro de la secci\'on.\\
+  \cod{fecha_subida} & Date & Fecha de carga.\\
+}
+
+\coleccion{Reseñas}{Opiniones sobre el semillero, con moderaci\'on.}{%
+  \cod{_id} & ObjectId & Identificador.\\
+  \cod{usuario_id} & ObjectId (ref. \cod{Usuarios}), nullable & Usuario autenticado que la escribi\'o, si aplica.\\
+  \cod{nombre_visible} & String & Nombre que se muestra junto a la rese\~na.\\
+  \cod{comentario} & String & Texto de la rese\~na.\\
+  \cod{calificacion} & Number & Opcional, de 1 a 5.\\
+  \cod{estado} & String & Moderaci\'on: \cod{visible}, \cod{oculta}.\\
+  \cod{fecha} & Date & Publicaci\'on.\\
+}
+
+\coleccion{Inscripciones}{Solicitudes de ingreso al semillero.}{%
+  \cod{_id} & ObjectId & Identificador de la solicitud.\\
+  \cod{nombre_completo} & String & Nombre completo del aspirante.\\
+  \cod{correo} & String & Correo de contacto.\\
+  \cod{telefono} & String & N\'umero de contacto.\\
+  \cod{programa_academico} & String & Programa acad\'emico.\\
+  \cod{semestre} & Number & Semestre actual.\\
+  \cod{carta_motivacion} & String & Inter\'es del aspirante en el semillero.\\
+  \cod{documentos_adjuntos} & Array<Object \cod{\{url, public_id, nombre_archivo\}}> & Documentos requeridos, en
+    Cloudinary.\\
+  \cod{estado_solicitud} & String & \cod{pendiente}, \cod{aceptada}, \cod{rechazada}.\\
+  \cod{fecha_solicitud} & Date & Env\'io de la solicitud.\\
+}
+
+\coleccion{Sesiones}{Apoyo al cierre autom\'atico de la sesi\'on a las 8 horas.}{%
+  \cod{_id} & ObjectId & Identificador de la sesi\'on.\\
+  \cod{usuario_id} & ObjectId (ref. \cod{Usuarios}) & Due\~no de la sesi\'on.\\
+  \cod{token} & String & Token de sesi\'on emitido al iniciar sesi\'on.\\
+  \cod{fecha_inicio} & Date & Inicio de la sesi\'on.\\
+  \cod{fecha_expiracion} & Date & \cod{fecha_inicio} + 8 horas; al superarse se invalida.\\
+  \cod{ip_acceso} & String & IP de inicio (auditor\'ia b\'asica).\\
+  \cod{activa} & Boolean & Si la sesi\'on sigue vigente.\\
+}
+
+\coleccion{Mensajes_Contacto}{Trazabilidad de los mensajes del apartado de contacto (opcional en el diccionario;
+implementada).}{%
+  \cod{_id} & ObjectId & Identificador del mensaje.\\
+  \cod{nombre} & String & Nombre de quien escribe.\\
+  \cod{correo} & String & Correo para responder.\\
+  \cod{asunto} & String & Asunto.\\
+  \cod{mensaje} & String & Contenido.\\
+  \cod{estado} & String & \cod{leido}, \cod{no_leido}.\\
+  \cod{fecha} & Date & Env\'io.\\
+}
+
+\subsection{Relaciones}
+Coinciden con la secci\'on 7 del diccionario:
+\begin{itemize}
+  \item \cod{Credenciales} 1--1 \cod{Usuarios} (por \cod{usuario_id} y \cod{credencial_id}).
+  \item \cod{Usuarios} 1--N \cod{Documentos} (por \cod{autor_id}) y \cod{Documentos} N--M \cod{Usuarios} (por el
+    arreglo \cod{integrantes}).
+  \item \cod{Usuarios} 1--N \cod{Reseñas} (\cod{usuario_id} opcional) y 1--N \cod{Sesiones}.
+  \item \cod{Inscripciones} es independiente hasta su aceptaci\'on; entonces un administrador crea el par
+    \cod{Credenciales}/\cod{Usuarios} (en el sitio, con ``Crear cuenta con estos datos'').
+  \item \cod{Documentos} y \cod{Multimedia} comparten el patr\'on \cod{\{url, public_id\}} hacia Cloudinary.
+\end{itemize}
+
+\subsection{\'Indices}
+Los cinco \'indices recomendados en la secci\'on 8 del diccionario existen en el c\'odigo y los crea
+\cod{php scripts/crear_indices.php} (idempotente):
+
+\begin{center}
+\begin{tabular}{@{}p{3.6cm}p{4.6cm}p{5.8cm}@{}}
+  \toprule
+  \textbf{Colecci\'on} & \textbf{Diccionario} & \textbf{C\'odigo (nombre del \'indice)}\\
+  \midrule
+  \cod{Credenciales} & \cod{correo}, \'unico & \cod{correo_unico}, \'unico\\
+  \cod{Usuarios} & \cod{credencial_id}, \'unico & \cod{credencial_id_unico}, \'unico\\
+  \cod{Documentos} & \cod{categoria} y \cod{estado}, compuesto & \cod{categoria_estado}, compuesto\\
+  \cod{Inscripciones} & \cod{estado_solicitud}, simple & \cod{estado_solicitud}, simple\\
+  \cod{Sesiones} & \cod{token} y \cod{fecha_expiracion}; puede ser TTL & \cod{token} (simple) y
+    \cod{fecha_expiracion_ttl} (TTL, \cod{expireAfterSeconds = 0})\\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+No hay \'indice sobre \cod{Credenciales.token_recuperacion}; el diccionario no lo pide y la colecci\'on es peque\~na
+(DEC-B14).
+
+\subsection{Diferencias entre el diccionario y el c\'odigo}\label{sec:diferencias}
+
+Ninguna colecci\'on ni campo del diccionario se renombr\'o ni se elimin\'o. Estas son las diferencias de contenido o de
+uso, con su justificaci\'on:
+
+{\small
+\begin{longtable}{@{}p{3.3cm}p{3.7cm}p{4.3cm}p{2.7cm}@{}}
+\caption{Diferencias entre \cod{SIIIS-BD-001} y el c\'odigo.}\\
+\toprule
+\textbf{Campo} & \textbf{Diccionario} & \textbf{C\'odigo} & \textbf{Justificaci\'on}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Campo} & \textbf{Diccionario} & \textbf{C\'odigo} & \textbf{Justificaci\'on}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\cod{Credenciales.} \cod{token_recuperacion} & Token temporal. & Se guarda solo el hash SHA-256 del token; el token en
+  claro solo viaja en el enlace del correo. & Seguridad (spec 12.3; \cod{PasswordResetService}). No hay una DEC
+  espec\'ifica.\\
+\cod{Credenciales.} \cod{intentos_fallidos} & Soporte para bloqueo por seguridad. & Se cuenta y se registra en el log,
+  pero no bloquea la cuenta; protege el rate limiting por IP. & DEC-B06.\\
+\cod{Credenciales.} \cod{estado_cuenta} & \cod{activa}, \cod{bloqueada}, \cod{pendiente_verificacion}. & Las cuentas se
+  crean siempre \cod{activa}; \cod{pendiente_verificacion} responde \cod{403 ACCOUNT_PENDING} y cualquier otro valor
+  \cod{403 ACCOUNT_BLOCKED}. & DEC-B08, DEC-B16.\\
+\cod{Credenciales} (Google) & Sin campos de Google. & Igual: el login con Google no agrega campos ni crea cuentas; busca
+  el correo existente. & DEC-B61.\\
+\cod{Usuarios.} \cod{foto_perfil} & Object \cod{\{url, public\_id\}}. & \cod{null} si no hay foto (al crear la cuenta o al
+  quitarla). & DEC-B29, DEC-B74.\\
+\cod{Usuarios.} \cod{estado} & Activo o inactivo. & Desactivar es l\'ogico: \cod{estado = false} y \cod{fecha_salida};
+  no se borra el documento. & DEC-B22, DEC-B28; baja definitiva solo por script (DEC-B73).\\
+\cod{Documentos.} \cod{contenido} & Texto enriquecido. & Texto en Markdown, hasta 50\,000 caracteres; se muestra sin
+  interpretar HTML. & DEC-B37.\\
+\cod{Documentos.} \cod{estado} & Cuatro valores. & Proyectos: \cod{en_revision}, \cod{ejecucion}, \cod{finalizado};
+  art\'iculos y noticias: \cod{en_revision}, \cod{publicado}. P\'ublico: \cod{visible = true} y estado distinto de
+  \cod{en_revision}. & DEC-B31.\\
+\cod{Documentos.} \cod{archivos_adjuntos} & Archivos e im\'agenes. & Im\'agenes JPEG, PNG o WebP (5 MB) y PDF (3 MB),
+  hasta 10; el primer PDF es el contenido principal. & DEC-B40, DEC-B70.\\
+\cod{Multimedia.} \cod{seccion} & Incluye \cod{galeria}. & El valor existe en el c\'odigo, pero ninguna ruta ni pantalla
+  lo usa: solo \cod{slider_principal} y \cod{video_presentacion} (un solo video). & DEC-B62, DEC-B69.\\
+\cod{Reseñas} (flujo) & Para integrantes, moderadas por el administrador. & Tambi\'en las escriben visitantes
+  (\cod{usuario_id = null}, nacen \cod{oculta}); las de integrantes nacen \cod{visible}. Moderan
+  superadministrador, administrador y docente director. & DEC-B43, DEC-B44.\\
+\cod{Inscripciones.} \cod{documentos_adjuntos} & Documentos requeridos. & De 0 a 3, opcionales; privados en Cloudinary
+  (\emph{authenticated}) con enlaces firmados de 1 hora. El formulario ofrece la hoja de vida en PDF. & DEC-B49
+  (corregida por DEC-B63 y DEC-B65), DEC-B50.\\
+\cod{Inscripciones.} \cod{telefono} & N\'umero de contacto. & Opcional; el formulario actual no lo pide, as\'i que suele
+  quedar \cod{null}. & DEC-B51, DEC-B65.\\
+\cod{Inscripciones.} \cod{codigo_estudiantil}, \cod{areas_interes} & No existen. & Campos opcionales nuevos (texto de 4
+  a 20 caracteres; lista de \'areas). & DEC-B63, en \textbf{PROPUESTA}: pendiente de aprobaci\'on del equipo de bases
+  de datos.\\
+\cod{Sesiones.token} & Token de sesi\'on emitido. & Hash SHA-256 del identificador \cod{jti} del JWT, no el token
+  completo. & Spec 10.13.6 (PROPUESTA compatible con el campo oficial).\\
+\cod{Sesiones.} \cod{fecha_expiracion} & \cod{fecha_inicio} + 8 horas. & \cod{fecha_inicio} + \cod{JWT_TTL_SECONDS},
+  que nunca pasa de 8 horas; el \'indice TTL borra las vencidas. & RNF-05; spec 10.13.6.\\
+\end{longtable}
+}
+
+\subsection{Roles y permisos}
+
+Los cinco roles del diccionario (\cod{Usuarios.rol}) coinciden con \cod{Siiis\textbackslash Security\textbackslash
+Roles}. El diccionario no define permisos; los define la jerarqu\'ia aprobada por el equipo (DEC-B17). El rol sale del
+token y de la base, nunca del cuerpo de la petici\'on; el frontend solo muestra u oculta opciones y el backend siempre
+vuelve a validar.
+
+{\small
+\begin{longtable}{@{}p{3.5cm}p{10.5cm}@{}}
+\toprule
+\textbf{Rol} & \textbf{Permisos}\\
+\midrule
+\endhead
+\cod{superadministrador} & Todo: gestiona usuarios de cualquier rol, revisa contenido, modera rese\~nas, revisa
+  inscripciones, lee el buz\'on y administra la multimedia del inicio.\\
+\cod{administrador} & Gestiona usuarios \cod{docente_director}, \cod{estudiante_lider} y \cod{estudiante};
+  revisa contenido, modera rese\~nas, inscripciones, buz\'on y multimedia.\\
+\cod{docente_director} & Revisor de contenido (publica, oculta, edita y borra cualquier documento) y moderador de
+  rese\~nas (DEC-B33, DEC-B44).\\
+\cod{estudiante_lider}, \cod{estudiante} & Editan su propio perfil y foto; crean documentos (quedan en revisi\'on) y
+  editan o borran los suyos mientras siguen en revisi\'on (DEC-B32, DEC-B34).\\
+\bottomrule
+\end{longtable}
+}
+
+Reglas adicionales: nadie cambia su propio rol ni su propio estado; no se puede desactivar ni bajar de rol al \'ultimo
+superadministrador activo (\cod{409 LAST_SUPERADMIN}); si a un usuario le cambian el rol o lo desactivan, se cierran
+todas sus sesiones. El cupo de dos administradores del ERS es una regla de uso, no una restricci\'on del c\'odigo
+(DEC-B18).
+
+% =================================================================================================================
+\section{Resumen de la API}
+% =================================================================================================================
+
+Todas las rutas est\'an bajo \cod{/api/v1}, responden JSON en UTF-8 y, ante un error, el formato
+\cod{\{"error": \{"code", "message"\}\}} (con \cod{fields} en \cod{VALIDATION_ERROR}). El detalle de cada ruta, sus
+campos y c\'odigos est\'a en \cod{docs/api.md}; aqu\'i solo se resume. Las rutas se registran en
+\cod{backend/src/Config/Routes.php}.
+
+{\small
+\begin{longtable}{@{}p{3cm}p{6.6cm}p{4.4cm}@{}}
+\caption{Rutas por m\'odulo (secciones de \cod{docs/api.md}).}\\
+\toprule
+\textbf{M\'odulo} & \textbf{Rutas} & \textbf{Acceso}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{M\'odulo} & \textbf{Rutas} & \textbf{Acceso}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Estado (1) & \cod{GET /health} & P\'ublico.\\
+Autenticaci\'on (2--6b) & \cod{POST /auth/login}, \cod{POST /auth/google}, \cod{GET /auth/me},
+  \cod{POST /auth/logout}, \cod{POST /auth/forgot-password}, \cod{POST /auth/reset-password},
+  \cod{POST /auth/change-password}, \cod{POST /auth/register} & Login y recuperaci\'on p\'ublicos; \cod{register} solo
+  administrativos; el resto con sesi\'on.\\
+Usuarios (6c--6h) & \cod{GET /users}, \cod{GET /users/{id}}, \cod{PATCH /users/{id}}, \cod{DELETE /users/{id}},
+  \cod{POST /users/{id}/photo}, \cod{DELETE /users/{id}/photo} & Listado y perfil p\'ublicos (sesi\'on opcional);
+  editar seg\'un jerarqu\'ia; desactivar, administrativos; quitar la foto, solo el propio usuario.\\
+Inicio (7, 8, 8b) & \cod{GET /home/slider}, \cod{GET /home/videos}, \cod{GET /home/director} & P\'ublico.\\
+Multimedia (8a) & \cod{GET /multimedia}, \cod{POST /multimedia}, \cod{PUT /multimedia/orden},
+  \cod{PATCH /multimedia/{id}}, \cod{DELETE /multimedia/{id}} & \cod{superadministrador} y \cod{administrador}.\\
+Proyectos (9, 11) & \cod{GET}, \cod{POST /projects}; \cod{GET}, \cod{PATCH}, \cod{DELETE /projects/{id}};
+  \cod{POST /projects/{id}/files}; \cod{DELETE /projects/{id}/files/{archivo}} & Lectura p\'ublica (sesi\'on
+  opcional); escritura con sesi\'on seg\'un autor o revisor.\\
+Art\'iculos y noticias (10, 11) & Las mismas rutas bajo \cod{/articles} & Igual que proyectos.\\
+Rese\~nas (12) & \cod{GET /reviews}, \cod{POST /reviews}, \cod{PATCH /reviews/{id}}, \cod{DELETE /reviews/{id}} &
+  Lectura y env\'io p\'ublicos; moderaci\'on para revisores.\\
+Inscripciones (13) & \cod{POST /inscriptions}, \cod{GET /inscriptions}, \cod{GET /inscriptions/{id}},
+  \cod{PATCH /inscriptions/{id}} & Env\'io p\'ublico; consulta y resoluci\'on, administrativos.\\
+Contacto (14) & \cod{POST /contact}, \cod{GET /contact/messages}, \cod{PATCH /contact/messages/{id}} & Env\'io
+  p\'ublico; buz\'on, administrativos.\\
+\end{longtable}
+}
+
+Ejemplo de error:
+\begin{lstlisting}[style=json]
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Los datos enviados no son válidos.",
+    "fields": { "correo": "El correo no tiene un formato válido." }
+  }
+}
+\end{lstlisting}
+
+% =================================================================================================================
+\section{Seguridad}
+% =================================================================================================================
+
+\begin{itemize}
+  \item \textbf{Sesi\'on de 8 horas (RNF-05).} JWT HS256 (\cod{firebase/php-jwt}) con vencimiento m\'aximo de 28\,800 s
+    aunque \cod{JWT_TTL_SECONDS} pida m\'as. Cada token tiene un registro en \cod{Sesiones}; en cada petici\'on se
+    comprueba que la sesi\'on siga activa, lo que permite cerrar sesiones antes de tiempo (logout, cambio de rol,
+    desactivaci\'on, cambio de contrase\~na). El \'indice TTL borra las vencidas. El frontend tambi\'en cierra la
+    sesi\'on al vencer (secci\'on~\ref{sec:front}).
+  \item \textbf{Contrase\~nas.} Hash bcrypt (\cod{password_hash} con \cod{PASSWORD_BCRYPT}); m\'inimo 8 caracteres con
+    al menos una letra y un n\'umero, m\'aximo 72 bytes (DEC-B11). La recuperaci\'on usa un token aleatorio de 256 bits
+    de un solo uso, del que solo se guarda el hash, con vencimiento de \cod{PASSWORD_RESET_TTL_MINUTES}. La respuesta
+    de \cod{forgot-password} es la misma exista o no el correo.
+  \item \textbf{Rate limiting.} Por IP, con contadores en \cod{storage/ratelimit/}, en login (tambi\'en Google),
+    recuperaci\'on y restablecimiento de contrase\~na, cambio de contrase\~na, rese\~nas, contacto, inscripciones y
+    subidas al inicio. Al superarlo responde \cod{429 RATE_LIMITED} con \cod{Retry-After}. Detr\'as de un proxy se
+    configura \cod{TRUSTED_PROXIES}.
+  \item \textbf{Login con Google.} El backend verifica el \cod{id_token} con las llaves p\'ublicas de Google (JWKS,
+    guardadas en \cod{storage/cache/google_jwks.json}), exige el dominio \cod{uptc.edu.co} (claim \cod{hd}) y un correo
+    verificado, y solo entra si el correo ya tiene cuenta en el semillero: nunca crea cuentas (DEC-B61). Emite el mismo
+    JWT de 8 h que el login con contrase\~na.
+  \item \textbf{Archivos.} El tipo se detecta por el contenido (\cod{finfo}), no por la extensi\'on; hay tama\~no m\'aximo
+    por tipo y el nombre se sanea. Los temporales nunca quedan bajo \cod{public_html}. Si Cloudinary rechaza un archivo
+    da\~nado responde \cod{415}; si Cloudinary falla, \cod{502}.
+  \item \textbf{Documentos privados.} Los documentos de inscripci\'on se suben a Cloudinary como \emph{authenticated} y
+    solo se entregan con enlaces firmados que vencen en \cod{INSCRIPCION_ENLACE_TTL_SECONDS} (1 hora) (DEC-B50).
+  \item \textbf{Entradas.} Toda entrada se castea a texto o n\'umero y se rechazan arreglos u objetos donde se espera
+    texto (anti inyecci\'on NoSQL). Los filtros usan listas blancas.
+  \item \textbf{Cabeceras.} La API env\'ia \cod{X-Content-Type-Options: nosniff}, \cod{X-Frame-Options: DENY},
+    \cod{Content-Security-Policy} restrictiva, \cod{Referrer-Policy: no-referrer}, \cod{Cache-Control: no-store} por
+    defecto y HSTS en producci\'on. El \cod{.htaccess} del sitio a\~nade \cod{nosniff}, \cod{X-Frame-Options:
+    SAMEORIGIN}, \cod{Referrer-Policy}, HSTS solo bajo HTTPS e \cod{index.html} sin cach\'e.
+  \item \textbf{Errores.} Siempre en JSON y sin trazas con \cod{APP_DEBUG=false}; con \cod{APP_DEBUG=true} y
+    \cod{APP_ENV=production} la API se niega a arrancar.
+  \item \textbf{Secretos.} \cod{.env}, \cod{vendor/} y \cod{storage/} viven fuera de \cod{public_html};
+    \cod{siiis-api/.htaccess} deniega todo por si acaso. La API nunca expone \cod{password}, tokens ni \cod{public_id}.
+\end{itemize}
+
+% =================================================================================================================
+\section{Frontend}\label{sec:front}
+% =================================================================================================================
+
+\subsection{Estructura}
+\begin{center}
+\begin{tabular}{@{}p{4.4cm}p{9.6cm}@{}}
+  \toprule
+  \textbf{Carpeta} & \textbf{Contenido}\\
+  \midrule
+  \cod{src/app/} & \cod{layout/AppLayout.tsx} (men\'u, pie y animaci\'on de carga) y \cod{routes/AppRoutes.tsx}.\\
+  \cod{src/components/} & Componentes compartidos: \cod{Navbar}, \cod{AuthModal}, \cod{AuthProvider},
+    \cod{RequireAuth}, \cod{ErrorBoundary}, \cod{PageLoader}, \cod{Markdown}, \cod{MarkdownEditor},
+    \cod{SelectorArchivos}, \cod{ConfirmDialog}, \cod{ui.tsx}.\\
+  \cod{src/features/} & Pantallas por m\'odulo: \cod{home}, \cod{about}, \cod{users}, \cod{content}, \cod{account},
+    \cod{admin}, \cod{auth}, \cod{contact}, \cod{reviews}, \cod{legal}, \cod{projects}, \cod{article}.\\
+  \cod{src/lib/} & \cod{api.ts} (cliente \'unico de la API y almacenamiento del token), \cod{auth.ts} (contexto y
+    roles), \cod{sesion.ts} (vencimiento), \cod{useApi.ts}, \cod{errors.ts}, \cod{archivos.ts}, \cod{format.ts},
+    \cod{recargaPorChunk.ts}.\\
+  \cod{src/config/sitio.ts} & Datos fijos del sitio (dominio de inscripci\'on, \'areas de inter\'es).\\
+  \cod{src/styles/} & \cod{global.css}, \cod{siiis.css} (variables y botones) y \cod{app.css}.\\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Rutas}
+{\small
+\begin{longtable}{@{}p{5.4cm}p{8.6cm}@{}}
+\toprule
+\textbf{Ruta} & \textbf{Pantalla}\\
+\midrule
+\endhead
+\cod{/} & Inicio: carrusel, video de presentaci\'on, noticias recientes.\\
+\cod{/acerca-de} & Acerca de (direcci\'on del semillero, equipos de las versiones anteriores).\\
+\cod{/usuarios}, \cod{/usuarios/:id} & Integrantes y perfil p\'ublico (publicaciones y art\'iculos de inter\'es).\\
+\cod{/proyectos}, \cod{/proyectos/:id} & Listado y detalle de proyectos.\\
+\cod{/articulos}, \cod{/articulos/:id} & Listado y detalle de art\'iculos.\\
+\cod{/noticias} & Art\'iculos de la categor\'ia noticia (\cod{/blog} redirige aqu\'i).\\
+\cod{/resenas} & Rese\~nas del semillero.\\
+\cod{/contacto} & Formulario de contacto.\\
+\cod{/inscripcion} & Formulario de inscripci\'on (\cod{/registro} redirige aqu\'i).\\
+\cod{/login}, \cod{/restablecer} & Inicio de sesi\'on y restablecimiento de contrase\~na.\\
+\cod{/privacidad}, \cod{/terminos} & P\'aginas legales.\\
+\cod{/mi-perfil} & Edici\'on del propio perfil, foto y contrase\~na (con sesi\'on).\\
+\cod{/mis-contenidos}, \cod{/mis-contenidos/nuevo/:tipo}, \cod{/mis-contenidos/:modulo/:id/editar} & Contenido propio y
+  editor de documentos (con sesi\'on).\\
+\cod{/admin} y subrutas \cod{contenido}, \cod{resenas} & Panel para revisores.\\
+\cod{/admin/usuarios}, \cod{inscripciones}, \cod{mensajes}, \cod{inicio} & Panel para \cod{superadministrador} y
+  \cod{administrador}.\\
+\cod{*} & P\'agina 404.\\
+\bottomrule
+\end{longtable}
+}
+
+El men\'u incluye adem\'as la pesta\~na \textbf{Blog}, que abre el blog externo del semillero
+(\url{https://semillerosiiis.blogspot.com/}). Las p\'aginas de detalle, el \'area del usuario y el panel se cargan en
+diferido (\cod{React.lazy}) para mantener liviano el JavaScript inicial.
+
+\subsection{Sesi\'on}
+\begin{itemize}
+  \item El token se guarda en \cod{localStorage} si se marca ``Recordarme'' y en \cod{sessionStorage} si no, junto con
+    el instante de vencimiento calculado con \cod{expira_en} (tope de 8 h).
+  \item \cod{AuthProvider} programa el cierre al vencer y lo vuelve a comprobar al regresar a la pesta\~na; al cerrar,
+    lleva a \cod{/login} con el aviso ``Tu sesi\'on expir\'o. Inicia sesi\'on de nuevo''. Una sesi\'on guardada ya
+    vencida se cierra al abrir el sitio, y cualquier \cod{401} de una petici\'on con token tambi\'en la cierra.
+  \item \cod{RequireAuth} protege las rutas por rol; el backend vuelve a validar siempre.
+\end{itemize}
+
+\subsection{Errores y estados de carga}
+\begin{itemize}
+  \item \cod{ErrorBoundary} evita la pantalla en blanco ante un error de la interfaz y ofrece ``Recargar''. Si el error
+    es un archivo del build que ya no existe (pesta\~na abierta durante un despliegue), recarga la p\'agina una sola vez,
+    controlado con \cod{sessionStorage}.
+  \item Cada pantalla de datos usa \cod{useApi} con estados de carga, error (\cod{ErrorCarga} con ``Reintentar'') y
+    vac\'io. Si la API no responde, el inicio se muestra sin videos ni noticias y ``Acerca de'' usa datos fijos.
+  \item Los mensajes de error vienen en espa\~nol de la API (\cod{message} y \cod{fields}) y se muestran junto al campo.
+\end{itemize}
+
+% =================================================================================================================
+\section{Scripts de mantenimiento}
+% =================================================================================================================
+
+Todos se ejecutan desde \cod{backend/} (en el servidor, desde \cod{siiis-api/}) y se niegan a correr desde la web. La
+opci\'on \cod{--test} usa \cod{MONGO_DB_NAME_TEST} en lugar de \cod{MONGO_DB_NAME}.
+
+{\small
+\begin{longtable}{@{}p{4.4cm}p{9.6cm}@{}}
+\toprule
+\textbf{Script} & \textbf{Cu\'ando y c\'omo se usa}\\
+\midrule
+\endhead
+\cod{scripts/crear_indices.php} & Al instalar y despu\'es de restaurar un respaldo. Idempotente.
+  \cod{php scripts/crear_indices.php [--test]}.\\
+\cod{scripts/crear_superadmin.php} & Una vez, para crear el primer superadministrador. Pide los datos por consola; falla
+  si el correo ya existe. \cod{php scripts/crear_superadmin.php [--test]}.\\
+\cod{scripts/seed_multimedia.php} & En desarrollo, para tener fotos y video de ejemplo. No duplica.
+  \cod{php scripts/seed_multimedia.php [--test] [--file=ruta.json]}.\\
+\cod{scripts/cargar_multimedia.php} & Carga inicial del carrusel y el video del inicio en producci\'on, desde una carpeta
+  local (\cod{--carpeta=RUTA}, con \cod{--simular} para ver el plan) o registrando recursos que ya est\'an en Cloudinary
+  (\cod{--existentes=RUTA}). Pide confirmar con ``si''.\\
+\cod{scripts/respaldar_base.php} & Respaldo de la base (ver secci\'on~\ref{sec:respaldos}); a mano o por cron.
+  \cod{php scripts/respaldar_base.php [--test]}.\\
+\cod{scripts/eliminar_cuentas.php} & Solo para bajas definitivas excepcionales (DEC-B73); la baja normal es desactivar
+  desde el panel. Por defecto simula; borra con \cod{--confirmar}. Se niega con cuentas activas o autoras de documentos.
+  \cod{php scripts/eliminar_cuentas.php --correo=CORREO [--confirmar] [--test]}.\\
+\cod{scripts/seed_demo.php} & Solo en desarrollo y solo contra \cod{siiis_test}: siembra o limpia datos de
+  demostraci\'on. No se incluye en el paquete de producci\'on.\\
+\cod{scripts/empaquetar.ps1} & Antes de cada despliegue: arma \cod{deploy/} (ver secci\'on~\ref{sec:despliegue}).\\
+\cod{cron/limpiar_ratelimit.php} & Diario por cron: borra los contadores de rate limiting vencidos. No usa MongoDB.
+  \cod{php cron/limpiar_ratelimit.php [--segundos=N]}.\\
+\cod{frontend/scripts/generar-favicon.mjs} & Cuando cambia el logo: genera \cod{favicon.ico}, \cod{favicon-32x32.png} y
+  \cod{apple-touch-icon.png} en \cod{frontend/public/}. \cod{node scripts/generar-favicon.mjs RUTA/Logo_Azul.png}.\\
+\bottomrule
+\end{longtable}
+}
+
+% =================================================================================================================
+\section{Pruebas y calidad}
+% =================================================================================================================
+
+Desde \cod{backend/}:
+\begin{lstlisting}[style=powershell]
+composer test       # PHPUnit (Unit, Api e Integration)
+composer lint       # PHP-CS-Fixer en modo revision (PSR-12)
+composer lint:fix   # aplica las correcciones de estilo
+composer analyse    # PHPStan nivel 6
+\end{lstlisting}
+
+Desde \cod{frontend/}: \cod{npm run lint} (ESLint) y \cod{npm run build} (incluye la comprobaci\'on de tipos con
+\cod{tsc -b}).
+
+\begin{itemize}
+  \item Las pruebas \cod{Unit} y \cod{Api} usan repositorios en memoria y servicios simulados (Cloudinary y correo); no
+    necesitan red.
+  \item Las pruebas de integraci\'on usan la base \cod{MONGO_DB_NAME_TEST} (por defecto \cod{siiis_test}) y se saltan si
+    no hay \cod{MONGO_URI}. \textbf{\cod{siiis_test} nunca es \cod{siiis}:} la clase base se niega a correr si el nombre
+    de prueba es igual al principal o es \cod{siiis}, y los scripts con \cod{--test} hacen la misma comprobaci\'on.
+  \item Antes de entregar un cambio deben pasar \cod{composer test}, \cod{composer lint} y \cod{composer analyse}, y en el
+    frontend \cod{npm run lint} y \cod{npm run build}.
+\end{itemize}
+
+% =================================================================================================================
+\section{Despliegue en Hostinger}\label{sec:despliegue}
+% =================================================================================================================
+
+Estructura en el servidor:
+\begin{lstlisting}[style=texto]
+domains/siiis.com.co/
+|-- public_html/
+|   |-- index.html, assets/...     build de React
+|   |-- .htaccess                  /api -> PHP; resto -> SPA; cabeceras de seguridad
+|   `-- api/
+|       |-- index.php              apunta a ../../siiis-api/bootstrap.php
+|       `-- .htaccess
+`-- siiis-api/                     src/, vendor/, storage/, scripts/, cron/, bootstrap.php, .env
+\end{lstlisting}
+
+\begin{enumerate}
+  \item Generar el paquete en Windows:
+\begin{lstlisting}[style=powershell]
+npm --prefix frontend run build
+powershell -ExecutionPolicy Bypass -File backend\scripts\empaquetar.ps1 -Dominio siiis.com.co
+\end{lstlisting}
+    El script instala las dependencias sin las de desarrollo, copia solo los scripts de producci\'on y verifica que el
+    paquete no lleve \cod{.env} ni herramientas de prueba.
+  \item En hPanel, activar PHP 8.2 o superior y la extensi\'on \cod{mongodb} (\emph{Avanzado, Configuraci\'on PHP,
+    Extensiones}), y ajustar \cod{upload_max_filesize}, \cod{post_max_size} y \cod{max_execution_time} (ver
+    secci\'on~\ref{sec:problemas}).
+  \item En MongoDB Atlas, lista de acceso \cod{0.0.0.0/0} con una contrase\~na fuerte para el usuario de la aplicaci\'on,
+    que solo debe tener \cod{readWrite} sobre \cod{siiis} (DEC-B54).
+  \item Subir \cod{deploy/siiis-api/} a \cod{domains/siiis.com.co/siiis-api/} y el contenido de
+    \cod{deploy/public_html/} a \cod{public_html/}, sin borrar \cod{api/} ni el \cod{.htaccess}.
+  \item Crear \cod{siiis-api/.env} a partir de \cod{.env.produccion.ejemplo}, con \cod{APP_ENV=production},
+    \cod{APP_DEBUG=false}, un \cod{JWT_SECRET} nuevo, \cod{CORS_ORIGIN} vac\'io y el buz\'on
+    \cod{CONTACTO_CORREO_DESTINO}.
+  \item Dar permisos de escritura a \cod{siiis-api/storage/} (logs, ratelimit, cache y respaldos).
+  \item Ejecutar una vez \cod{php scripts/crear_indices.php} y, si la base est\'a vac\'ia,
+    \cod{php scripts/crear_superadmin.php}. Cargar la multimedia inicial con \cod{scripts/cargar_multimedia.php}.
+  \item Registrar los cron (secci\'on~\ref{sec:cron}).
+  \item Verificar: \url{https://siiis.com.co/api/v1/health} debe responder \cod{\{"status":"ok","db":"ok"\}}; completar la
+    lista de verificaci\'on de \cod{docs/deployment.md} (correo, foto de perfil, adjuntos, inscripci\'on, contacto y
+    rese\~nas) y comprobar las cabeceras:
+\begin{lstlisting}[style=bash]
+curl -sI https://siiis.com.co/ | grep -iE 'x-content-type|x-frame|referrer|strict-transport|cache-control'
+curl -sI https://siiis.com.co/api/v1/health | grep -iE 'x-frame|referrer|content-security'
+\end{lstlisting}
+  \item Para el login con Google, crear el ID de cliente en Google Cloud con los or\'igenes autorizados del sitio,
+    ponerlo en \cod{GOOGLE_CLIENT_ID} y compilar el frontend con \cod{VITE_GOOGLE_CLIENT_ID} (gu\'ia completa en
+    \cod{docs/deployment.md}).
+\end{enumerate}
+
+\nota{Si Hostinger no permite activar la extensi\'on \cod{mongodb}, el plan B es desplegar la API en Render con Docker
+(\cod{backend/Dockerfile}) y compilar el frontend con \cod{VITE_API_URL} apuntando a ese servicio (DEC-B58).}
+
+% =================================================================================================================
+\section{Respaldos y restauraci\'on}\label{sec:respaldos}
+% =================================================================================================================
+
+El plan gratuito de Atlas no tiene respaldos autom\'aticos. \cod{scripts/respaldar_base.php} solo lee la base, no env\'ia
+nada a servicios externos y crea \cod{RESPALDO_DIR/AAAAMMDD-HHMMSS/} (hora UTC) con un archivo \cod{<Coleccion>.json}
+por colecci\'on (Extended JSON can\'onico, un documento por l\'inea) y un \cod{manifest.json} con la cantidad de
+documentos. Conserva los \'ultimos \cod{RESPALDO_MAX} respaldos. La carpeta queda con permisos restringidos, con un
+\cod{.htaccess} que niega el acceso web y en \cod{.gitignore}.
+
+\begin{lstlisting}[style=bash]
+cd /home/USUARIO/domains/siiis.com.co/siiis-api
+php scripts/respaldar_base.php
+\end{lstlisting}
+
+\textbf{Restauraci\'on con \cod{mongoimport}} (MongoDB Database Tools), primero en una base aparte para revisar:
+\begin{lstlisting}[style=bash]
+cd siiis-api/storage/respaldos/20261128-040000
+for archivo in *.json; do
+  [ "$archivo" = "manifest.json" ] && continue
+  mongoimport --uri "$MONGO_URI" --db siiis_restaurada --collection "${archivo%.json}" \
+    --file "$archivo" --mode insert
+done
+\end{lstlisting}
+\begin{itemize}
+  \item Para reemplazar la base real se usa \cod{--db siiis --drop}, solo despu\'es de revisar la copia y de sacar un
+    respaldo nuevo de lo que haya en \cod{siiis}.
+  \item \cod{mongoimport} no crea \'indices: despu\'es se corre \cod{php scripts/crear_indices.php}.
+  \item \cod{mongorestore} no sirve con estos archivos (solo lee el BSON de \cod{mongodump}).
+  \item Una vez al mes conviene descargar la carpeta m\'as reciente a un almacenamiento del semillero con acceso
+    restringido: los respaldos contienen hashes de contrase\~nas y datos personales.
+\end{itemize}
+
+% =================================================================================================================
+\section{Cron y monitoreo}\label{sec:cron}
+% =================================================================================================================
+
+En hPanel (\emph{Avanzado, Cron Jobs}); la ruta de \cod{php} la muestra la misma pantalla y \cod{USUARIO} es el usuario
+de la cuenta de Hostinger:
+\begin{lstlisting}[style=texto]
+0 3 * * * /usr/bin/php /home/USUARIO/domains/siiis.com.co/siiis-api/cron/limpiar_ratelimit.php
+0 4 * * * /usr/bin/php /home/USUARIO/domains/siiis.com.co/siiis-api/scripts/respaldar_base.php >> /home/USUARIO/domains/siiis.com.co/siiis-api/storage/logs/respaldo.log 2>&1
+\end{lstlisting}
+
+\textbf{Monitoreo:}
+\begin{itemize}
+  \item \cod{GET /api/v1/health}: \cod{200} con \cod{\{"status":"ok","db":"ok"\}} o \cod{503 DB_UNAVAILABLE}.
+  \item Logs de la API en \cod{storage/logs/app-AAAA-MM-DD.log} (sin contrase\~nas ni tokens). Ah\'i quedan los avisos
+    como ``No se pudo borrar una foto de Cloudinary'' o ``No se pudo enviar un correo de inscripci\'on'', con el dato
+    necesario para corregirlo a mano. Hoy no rotan solos: conviene borrar los antiguos peri\'odicamente (hallazgo M-02
+    de \cod{docs/auditoria-calidad.md}).
+  \item Salida del respaldo en \cod{storage/logs/respaldo.log}.
+  \item Consumo de Cloudinary en su consola (\emph{Dashboard, Usage}) y del cluster en Atlas.
+\end{itemize}
+
+% =================================================================================================================
+\section{Soluci\'on de problemas comunes}\label{sec:problemas}
+% =================================================================================================================
+
+{\small
+\begin{longtable}{@{}p{3.6cm}p{10.4cm}@{}}
+\toprule
+\textbf{Problema} & \textbf{Causa y soluci\'on}\\
+\midrule
+\endhead
+Error de CORS en desarrollo & \cod{FRONTEND_ORIGIN} debe coincidir exactamente con la direcci\'on del frontend
+  (\cod{localhost} y \cod{127.0.0.1} son or\'igenes distintos). En Hostinger no hay CORS porque frontend y API comparten
+  dominio; \cod{CORS_ORIGIN} solo se usa si la API vive en otro dominio.\\
+Google: \cod{origin_mismatch} & El origen no est\'a en los ``Or\'igenes de JavaScript autorizados'' del ID de cliente.
+  Deben ser exactos, con \cod{https://} y sin barra final (\cod{https://siiis.com.co}; en desarrollo
+  \cod{http://localhost:5173} y \cod{http://localhost}). Los cambios tardan de minutos a una hora. Si el bot\'on no
+  aparece, el frontend se compil\'o sin \cod{VITE_GOOGLE_CLIENT_ID}.\\
+PDF bloqueado en Cloudinary & El PDF se sube pero al abrirlo Cloudinary responde \cod{401} con
+  \cod{X-Cld-Error: deny or ACL failure}. Hay que activar ``Allow delivery of PDF and ZIP files'' en la consola de
+  Cloudinary (\emph{Settings, Security}) de la cuenta que usa el \cod{.env}.\\
+Extensi\'on \cod{mongodb} & Sin la extensi\'on (o con una versi\'on menor a 1.18) la API no arranca. Activarla en hPanel
+  y comprobar la versi\'on con \cod{phpinfo()}; seguir ``Versiones fijadas'' de \cod{docs/deployment.md} para ajustar
+  \cod{config.platform} de Composer. Si no se puede, plan B en Render.\\
+L\'imites de subida & \cod{upload_max_filesize} debe ser al menos el archivo m\'as grande (video de 50 MB) y
+  \cod{post_max_size} mayor (por ejemplo 55M), con \cod{max_execution_time} de unos 180 s. Si el cuerpo supera
+  \cod{post_max_size}, PHP descarta el archivo y la API responde \cod{400} en lugar de \cod{413}. Si no se pueden subir
+  los l\'imites, se baja \cod{MULTIMEDIA_VIDEO_MAX_BYTES}.\\
+Cach\'e del navegador & Tras un despliegue, \cod{index.html} se sirve sin cach\'e y los archivos con hash de
+  \cod{/assets} con cach\'e larga, as\'i que basta recargar. Una pesta\~na antigua se recarga sola una vez al fallar un
+  archivo del build. Los listados p\'ublicos de la API se guardan 60 s y el inicio 5 min, por eso un cambio puede
+  tardar en verse. Si algo persiste: recarga forzada (\cod{Ctrl+F5}).\\
+\cod{503 DB_UNAVAILABLE} & Atlas no responde o la IP no est\'a en \emph{Network Access}. Revisar el estado del cluster y la
+  lista de acceso.\\
+\cod{CONFIG_ERROR} & Falta una variable obligatoria (\cod{MONGO_URI}, \cod{JWT_SECRET}) o hay un valor inv\'alido.\\
+\bottomrule
+\end{longtable}
+}
+
+% =================================================================================================================
+\section{Convenciones}
+% =================================================================================================================
+
+\begin{itemize}
+  \item \textbf{C\'odigo.} PHP con \cod{declare(strict_types=1);}, PSR-12 y PSR-4 (\cod{Siiis	extbackslash} en \cod{backend/src/});
+    controladores delgados y consultas a MongoDB solo en \cod{src/Repositories/}. Frontend en TypeScript estricto.
+  \item \textbf{Commits.} Mensajes en espa\~nol con el formato \cod{tipo(ámbito): descripción}, por ejemplo
+    \cod{feat(usuarios): ...}, \cod{fix(frontend): ...} o \cod{docs: ...}, y un cuerpo con los cambios principales.
+  \item \textbf{Decisiones.} Toda regla que no est\'e en la especificaci\'on se registra en \cod{docs/decisions.md} como
+    \cod{DEC-Bxx}, con estado (\cod{PROPUESTA}, \cod{DECIDIDA}, \cod{DECISION_REQUIRED} o \cod{TODO_SPEC}), fecha,
+    contexto, decisi\'on, impacto y si requiere migraci\'on. No se inventan reglas de negocio.
+  \item \textbf{Secretos.} Nunca se sube un \cod{.env} real; solo \cod{.env.example}. Tampoco se versionan
+    \cod{storage/}, \cod{deploy/} ni los respaldos. Si un secreto llega a Git por error, se cambia en el servicio
+    correspondiente.
+  \item \textbf{Contrato.} Cualquier cambio en una ruta se refleja en \cod{docs/api.md}.
+\end{itemize}
+
+% =================================================================================================================
+\section{Servicios externos}
+% =================================================================================================================
+
+Las credenciales de MongoDB Atlas, Cloudinary, Google y el correo se configuran \'unicamente en el \cod{.env} del
+servidor. Las cuentas de esos servicios pertenecen al semillero
+(\href{mailto:siiisweb@gmail.com}{siiisweb@gmail.com}). Las credenciales nunca se documentan ---tampoco en este
+manual--- ni se suben a Git.
+
+{\small
+\begin{longtable}{@{}p{3.3cm}p{10.7cm}@{}}
+\toprule
+\textbf{Servicio} & \textbf{Uso}\\
+\midrule
+\endhead
+Hostinger & Hosting compartido del sitio y la API, dominio \cod{siiis.com.co}, cron y PHP.\\
+MongoDB Atlas & Base de datos (8 colecciones). Plan gratuito: sin respaldos autom\'aticos (ver
+  secci\'on~\ref{sec:respaldos}).\\
+Cloudinary & Fotos de perfil, adjuntos de documentos, carrusel y video del inicio, y documentos de inscripci\'on
+  privados.\\
+Gmail (SMTP) & Env\'io de correos: recuperaci\'on de contrase\~na, avisos de contacto e inscripci\'on y respuestas a
+  los aspirantes. Usa una contrase\~na de aplicaci\'on.\\
+Google Cloud (Google Identity) & ID de cliente OAuth para ``Iniciar sesi\'on con Google''. El ID no es secreto; el
+  ``secreto del cliente'' no se usa.\\
+GitHub & Repositorio del c\'odigo.\\
+Blogger & Blog externo del semillero, enlazado desde la pesta\~na \textbf{Blog}.\\
+\bottomrule
+\end{longtable}
+}
+
+Soporte: \href{mailto:siiisweb@gmail.com}{siiisweb@gmail.com}.
+
+% =================================================================================================================
+\section{Equipo}
+% =================================================================================================================
+
+\siiisequipo
+
+\end{document}
