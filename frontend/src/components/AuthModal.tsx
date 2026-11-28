@@ -6,6 +6,10 @@ import type { UsuarioSesion } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { mensajeError } from '../lib/errors';
 import GoogleLoginButton from './GoogleLoginButton';
+import { imagenCloudinary, LOGO_BLANCO } from '../lib/cloudinary';
+
+/** Logo del encabezado del modal (26 px): se pide a 2x. */
+const LOGO_MODAL = imagenCloudinary(LOGO_BLANCO, 64);
 
 type AuthModalProps = {
   onClose: () => void;
@@ -181,7 +185,7 @@ export default function AuthModal({ onClose, onSuccess, aviso }: AuthModalProps)
             <div className="modal__brand">
               <span className="modal__brand-badge">
                 <img
-                  src="https://res.cloudinary.com/we3ya7sq/image/upload/v1789264275/Logo_Png_Blanco.png"
+                  src={LOGO_MODAL}
                   alt=""
                   width="26"
                   height="26"
@@ -333,7 +337,7 @@ export default function AuthModal({ onClose, onSuccess, aviso }: AuthModalProps)
             <div className="modal__brand">
               <span className="modal__brand-badge">
                 <img
-                  src="https://res.cloudinary.com/we3ya7sq/image/upload/v1789264275/Logo_Png_Blanco.png"
+                  src={LOGO_MODAL}
                   alt=""
                   width="26"
                   height="26"

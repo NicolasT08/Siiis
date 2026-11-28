@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
 import PageLoader from '../../components/PageLoader';
+import { aplicarMetadatos } from '../../lib/metadatos';
 
 const DURACION_MS = 700;
 
@@ -18,9 +19,10 @@ export default function AppLayout() {
     return () => window.clearTimeout(timer);
   }, [location.pathname]);
 
-  // Al cambiar de página se vuelve arriba.
+  // Al cambiar de página se vuelve arriba y se actualizan el título y la descripción (SEO).
   useEffect(() => {
     window.scrollTo({ top: 0 });
+    aplicarMetadatos(location.pathname);
   }, [location.pathname]);
 
   return (

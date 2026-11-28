@@ -10,6 +10,8 @@ RewriteCond %{HTTP:X-Forwarded-Proto} =https
 RewriteRule ^ - [E=SIIIS_HTTPS:1]
 
 RewriteRule ^api/ - [L]
+# robots.txt y sitemap.xml son archivos reales (SEO): nunca se reescriben a index.html.
+RewriteRule ^(robots\.txt|sitemap\.xml)$ - [L]
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]

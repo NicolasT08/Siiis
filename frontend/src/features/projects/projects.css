@@ -37,7 +37,7 @@
   align-items: center;
   background:
     linear-gradient(180deg, rgba(11, 45, 79, 0.6) 0%, rgba(11, 45, 79, 0.92) 100%),
-    url('/assets/proyectos/bg-paisaje-boyaca.png') center 60% / cover,
+    url('/assets/proyectos/bg-paisaje-boyaca.webp') center 60% / cover,
     var(--siiis-navy);
   color: #fff;
 }
@@ -51,7 +51,7 @@
 }
 .projects-hero__building {
   z-index: -1;
-  background: url('/assets/proyectos/bg-edificio-tunja.png') center / cover;
+  background: url('/assets/proyectos/bg-edificio-tunja.webp') center / cover;
   clip-path: url(#hero-building-clip);
 }
 .projects-hero__swoosh { z-index: 0; overflow: visible; }
@@ -61,7 +61,7 @@
   inset: 0 0 0 auto;
   z-index: -1;
   width: 34%;
-  background: url('/assets/proyectos/bg-ilustracion-historica.png') left center / cover;
+  background: url('/assets/proyectos/bg-ilustracion-historica.webp') left center / cover;
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
   mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
   opacity: 0.9;

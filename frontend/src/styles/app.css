@@ -325,3 +325,62 @@ label.btn-archivo:has(input:focus-visible) { outline: 3px solid var(--siiis-gold
   .app-dialog--preview .doc-pdf__viewer { height: 60vh; }
 }
 .app-profile__photo-actions { justify-content: center; }
+
+/* ---------- Objetivos táctiles (PageSpeed) ----------------------------------------------------------------------
+   Se agranda el área tocable sin cambiar lo que se ve: pseudo-elementos transparentes o padding compensado con
+   margen negativo. */
+
+/* Flechas del carrusel: en pantallas táctiles se ven de 40 px; el área tocable llega a 48 px. */
+.carousel-arrow::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; }
+
+/* Íconos de redes (34 px): área de 44 px de alto que ocupa también la separación entre ellos. */
+.footer__block .social-badge { position: relative; }
+.footer__block a.social-badge::before { content: ''; position: absolute; inset: -5px -3px; }
+
+/* Enlaces del pie: el padding vertical llena la separación entre líneas (sin mover nada) para que cada enlace
+   mida unos 30 px de alto y no se solape con el siguiente. */
+.footer__link { display: inline-block; padding-block: 0.3rem; margin-block: -0.3rem; }
+.footer__link--arrow { display: inline-flex; }
+
+/* Menú móvil: cada enlace mide al menos 44 px de alto. */
+@media (max-width: 1080px) {
+  .nav__link { display: flex; align-items: center; min-height: 44px; }
+}
+
+/* Puntos del carrusel en pantallas táctiles: cada botón mide 24 px (mínimo de WCAG 2.5.8) y el punto visible se
+   dibuja con ::before con el mismo tamaño y color de antes; solo crece la separación entre puntos. */
+@media (pointer: coarse) {
+  .carousel-dots { gap: 0; padding: 0 3px; }
+  .carousel-dot,
+  .carousel-dot.is-active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-width: 24px;
+    height: 24px;
+    background: transparent;
+    box-shadow: none;
+    animation: none;
+  }
+  .carousel-dot.is-active { min-width: 33px; }
+  .carousel-dot::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.6);
+    transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.25s ease;
+  }
+  .carousel-dot.is-active::before {
+    width: 25px;
+    background: #fcbc3f;
+    box-shadow: 0 0 8px rgba(252, 188, 63, 0.35);
+    animation: dotPulse 6s ease-in-out infinite;
+  }
+}
+@media (pointer: coarse) and (max-width: 640px) {
+  .carousel-dot::before { width: 6px; height: 6px; }
+  .carousel-dot.is-active { min-width: 28px; }
+  .carousel-dot.is-active::before { width: 20px; }
+}

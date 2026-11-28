@@ -13,6 +13,7 @@ import AccionesRevision from './AccionesRevision';
 import DocumentoContenido from './DocumentoContenido';
 import { CategoriaChip, EstadoBadge, PersonaAvatar } from './DocumentCard';
 import '../projects/projects.css';
+import { imagenCloudinary } from '../../lib/cloudinary';
 
 const esImagen = (url: string) => /\.(jpe?g|png|webp|gif)(\?|$)/i.test(url) || url.includes('/image/upload/') && !/\.pdf(\?|$)/i.test(url);
 
@@ -113,7 +114,7 @@ export default function DocumentDetailPage({ modulo }: { modulo: Modulo }) {
                     {imagenes.map((a) => (
                       <li key={a.archivo}>
                         <a href={a.url} target="_blank" rel="noopener noreferrer">
-                          <img src={a.url} alt={a.nombre_archivo} loading="lazy" />
+                          <img src={imagenCloudinary(a.url, 640)} alt={a.nombre_archivo} loading="lazy" decoding="async" />
                         </a>
                       </li>
                     ))}

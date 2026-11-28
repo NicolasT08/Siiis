@@ -4,6 +4,7 @@ import { ChevronDown, FileText, LayoutDashboard, LogOut, Menu, User, X } from 'l
 import { esRevisor, nombreCompleto, useAuth } from '../lib/auth';
 import AuthModal from './AuthModal';
 import BrandLogo from './BrandLogo';
+import { imagenCloudinary } from '../lib/cloudinary';
 
 const links = [
   { to: '/', label: 'Inicio' },
@@ -58,7 +59,7 @@ function MenuUsuario() {
         onClick={() => setAbiertoEn(abierto ? null : pathname)}
       >
         {usuario.foto_perfil ? (
-          <img className="nav__user-avatar" src={usuario.foto_perfil.url} alt="" />
+          <img className="nav__user-avatar" src={imagenCloudinary(usuario.foto_perfil.url, 64)} alt="" decoding="async" />
         ) : (
           <User size={16} aria-hidden="true" />
         )}

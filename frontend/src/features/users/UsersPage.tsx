@@ -93,7 +93,7 @@ export default function UsersPage() {
               {lista.data.map((m) => (
                 <li key={m.id}>
                   <Link to={`/usuarios/${encodeURIComponent(m.id)}`} className="member-row">
-                    <MemberAvatar miembro={m} className="member-row__avatar" />
+                    <MemberAvatar miembro={m} className="member-row__avatar" ancho={160} />
                     <div className="member-row__info">
                       <p className="member-row__role">{etiquetaRol(m.rol)}</p>
                       <h3 className="member-row__name">{nombreMiembro(m)}</h3>

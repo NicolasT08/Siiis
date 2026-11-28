@@ -1,8 +1,10 @@
+import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Newspaper, PlayCircle, Settings2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import ImageCarousel from '../../components/ImageCarousel';
 import { SITIO } from '../../config/sitio';
 import { api } from '../../lib/api';
+import { posterVideoCloudinary } from '../../lib/cloudinary';
 import { esAdministrativo, useAuth } from '../../lib/auth';
 import { useApi } from '../../lib/useApi';
 import DocumentCard from '../content/DocumentCard';
@@ -10,6 +12,45 @@ import ProjectsHero from '../projects/components/ProjectsHero';
 import ReviewsSection from '../reviews/ReviewsSection';
 import '../projects/projects.css';
 import './home.css';
+
+/**
+ * Video que no se descarga al abrir la página: la URL y la portada (un fotograma generado por Cloudinary) se
+ * asignan cuando el video se acerca a la pantalla, y con preload="none" el archivo solo baja al darle play.
+ */
+function VideoDiferido({ url, descripcion }: { url: string; descripcion: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [visible, setVisible] = useState(() => typeof IntersectionObserver === 'undefined');
+
+  useEffect(() => {
+    const video = ref.current;
+    if (visible || !video) return;
+    const observer = new IntersectionObserver(
+      (entradas) => {
+        if (entradas.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px 0px' },
+    );
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [visible]);
+
+  return (
+    <video
+      ref={ref}
+      controls
+      preload="none"
+      playsInline
+      src={visible ? url : undefined}
+      poster={visible ? posterVideoCloudinary(url, 1280) : undefined}
+      aria-label={descripcion}
+    >
+      Tu navegador no puede reproducir este video. <a href={url}>Descárgalo aquí</a>.
+    </video>
+  );
+}
 
 function Videos() {
   const { estado } = useApi((signal) => api.videos(signal), []);
@@ -29,9 +70,7 @@ function Videos() {
         <div className="home-videos__grid">
           {videos.map((v) => (
             <figure key={v.id} className="home-videos__item">
-              <video controls preload="metadata" src={v.url} aria-label={v.descripcion ?? 'Video del semillero'}>
-                Tu navegador no puede reproducir este video. <a href={v.url}>Descárgalo aquí</a>.
-              </video>
+              <VideoDiferido url={v.url} descripcion={v.descripcion ?? 'Video del semillero'} />
               {v.descripcion && <figcaption>{v.descripcion}</figcaption>}
             </figure>
           ))}

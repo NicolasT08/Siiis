@@ -5,6 +5,7 @@ import AppRoutes from './app/routes/AppRoutes';
 import AuthProvider from './components/AuthProvider';
 import ErrorBoundary from './components/ErrorBoundary';
 import { recargarUnaVez } from './lib/recargaPorChunk';
+import './assets/fuentes/fuentes.css';
 import './styles/global.css';
 import './styles/siiis.css';
 import './styles/app.css';
