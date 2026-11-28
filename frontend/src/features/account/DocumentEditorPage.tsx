@@ -157,7 +157,7 @@ function Imagenes({ modulo, documento, onCambio }: { modulo: Modulo; documento: 
           ))}
         </ul>
       )}
-      <label className={`btn btn--navy${ocupado || lleno ? ' is-disabled' : ''}`} aria-disabled={ocupado || lleno}>
+      <label className={`btn btn--navy btn-archivo${ocupado || lleno ? ' is-disabled' : ''}`} aria-disabled={ocupado || lleno}>
         <Upload size={16} aria-hidden="true" /> {ocupado ? 'Procesando…' : lleno ? 'Límite de adjuntos alcanzado' : 'Subir imagen'}
         <input type="file" className="visually-hidden" accept="image/jpeg,image/png,image/webp" disabled={ocupado || lleno} onChange={(e) => void subir(e)} />
       </label>
@@ -394,7 +394,7 @@ function Formulario({ modulo, categoriaInicial, documento }: { modulo: Modulo; c
                 setCampos((c) => ({ ...c, pdf: problema ?? '', ...(lista[0] && c.contenido === SIN_TEXTO_NI_PDF ? { contenido: '' } : {}) }));
               }}
               accept="application/pdf,.pdf"
-              etiqueta={pdf.length ? 'Cambiar PDF' : principal ? 'Reemplazar PDF' : 'Elegir PDF'}
+              etiqueta={pdf.length ? 'Cambiar PDF' : principal ? 'Reemplazar PDF' : 'Seleccionar PDF'}
               ayuda="Solo PDF, máximo 3 MB."
               disabled={guardando}
               invalido={!!campos.pdf}

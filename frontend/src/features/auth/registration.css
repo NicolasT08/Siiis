@@ -120,7 +120,8 @@
   gap: 1rem;
 }
 
-.registration-form label,
+/* :not(.btn): el botón del selector de archivos también es un <label> y no debe heredar este estilo. */
+.registration-form label:not(.btn),
 .registration-areas legend {
   color: var(--siiis-navy);
   font-size: 0.78rem;

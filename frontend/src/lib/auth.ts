@@ -13,6 +13,8 @@ export type AuthContextValue = {
   logout: () => Promise<void>;
   /** Vuelve a leer /auth/me (p. ej. tras cambiar el nombre o la foto). */
   refrescar: () => Promise<void>;
+  /** Aplica un cambio ya confirmado por la API al usuario de la sesión, sin esperar a /auth/me (p. ej. quitar la foto). */
+  actualizarSesion: (cambios: Partial<UsuarioSesion>) => void;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

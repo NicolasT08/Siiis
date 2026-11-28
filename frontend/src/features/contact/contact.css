@@ -57,7 +57,7 @@
   gap: 0.55rem;
 }
 
-.contact-form label {
+.contact-form label:not(.btn) {
   margin-top: 0.35rem;
   color: var(--siiis-navy);
   font-size: 0.78rem;

@@ -62,8 +62,24 @@ fieldset.app-field { margin: 0; padding: 0; border: 0; }
 
 /* Selector de archivos propio (SelectorArchivos): botón como los del sitio en lugar del control nativo. */
 .file-picker { display: grid; justify-items: start; gap: 0.5rem; font-size: 0.85rem; font-weight: 500; }
-.file-picker__button { cursor: pointer; }
-.file-picker input:focus-visible + .file-picker__button { outline: 3px solid var(--siiis-gold); outline-offset: 2px; }
+/* Botón que abre el selector de archivos (.btn-archivo): es un <label> con el <input type="file"> oculto, así que
+   las reglas de etiquetas de los formularios (.registration-form label, .app-field…) le cambiaban el color, la
+   tipografía y las mayúsculas: texto azul sobre fondo azul. Con label.btn.btn-archivo (0,2,1) ninguna regla de
+   "form label" (0,1,1) lo pisa. Lo usan SelectorArchivos (inscripción, PDF de documentos, fotos y video del panel),
+   la foto de perfil y las imágenes adjuntas del editor. */
+label.btn.btn-archivo {
+  margin: 0;
+  font: 600 0.9rem/1 var(--font-body);
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+}
+label.btn-archivo.btn--navy, label.btn-archivo.btn--navy:hover { color: #fff; }
+label.btn-archivo.btn--navy:hover:not(.is-disabled) { background: var(--siiis-blue); }
+label.btn-archivo.is-disabled, label.btn-archivo.is-disabled:hover { background: var(--siiis-navy); cursor: not-allowed; }
+/* El foco lo recibe el input oculto: se dibuja en el botón (input hermano o input dentro del label). */
+.file-picker input:focus-visible + .btn-archivo,
+label.btn-archivo:has(input:focus-visible) { outline: 3px solid var(--siiis-gold); outline-offset: 2px; }
 .file-picker__hint, .file-picker__empty { margin: 0; color: var(--siiis-ink-muted); font-size: 0.8rem; }
 .file-picker__list { display: grid; gap: 0.4rem; width: 100%; margin: 0; padding: 0; list-style: none; }
 .file-picker__list li {
@@ -308,3 +324,4 @@ fieldset.app-field { margin: 0; padding: 0; border: 0; }
   .app-dialog--preview .app-dialog__actions { bottom: -1.2rem; margin: 1rem -1.2rem -1.2rem; padding: 0.8rem 1.2rem; }
   .app-dialog--preview .doc-pdf__viewer { height: 60vh; }
 }
+.app-profile__photo-actions { justify-content: center; }

@@ -120,6 +120,18 @@ final class UsersController
         return JsonResponse::ok(['usuario' => $usuario])->withHeader('Cache-Control', 'no-store');
     }
 
+    /**
+     * DELETE /api/v1/users/{id}/photo — el usuario autenticado quita su propia foto (RF-06, DEC-B74).
+     *
+     * @param array{id: string} $args
+     */
+    public function removePhoto(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $usuario = $this->users->quitarFoto($args['id'], (string) $request->getAttribute(AuthMiddleware::ATTR_USUARIO_ID));
+
+        return JsonResponse::ok(['usuario' => $usuario])->withHeader('Cache-Control', 'no-store');
+    }
+
     private static function actorRol(ServerRequestInterface $request): ?string
     {
         $rol = $request->getAttribute(AuthMiddleware::ATTR_ROL);

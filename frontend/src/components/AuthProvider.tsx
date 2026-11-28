@@ -116,9 +116,13 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(actual);
   }, []);
 
+  const actualizarSesion = useCallback((cambios: Partial<UsuarioSesion>) => {
+    setUsuario((actual) => (actual ? { ...actual, ...cambios } : actual));
+  }, []);
+
   const value = useMemo(
-    () => ({ usuario, cargando, sesionExpirada, login, loginConGoogle, logout, refrescar }),
-    [usuario, cargando, sesionExpirada, login, loginConGoogle, logout, refrescar],
+    () => ({ usuario, cargando, sesionExpirada, login, loginConGoogle, logout, refrescar, actualizarSesion }),
+    [usuario, cargando, sesionExpirada, login, loginConGoogle, logout, refrescar, actualizarSesion],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -403,6 +403,8 @@ export const api = {
   deactivateUser: (id: string) => request<{ usuario: UsuarioAdmin }>(`/users/${enc(id)}`, { method: 'DELETE' }),
   uploadPhoto: (id: string, foto: File) =>
     request<{ usuario: UsuarioAdmin }>(`/users/${enc(id)}/photo`, { method: 'POST', body: formulario({ foto }) }),
+  /** 6h: solo el propio usuario (DEC-B74). */
+  removePhoto: (id: string) => request<{ usuario: UsuarioAdmin }>(`/users/${enc(id)}/photo`, { method: 'DELETE' }),
 
   // 7–8. Inicio
   slider: (signal?: AbortSignal) => request<{ data: MultimediaItem[] }>('/home/slider', { signal }),

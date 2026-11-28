@@ -229,7 +229,7 @@ function Seccion({ seccion, titulo, esVideo, ayuda }: (typeof SECCIONES)[number]
               archivos={archivos}
               onChange={setArchivos}
               accept={esVideo ? 'video/mp4,video/webm,video/quicktime' : 'image/jpeg,image/png,image/webp'}
-              etiqueta={esVideo ? (archivos.length ? 'Cambiar video' : 'Elegir video') : archivos.length ? 'Cambiar foto' : 'Elegir foto'}
+              etiqueta={esVideo ? (archivos.length ? 'Cambiar video' : 'Seleccionar video') : archivos.length ? 'Cambiar foto' : 'Seleccionar foto'}
               disabled={ocupado}
               invalido={!!campos.archivo}
               errorId={`${ids.archivo}-e`}

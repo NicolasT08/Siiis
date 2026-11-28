@@ -233,6 +233,76 @@ final class UsersPhotoApiTest extends AuthTestCase
         self::assertStringContainsString('"public_id":"ana"', $logs);
     }
 
+    // --- DELETE /users/{id}/photo (DEC-B74) -------------------------------------------------------------------
+
+    public function testQuitarLaFotoLaDejaEnNullYLaBorraDeCloudinary(): void
+    {
+        // crearCuenta deja una foto previa con public_id "ana".
+        [$token, $id] = $this->sesionComo($this->app, 'estudiante');
+
+        $response = $this->quitar((string) $id, $token);
+
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+        self::assertSame('no-store', $response->getHeaderLine('Cache-Control'));
+        self::assertNull($this->json($response)['usuario']['foto_perfil']);
+        self::assertStringNotContainsString('public_id', (string) $response->getBody());
+        self::assertNull($this->db->usuarios[(string) $id]['foto_perfil']);
+        self::assertSame(['ana'], $this->cloudinary->borrados);
+        self::assertSame([], $this->cloudinary->subidas);
+
+        // La vista pública también queda sin foto.
+        $publico = $this->json($this->app->handle($this->request('GET', '/api/v1/users/' . $id)))['usuario'];
+        self::assertNull($publico['foto_perfil']);
+    }
+
+    public function testQuitarSinFotoRespondeExitoSinHacerNada(): void
+    {
+        [$token, $id] = $this->sesionComo($this->app, 'estudiante', ['foto_perfil' => null]);
+
+        $response = $this->quitar((string) $id, $token);
+
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+        self::assertNull($this->json($response)['usuario']['foto_perfil']);
+        self::assertSame([], $this->cloudinary->borrados);
+    }
+
+    public function testQuitarSinSesionResponde401(): void
+    {
+        [, $id] = $this->sesionComo($this->app, 'estudiante');
+
+        $this->assertError($this->quitar((string) $id), 401, 'UNAUTHORIZED');
+        self::assertSame('ana', $this->db->usuarios[(string) $id]['foto_perfil']['public_id']);
+        self::assertSame([], $this->cloudinary->borrados);
+    }
+
+    public function testNadieQuitaLaFotoDeOtroNiUnAdministrador(): void
+    {
+        [, $estudiante] = $this->sesionComo($this->app, 'estudiante');
+        [$token] = $this->sesionComo($this->app, 'administrador');
+
+        $this->assertError($this->quitar((string) $estudiante, $token), 403, 'FORBIDDEN');
+        self::assertSame('ana', $this->db->usuarios[(string) $estudiante]['foto_perfil']['public_id']);
+        self::assertSame([], $this->cloudinary->borrados);
+    }
+
+    public function testFalloDeCloudinaryAlQuitarQuedaEnElLogYLaFotoSeQuita(): void
+    {
+        [$token, $id] = $this->sesionComo($this->app, 'estudiante');
+        $this->cloudinary->fallarBorrado = true;
+
+        $response = $this->quitar((string) $id, $token);
+
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+        self::assertNull($this->db->usuarios[(string) $id]['foto_perfil']);
+        $logs = implode('', array_map('file_get_contents', glob($this->storage . '/logs/*.log') ?: []));
+        self::assertStringContainsString('"public_id":"ana"', $logs);
+    }
+
+    private function quitar(string $id, ?string $token = null): ResponseInterface
+    {
+        return $this->app->handle($this->request('DELETE', '/api/v1/users/' . $id . '/photo', null, $token === null ? [] : self::bearer($token)));
+    }
+
     private function subir(string $id, UploadedFile $archivo, ?string $token = null): ResponseInterface
     {
         return $this->app->handle($this->peticion($id, $archivo, $token));
