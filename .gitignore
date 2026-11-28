@@ -10,6 +10,8 @@ backend/vendor/
 backend/storage/logs/*
 backend/storage/ratelimit/*
 backend/storage/cache/*
+# Respaldos de la base (scripts/respaldar_base.php): datos personales y hashes de contraseñas
+backend/storage/respaldos/
 !backend/storage/logs/.gitkeep
 !backend/storage/ratelimit/.gitkeep
 !backend/storage/cache/.gitkeep

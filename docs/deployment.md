@@ -245,6 +245,7 @@ Los cambios de orígenes pueden tardar desde unos minutos hasta una hora en apli
   ```
 
   La ruta de `php` y la de la carpeta las muestra hPanel en la misma pantalla. La salida es una línea con la cantidad de contadores borrados.
+- **Respaldos de la base**: ver la sección "Respaldos" más abajo (Atlas M0 no hace respaldos).
 - Logs en `storage/logs/app-YYYY-MM-DD.log`. No registran contraseñas ni tokens.
 - Fotos huérfanas en Cloudinary: si falla el borrado de una foto reemplazada, la API responde igual `200` y deja en el log `No se pudo borrar una foto de Cloudinary` con su `public_id`. Revisa el log de vez en cuando y bórralas desde la consola de Cloudinary.
 - Adjuntos huérfanos: lo mismo al quitar un adjunto o borrar un documento. El mensaje del log es `No se pudo borrar un adjunto de Cloudinary`, con el `public_id` y el motivo.
@@ -263,6 +264,91 @@ Los cambios de orígenes pueden tardar desde unos minutos hasta una hora en apli
   2. Anota el `public_id` de cada elemento de `documentos_adjuntos` y bórralos en la consola de Cloudinary (*Media Library*, carpeta `siiis/inscripciones`, tipo **Authenticated**). Primero los archivos: si se borra antes el documento, se pierden los `public_id`.
   3. Borra esos documentos en Atlas.
   Las solicitudes `pendiente` y `aceptada` no se borran con este procedimiento.
+
+## Comprobar cabeceras (auditoría A-03)
+
+`frontend/public/.htaccess` (raíz de `public_html`) y `frontend/public/assets/.htaccess` se copian solos al
+`dist/` del build. Después de desplegar, cambia el dominio y revisa:
+
+```bash
+# Página (y una ruta de la SPA): nosniff, X-Frame-Options SAMEORIGIN, Referrer-Policy, HSTS y Cache-Control: no-cache
+curl -sI https://siiis.com.co/ | grep -iE 'x-content-type|x-frame|referrer|strict-transport|cache-control'
+curl -sI https://siiis.com.co/proyectos | grep -iE 'x-frame|strict-transport|cache-control'
+# Sin HTTPS no debe haber HSTS (si hPanel fuerza HTTPS, responde 301 sin la cabecera)
+curl -sI http://siiis.com.co/ | grep -iE 'strict-transport|location'
+# JS y CSS con hash: caché de un año, immutable (usa un nombre real de dist/assets)
+curl -sI https://siiis.com.co/assets/$(ls frontend/dist/assets | grep -m1 '^index-.*\.js$') | grep -i cache-control
+# La API conserva sus cabeceras propias (X-Frame-Options: DENY, Referrer-Policy: no-referrer)
+curl -sI https://siiis.com.co/api/v1/health | grep -iE 'x-frame|referrer|content-security'
+# Nada privado accesible desde la web (todas deben dar 403 o 404)
+curl -s -o /dev/null -w '%{http_code}\n' https://siiis.com.co/siiis-api/.env
+curl -s -o /dev/null -w '%{http_code}\n' https://siiis.com.co/.env
+curl -s -o /dev/null -w '%{http_code}\n' https://siiis.com.co/api/.htaccess
+```
+
+Si falta alguna cabecera, el módulo correspondiente (`mod_headers`, `mod_setenvif`) no está activo: cada bloque
+va dentro de `<IfModule>`, así que el sitio sigue funcionando sin ella.
+
+## Respaldos
+
+El plan gratuito de Atlas (M0) no tiene respaldos automáticos ni restauración a un punto en el tiempo
+(auditoría A-01). `scripts/respaldar_base.php` exporta la base a archivos locales:
+
+- **Solo lee** la base de `MONGO_DB_NAME` (con `--test`, la de `MONGO_DB_NAME_TEST`). No envía nada a servicios
+  externos ni toca Cloudinary.
+- Crea `RESPALDO_DIR/AAAAMMDD-HHMMSS/` (hora UTC) con un `<Coleccion>.json` por colección y un `manifest.json`
+  (base, fecha y cantidad de documentos). Formato: **Extended JSON canónico v2, un documento por línea**, el que
+  lee `mongoimport`; conserva `ObjectId`, fechas, `Int64` y decimales exactos.
+- Escribe primero en `.parcial-…` y la renombra al terminar: si falla a mitad, no queda un respaldo incompleto.
+- Conserva los últimos `RESPALDO_MAX` (por defecto 7) y borra los más antiguos.
+- `RESPALDO_DIR` vacío = `storage/respaldos` (en Hostinger, `siiis-api/storage/respaldos`, fuera de
+  `public_html`). Una ruta relativa se toma desde `backend/` (`siiis-api/`). La API no arranca si apunta dentro de
+  `public_html`. Además, el script deja un `.htaccess` con `Require all denied` en la carpeta y crea carpetas 0700
+  y archivos 0600. `backend/storage/respaldos/` está en `.gitignore`.
+- Los respaldos contienen **hashes de contraseñas y datos personales**: no se suben a Git ni a carpetas
+  compartidas abiertas.
+
+**A mano** (por SSH o en local; en local respalda la base que diga tu `.env`):
+
+```bash
+cd /home/USUARIO/domains/siiis.com.co/siiis-api
+php scripts/respaldar_base.php
+```
+
+La salida lista la carpeta creada, los documentos por colección y los respaldos antiguos borrados. Código de
+salida 1 si algo falla (sin conexión a Atlas, sin permisos de escritura).
+
+**Con cron en Hostinger** (hPanel → *Avanzado → Cron Jobs*; la ruta de `php` la muestra la misma pantalla), una vez
+al día a las 4:00, después de la limpieza del rate limiting. Con `RESPALDO_MAX=7` queda una semana de respaldos:
+
+```text
+0 4 * * * /usr/bin/php /home/USUARIO/domains/siiis.com.co/siiis-api/scripts/respaldar_base.php >> /home/USUARIO/domains/siiis.com.co/siiis-api/storage/logs/respaldo.log 2>&1
+```
+
+Una vez al mes, descarga la carpeta más reciente (Administrador de archivos de hPanel o `scp`) a un
+almacenamiento del semillero con acceso restringido: si se pierde la cuenta de Hostinger, se pierden también los
+respaldos que están ahí.
+
+**Restaurar con `mongoimport`** (MongoDB Database Tools). Primero en una base aparte para revisar, y solo después
+sobre `siiis`:
+
+```bash
+cd siiis-api/storage/respaldos/20261128-040000
+for archivo in *.json; do
+  [ "$archivo" = "manifest.json" ] && continue
+  mongoimport --uri "$MONGO_URI" --db siiis_restaurada --collection "${archivo%.json}" \
+    --file "$archivo" --mode insert
+done
+```
+
+- Para reemplazar la base real: `--db siiis --drop` (borra cada colección antes de importarla). Hazlo solo después
+  de revisar `siiis_restaurada` y con un respaldo nuevo de lo que haya en `siiis`.
+- `mongoimport` no crea índices: después corre `php scripts/crear_indices.php` (con `MONGO_DB_NAME` apuntando a la
+  base restaurada), que también recrea el índice TTL de `Sesiones`.
+- Compara la cantidad de documentos con `manifest.json`.
+- `mongorestore` no sirve con estos archivos: solo lee el BSON que genera `mongodump`. Si se hizo además un
+  `mongodump` (por ejemplo antes de una migración), se restaura con
+  `mongorestore --uri "$MONGO_URI" --nsInclude 'siiis.*' dump/`.
 
 ## Seguridad en producción (revisión del 2026-11-26)
 
