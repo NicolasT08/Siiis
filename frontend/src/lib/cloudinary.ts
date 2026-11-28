@@ -44,6 +44,19 @@ export function posterVideoCloudinary(url: string | undefined, ancho: number): s
   return `${p.base}so_1,f_auto,q_auto,c_limit,w_${Math.round(ancho)}/${ruta}`;
 }
 
+/** Cloud name del semillero en Cloudinary (no es secreto: va en todas las URL públicas). */
+export const CLOUDINARY_CLOUD_NAME = 'we3ya7sq';
+
+/**
+ * URL de entrega de una imagen por su `public_id` (sin extensión), con la transformación indicada. Va con la
+ * versión fija `v1`: sin un segmento de versión, Cloudinary confunde la primera carpeta del `public_id` con una
+ * transformación (responde 400); acepta cualquier número. Como la URL no cambia al reemplazar el archivo, la CDN
+ * puede seguir sirviendo el anterior hasta invalidarla (docs/deployment.md, "Mantenimiento").
+ */
+export function imagenPorPublicId(publicId: string, transformacion: string): string {
+  return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${transformacion}/v1/${publicId}`;
+}
+
 /** Logos oficiales del semillero (Cloudinary del proyecto). */
-export const LOGO_BLANCO = 'https://res.cloudinary.com/we3ya7sq/image/upload/v1789264275/Logo_Png_Blanco.png';
-export const LOGO_AZUL = 'https://res.cloudinary.com/we3ya7sq/image/upload/v1788989589/Logo_Azul.png';
+export const LOGO_BLANCO = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/v1789264275/Logo_Png_Blanco.png`;
+export const LOGO_AZUL = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/v1788989589/Logo_Azul.png`;
